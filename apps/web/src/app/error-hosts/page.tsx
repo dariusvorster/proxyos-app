@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, Button, Card, DataTable, Input, Select, td, th, Textarea } from '~/components/ui'
+import { Badge, Button, Card, DataTable, Input, Select, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
@@ -124,11 +124,12 @@ export default function ErrorHostsPage() {
               {form.pageType === 'custom_html' && (
                 <div style={{ display: 'grid', gap: 4 }}>
                   <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Custom HTML</label>
-                  <Textarea
+                  <textarea
                     value={form.customHtml}
                     onChange={(e) => setForm((f) => ({ ...f, customHtml: e.target.value }))}
                     placeholder="<!DOCTYPE html>..."
                     rows={8}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 12, padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surf2)', color: 'var(--text)', resize: 'vertical' }}
                   />
                 </div>
               )}

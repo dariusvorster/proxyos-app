@@ -88,7 +88,7 @@ export default function AccessListsPage() {
 
   function updateIpRule(i: number, patch: Partial<IpRuleDraft>) {
     const next = [...form.ipRules]
-    next[i] = { ...next[i], ...patch }
+    next[i] = { ...next[i], ...patch } as IpRuleDraft
     setField('ipRules', next)
   }
 
