@@ -26,6 +26,7 @@ RUN set -eux; \
     chmod +x /usr/local/bin/xcaddy; \
     GOFLAGS=-mod=mod xcaddy build "v${CADDY_VERSION}" \
       --with github.com/mholt/caddy-l4 \
+      --with github.com/caddy-dns/cloudflare \
       --output /usr/local/bin/caddy; \
     chmod +x /usr/local/bin/caddy
 
