@@ -45,7 +45,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV PROXYOS_DB_PATH=/data/proxyos/proxyos.db
 ENV PROXYOS_ACCESS_LOG=/data/proxyos/access.log
-ENV CADDY_BASE_CONFIG_PATH=/config/caddy/base-config.json
+ENV CADDY_BASE_CONFIG_PATH=/etc/caddy/base-config.json
 ENV CADDY_ADMIN_URL=http://localhost:2019
 ENV XDG_DATA_HOME=/data/caddy
 ENV XDG_CONFIG_HOME=/config/caddy
@@ -63,8 +63,9 @@ RUN mkdir -p /tmp/native && cd /tmp/native && \
     cp -r /tmp/native/node_modules/. /app/apps/web/node_modules/ && \
     rm -rf /tmp/native
 
-# Caddy base config (before VOLUME so it seeds the named volume on first run)
-COPY caddy/base-config.json /config/caddy/base-config.json
+# Caddy base config — stored OUTSIDE the named volume so it always comes from the image
+RUN mkdir -p /etc/caddy
+COPY caddy/base-config.json /etc/caddy/base-config.json
 
 # s6-overlay service definitions
 COPY docker/s6-overlay/ /etc/s6-overlay/
