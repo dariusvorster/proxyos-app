@@ -48,7 +48,7 @@ export async function addStep(
 
   if (!rows.length) return
 
-  const existing: OperationStep[] = JSON.parse(rows[0].steps ?? '[]')
+  const existing: OperationStep[] = JSON.parse(rows[0]?.steps ?? '[]')
   const newStep: OperationStep = { ts: Date.now(), message: step.message, status: step.status }
   existing.push(newStep)
 
