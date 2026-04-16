@@ -11,7 +11,7 @@ RUN pnpm --filter @proxyos/web build
 FROM node:22-alpine AS runner
 RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++ go
 
-# Install Caddy with layer4 module via xcaddy
+# Install Caddy with layer4 module via xcaddy (requires Caddy >= 2.11.1 for caddy-l4 v0.1.0)
 ARG CADDY_VERSION=2.11.1
 ARG XCADDY_VERSION=0.4.4
 RUN set -eux; \
