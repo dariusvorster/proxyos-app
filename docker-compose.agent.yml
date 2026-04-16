@@ -1,0 +1,30 @@
+version: "3.8"
+
+# ProxyOS Agent — deploy this on each remote host
+# Fill in CENTRAL_URL, AGENT_TOKEN, and AGENT_ID from the Central dashboard
+
+services:
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy run --config /dev/null
+
+  proxyos-agent:
+    image: ghcr.io/proxyos/agent:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      CENTRAL_URL: ${CENTRAL_URL}
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      AGENT_ID: ${AGENT_ID}
+      CADDY_ADMIN_URL: http://localhost:2019
+    depends_on:
+      - caddy
+
+volumes:
+  caddy_data:
+  caddy_config:

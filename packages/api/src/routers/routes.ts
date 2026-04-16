@@ -1,0 +1,470 @@
+import { TRPCError } from '@trpc/server'
+import { eq } from 'drizzle-orm'
+import { z } from 'zod'
+import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
+import { dnsProviders, nanoid, routes, ssoProviders, auditLog } from '@proxyos/db'
+import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
+import { publicProcedure, router } from '../trpc'
+
+const upstreamSchema = z.object({
+  address: z.string().min(1),
+})
+
+const createInput = z.object({
+  name: z.string().min(1).max(100),
+  domain: z.string().min(1).max(253),
+  upstreams: z.array(upstreamSchema).min(1),
+  tlsMode: z.enum(['auto', 'dns', 'internal', 'custom', 'off']).default('auto'),
+  ssoEnabled: z.boolean().default(false),
+  ssoProviderId: z.string().nullable().default(null),
+  tlsDnsProviderId: z.string().nullable().default(null),
+  compressionEnabled: z.boolean().default(true),
+  healthCheckEnabled: z.boolean().default(true),
+  healthCheckPath: z.string().default('/'),
+})
+
+const exposeInput = z.object({
+  name: z.string().min(1).max(100),
+  upstreamUrl: z.string().min(1),
+  domain: z.string().min(1).max(253),
+  tlsMode: z.enum(['auto', 'dns', 'internal', 'custom', 'off']).default('auto'),
+  tlsDnsProviderId: z.string().nullable().default(null),
+  ssoEnabled: z.boolean().default(false),
+  ssoProviderId: z.string().nullable().default(null),
+})
+
+function rowToRoute(row: typeof routes.$inferSelect): Route {
+  return {
+    id: row.id,
+    name: row.name,
+    domain: row.domain,
+    enabled: row.enabled,
+    upstreamType: row.upstreamType as Route['upstreamType'],
+    upstreams: JSON.parse(row.upstreams) as Route['upstreams'],
+    tlsMode: row.tlsMode as Route['tlsMode'],
+    tlsDnsProviderId: row.tlsDnsProviderId,
+    ssoEnabled: row.ssoEnabled,
+    ssoProviderId: row.ssoProviderId,
+    rateLimit: row.rateLimit ? (JSON.parse(row.rateLimit) as Route['rateLimit']) : null,
+    ipAllowlist: row.ipAllowlist ? (JSON.parse(row.ipAllowlist) as string[]) : null,
+    basicAuth: row.basicAuth ? (JSON.parse(row.basicAuth) as Route['basicAuth']) : null,
+    headers: row.headers ? (JSON.parse(row.headers) as Record<string, unknown>) : null,
+    healthCheckEnabled: row.healthCheckEnabled,
+    healthCheckPath: row.healthCheckPath,
+    healthCheckInterval: row.healthCheckInterval,
+    compressionEnabled: row.compressionEnabled,
+    websocketEnabled: row.websocketEnabled,
+    http2Enabled: row.http2Enabled,
+    http3Enabled: row.http3Enabled,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route): Promise<void> {
+  let ssoProvider: SSOProvider | null = null
+  if (route.ssoEnabled && route.ssoProviderId) {
+    const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, route.ssoProviderId)).get()
+    if (row) ssoProvider = rowToSSOProvider(row)
+  }
+  let dnsProvider: DnsProvider | null = null
+  if (route.tlsMode === 'dns' && route.tlsDnsProviderId) {
+    const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, route.tlsDnsProviderId)).get()
+    if (row) dnsProvider = rowToDnsProvider(row)
+  }
+  const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+  if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
+  await ctx.caddy.updateRoute(route.id, buildCaddyRoute(route, { ssoProvider, dnsProvider }))
+}
+
+function rowToDnsProvider(row: typeof dnsProviders.$inferSelect): DnsProvider {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type as DnsProviderType,
+    credentials: JSON.parse(row.credentials) as Record<string, string>,
+    enabled: row.enabled,
+    createdAt: row.createdAt,
+  }
+}
+
+function rowToSSOProvider(row: typeof ssoProviders.$inferSelect): SSOProvider {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type as SSOProviderType,
+    forwardAuthUrl: row.forwardAuthUrl,
+    authResponseHeaders: JSON.parse(row.authResponseHeaders) as string[],
+    trustedIPs: JSON.parse(row.trustedIPs) as string[],
+    enabled: row.enabled,
+    lastTestedAt: row.lastTestedAt,
+    testStatus: row.testStatus as SSOProvider['testStatus'],
+    createdAt: row.createdAt,
+  }
+}
+
+export const routesRouter = router({
+  list: publicProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.select().from(routes)
+    return rows.map(rowToRoute)
+  }),
+
+  create: publicProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.db.select().from(routes).where(eq(routes.domain, input.domain)).get()
+    if (existing) {
+      throw new TRPCError({ code: 'CONFLICT', message: `${input.domain} already has a route` })
+    }
+
+    let ssoProvider: SSOProvider | null = null
+    if (input.ssoEnabled) {
+      if (!input.ssoProviderId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'ssoProviderId required when ssoEnabled' })
+      }
+      const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, input.ssoProviderId)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'SSO provider not found' })
+      ssoProvider = rowToSSOProvider(row)
+    }
+
+    let dnsProvider: DnsProvider | null = null
+    if (input.tlsMode === 'dns') {
+      if (!input.tlsDnsProviderId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'tlsDnsProviderId required when tlsMode=dns' })
+      }
+      const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, input.tlsDnsProviderId)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'DNS provider not found' })
+      dnsProvider = rowToDnsProvider(row)
+    }
+
+    const now = new Date()
+    const id = nanoid()
+    const route: Route = {
+      id,
+      name: input.name,
+      domain: input.domain,
+      enabled: true,
+      upstreamType: 'http',
+      upstreams: input.upstreams,
+      tlsMode: input.tlsMode,
+      tlsDnsProviderId: input.tlsDnsProviderId ?? null,
+      ssoEnabled: input.ssoEnabled,
+      ssoProviderId: input.ssoProviderId,
+      healthCheckEnabled: input.healthCheckEnabled,
+      healthCheckPath: input.healthCheckPath,
+      healthCheckInterval: 30,
+      compressionEnabled: input.compressionEnabled,
+      websocketEnabled: true,
+      http2Enabled: true,
+      http3Enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await ctx.db.insert(routes).values({
+      id,
+      name: route.name,
+      domain: route.domain,
+      enabled: true,
+      upstreamType: route.upstreamType,
+      upstreams: JSON.stringify(route.upstreams),
+      tlsMode: route.tlsMode,
+      tlsDnsProviderId: route.tlsDnsProviderId,
+      ssoEnabled: route.ssoEnabled,
+      ssoProviderId: route.ssoProviderId,
+      healthCheckEnabled: route.healthCheckEnabled ?? true,
+      healthCheckPath: route.healthCheckPath ?? '/',
+      healthCheckInterval: route.healthCheckInterval ?? 30,
+      compressionEnabled: route.compressionEnabled ?? true,
+      websocketEnabled: true,
+      http2Enabled: true,
+      http3Enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    try {
+      const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+      if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
+      await ctx.caddy.addRoute(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
+    } catch (err) {
+      await ctx.db.delete(routes).where(eq(routes.id, id))
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to push route to Caddy: ${(err as Error).message}`,
+      })
+    }
+
+    await ctx.db.insert(auditLog).values({
+      id: nanoid(),
+      action: 'route.create',
+      resourceType: 'route',
+      resourceId: id,
+      resourceName: route.domain,
+      actor: 'user',
+      detail: JSON.stringify({ upstreams: route.upstreams, tlsMode: route.tlsMode, ssoEnabled: route.ssoEnabled }),
+      createdAt: now,
+    })
+
+    return route
+  }),
+
+  expose: publicProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
+    if (!(await ctx.caddy.health())) {
+      throw new TRPCError({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Caddy admin API is not reachable. Start Caddy before exposing a service.',
+      })
+    }
+
+    const existing = await ctx.db.select().from(routes).where(eq(routes.domain, input.domain)).get()
+    if (existing) {
+      throw new TRPCError({ code: 'CONFLICT', message: `${input.domain} already has a route` })
+    }
+
+    let ssoProvider: SSOProvider | null = null
+    if (input.ssoEnabled) {
+      if (!input.ssoProviderId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'ssoProviderId required when ssoEnabled' })
+      }
+      const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, input.ssoProviderId)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'SSO provider not found' })
+      ssoProvider = rowToSSOProvider(row)
+    }
+
+    let dnsProvider: DnsProvider | null = null
+    if (input.tlsMode === 'dns') {
+      if (!input.tlsDnsProviderId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'tlsDnsProviderId required when tlsMode=dns' })
+      }
+      const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, input.tlsDnsProviderId)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'DNS provider not found' })
+      dnsProvider = rowToDnsProvider(row)
+    }
+
+    const now = new Date()
+    const id = nanoid()
+    const upstreamAddress = input.upstreamUrl.replace(/^https?:\/\//, '')
+    const route: Route = {
+      id,
+      name: input.name,
+      domain: input.domain,
+      enabled: true,
+      upstreamType: 'http',
+      upstreams: [{ address: upstreamAddress }],
+      tlsMode: input.tlsMode,
+      tlsDnsProviderId: input.tlsDnsProviderId ?? null,
+      ssoEnabled: input.ssoEnabled,
+      ssoProviderId: input.ssoProviderId,
+      healthCheckEnabled: true,
+      healthCheckPath: '/',
+      healthCheckInterval: 30,
+      compressionEnabled: true,
+      websocketEnabled: true,
+      http2Enabled: true,
+      http3Enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    await ctx.db.insert(routes).values({
+      id,
+      name: route.name,
+      domain: route.domain,
+      enabled: true,
+      upstreamType: route.upstreamType,
+      upstreams: JSON.stringify(route.upstreams),
+      tlsMode: route.tlsMode,
+      tlsDnsProviderId: route.tlsDnsProviderId,
+      ssoEnabled: route.ssoEnabled,
+      ssoProviderId: route.ssoProviderId,
+      healthCheckEnabled: true,
+      healthCheckPath: '/',
+      healthCheckInterval: 30,
+      compressionEnabled: true,
+      websocketEnabled: true,
+      http2Enabled: true,
+      http3Enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    try {
+      const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+      if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
+      await ctx.caddy.addRoute(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
+    } catch (err) {
+      await ctx.db.delete(routes).where(eq(routes.id, id))
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to push route to Caddy: ${(err as Error).message}`,
+      })
+    }
+
+    await ctx.db.insert(auditLog).values({
+      id: nanoid(),
+      action: 'route.expose',
+      resourceType: 'route',
+      resourceId: id,
+      resourceName: route.domain,
+      actor: 'user',
+      detail: JSON.stringify({ upstreamUrl: input.upstreamUrl, ssoEnabled: input.ssoEnabled, tlsMode: input.tlsMode }),
+      createdAt: now,
+    })
+
+    return {
+      success: true,
+      routeId: id,
+      domain: route.domain,
+      url: route.tlsMode === 'off' ? `http://${route.domain}` : `https://${route.domain}`,
+      ssoEnabled: route.ssoEnabled,
+      certStatus: route.tlsMode === 'off' ? 'none' : 'provisioning',
+    }
+  }),
+
+  get: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      return rowToRoute(row)
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        patch: z.object({
+          name: z.string().min(1).max(100).optional(),
+          upstreams: z.array(upstreamSchema).min(1).optional(),
+          tlsMode: z.enum(['auto', 'dns', 'internal', 'custom', 'off']).optional(),
+          tlsDnsProviderId: z.string().nullable().optional(),
+          ssoEnabled: z.boolean().optional(),
+          ssoProviderId: z.string().nullable().optional(),
+          rateLimit: z.object({ requests: z.number().int().min(1), window: z.string() }).nullable().optional(),
+          ipAllowlist: z.array(z.string()).nullable().optional(),
+          basicAuth: z.object({ username: z.string(), password: z.string() }).nullable().optional(),
+          compressionEnabled: z.boolean().optional(),
+          websocketEnabled: z.boolean().optional(),
+          http2Enabled: z.boolean().optional(),
+          http3Enabled: z.boolean().optional(),
+          healthCheckEnabled: z.boolean().optional(),
+          healthCheckPath: z.string().optional(),
+          healthCheckInterval: z.number().int().min(1).optional(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      const update: Record<string, unknown> = { updatedAt: new Date() }
+      const p = input.patch
+      if (p.name !== undefined) update.name = p.name
+      if (p.upstreams !== undefined) update.upstreams = JSON.stringify(p.upstreams)
+      if (p.tlsMode !== undefined) update.tlsMode = p.tlsMode
+      if (p.tlsDnsProviderId !== undefined) update.tlsDnsProviderId = p.tlsDnsProviderId
+      if (p.ssoEnabled !== undefined) update.ssoEnabled = p.ssoEnabled
+      if (p.ssoProviderId !== undefined) update.ssoProviderId = p.ssoProviderId
+      if (p.rateLimit !== undefined) update.rateLimit = p.rateLimit ? JSON.stringify(p.rateLimit) : null
+      if (p.ipAllowlist !== undefined) update.ipAllowlist = p.ipAllowlist ? JSON.stringify(p.ipAllowlist) : null
+      if (p.basicAuth !== undefined) update.basicAuth = p.basicAuth ? JSON.stringify(p.basicAuth) : null
+      if (p.compressionEnabled !== undefined) update.compressionEnabled = p.compressionEnabled
+      if (p.websocketEnabled !== undefined) update.websocketEnabled = p.websocketEnabled
+      if (p.http2Enabled !== undefined) update.http2Enabled = p.http2Enabled
+      if (p.http3Enabled !== undefined) update.http3Enabled = p.http3Enabled
+      if (p.healthCheckEnabled !== undefined) update.healthCheckEnabled = p.healthCheckEnabled
+      if (p.healthCheckPath !== undefined) update.healthCheckPath = p.healthCheckPath
+      if (p.healthCheckInterval !== undefined) update.healthCheckInterval = p.healthCheckInterval
+
+      await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
+
+      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      const route = rowToRoute(updated!)
+      try {
+        await syncRouteToCaddy(ctx, route)
+      } catch (err) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Failed to update Caddy: ${(err as Error).message}` })
+      }
+
+      await ctx.db.insert(auditLog).values({
+        id: nanoid(),
+        action: 'route.update',
+        resourceType: 'route',
+        resourceId: input.id,
+        resourceName: route.domain,
+        actor: 'user',
+        detail: JSON.stringify(p),
+        createdAt: new Date(),
+      })
+      return route
+    }),
+
+  toggle: publicProcedure
+    .input(z.object({ id: z.string(), enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      await ctx.db.update(routes).set({ enabled: input.enabled, updatedAt: new Date() }).where(eq(routes.id, input.id))
+      if (input.enabled) {
+        const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+        await syncRouteToCaddy(ctx, rowToRoute(updated!))
+      } else {
+        await ctx.caddy.removeRoute(input.id)
+      }
+      await ctx.db.insert(auditLog).values({
+        id: nanoid(),
+        action: input.enabled ? 'route.enable' : 'route.disable',
+        resourceType: 'route',
+        resourceId: input.id,
+        resourceName: row.domain,
+        actor: 'user',
+        createdAt: new Date(),
+      })
+      return { success: true }
+    }),
+
+  test: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const upstreams = JSON.parse(row.upstreams) as Array<{ address: string }>
+      const results: Array<{ address: string; ok: boolean; status?: number; latencyMs: number; error?: string }> = []
+      for (const u of upstreams) {
+        const url = u.address.startsWith('http') ? u.address : `http://${u.address}`
+        const start = performance.now()
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 5000)
+        try {
+          const res = await fetch(url + (row.healthCheckPath || '/'), { signal: controller.signal, redirect: 'manual' })
+          results.push({ address: u.address, ok: res.status < 500, status: res.status, latencyMs: Math.round(performance.now() - start) })
+        } catch (err) {
+          results.push({ address: u.address, ok: false, latencyMs: Math.round(performance.now() - start), error: (err as Error).message })
+        } finally {
+          clearTimeout(timer)
+        }
+      }
+      return { results }
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      await ctx.caddy.removeRoute(input.id)
+      await ctx.db.delete(routes).where(eq(routes.id, input.id))
+
+      await ctx.db.insert(auditLog).values({
+        id: nanoid(),
+        action: 'route.delete',
+        resourceType: 'route',
+        resourceId: input.id,
+        resourceName: row.domain,
+        actor: 'user',
+        createdAt: new Date(),
+      })
+
+      return { success: true }
+    }),
+})

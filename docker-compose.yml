@@ -1,0 +1,22 @@
+services:
+  proxyos:
+    build: .
+    image: proxyos:latest
+    container_name: proxyos
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "3000:3000"
+    volumes:
+      - proxyos-data:/data/proxyos
+      - caddy-data:/data/caddy
+      - caddy-config:/config/caddy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+volumes:
+  proxyos-data:
+  caddy-data:
+  caddy-config:

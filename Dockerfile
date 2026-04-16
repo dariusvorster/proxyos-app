@@ -1,0 +1,75 @@
+# ── builder ──────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @proxyos/web build
+
+# ── runner ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++
+
+# Install Caddy
+ARG CADDY_VERSION=2.8.4
+RUN set -eux; \
+    ARCH=$(case "$(uname -m)" in \
+      x86_64)  echo amd64;; \
+      aarch64) echo arm64;; \
+      *) echo "unknown arch"; exit 1;; \
+    esac); \
+    wget -O /tmp/caddy.tar.gz "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_${ARCH}.tar.gz"; \
+    tar -xzf /tmp/caddy.tar.gz -C /usr/local/bin caddy; \
+    rm /tmp/caddy.tar.gz; \
+    chmod +x /usr/local/bin/caddy
+
+# Install s6-overlay v3
+ARG S6_VERSION=3.2.0.2
+RUN set -eux; \
+    ARCH=$(uname -m); \
+    wget -O /tmp/s6-noarch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_VERSION}/s6-overlay-noarch.tar.xz"; \
+    wget -O /tmp/s6-arch.tar.xz   "https://github.com/just-containers/s6-overlay/releases/download/v${S6_VERSION}/s6-overlay-${ARCH}.tar.xz"; \
+    tar -C / -Jxpf /tmp/s6-noarch.tar.xz; \
+    tar -C / -Jxpf /tmp/s6-arch.tar.xz; \
+    rm /tmp/s6-*.tar.xz
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV PROXYOS_DB_PATH=/data/proxyos/proxyos.db
+ENV PROXYOS_ACCESS_LOG=/data/proxyos/access.log
+ENV CADDY_BASE_CONFIG_PATH=/config/caddy/base-config.json
+ENV CADDY_ADMIN_URL=http://localhost:2019
+ENV XDG_DATA_HOME=/data/caddy
+ENV XDG_CONFIG_HOME=/config/caddy
+
+# Next.js standalone output
+COPY --from=builder /repo/apps/web/.next/standalone ./
+COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /repo/apps/web/public ./apps/web/public
+
+# Install native deps not bundled by Next standalone
+RUN mkdir -p /tmp/native && cd /tmp/native && \
+    echo '{}' > package.json && \
+    npm install --no-save better-sqlite3@11.5.0 bindings@1.5.0 file-uri-to-path@1.0.0 && \
+    mkdir -p /app/apps/web/node_modules && \
+    cp -r /tmp/native/node_modules/. /app/apps/web/node_modules/ && \
+    rm -rf /tmp/native
+
+# Caddy base config (before VOLUME so it seeds the named volume on first run)
+COPY caddy/base-config.json /config/caddy/base-config.json
+
+# s6-overlay service definitions
+COPY docker/s6-overlay/ /etc/s6-overlay/
+RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up -o -name finish \
+    | xargs chmod +x
+
+RUN mkdir -p /data/proxyos /data/caddy /config/caddy
+
+EXPOSE 80 443 3000 2019
+VOLUME ["/data/proxyos", "/data/caddy", "/config/caddy"]
+
+# s6-overlay is the PID 1 init
+ENTRYPOINT ["/init"]

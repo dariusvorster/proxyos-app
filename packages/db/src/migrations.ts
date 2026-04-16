@@ -1,0 +1,503 @@
+import type Database from 'better-sqlite3'
+
+const DDL = [
+  `CREATE TABLE IF NOT EXISTS routes (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    domain TEXT NOT NULL UNIQUE,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    upstream_type TEXT NOT NULL,
+    upstreams TEXT NOT NULL,
+    tls_mode TEXT NOT NULL DEFAULT 'auto',
+    sso_enabled INTEGER NOT NULL DEFAULT 0,
+    sso_provider_id TEXT,
+    tls_dns_provider_id TEXT,
+    rate_limit TEXT,
+    ip_allowlist TEXT,
+    basic_auth TEXT,
+    headers TEXT,
+    health_check_enabled INTEGER NOT NULL DEFAULT 1,
+    health_check_path TEXT NOT NULL DEFAULT '/',
+    health_check_interval INTEGER NOT NULL DEFAULT 30,
+    compression_enabled INTEGER NOT NULL DEFAULT 1,
+    websocket_enabled INTEGER NOT NULL DEFAULT 1,
+    http2_enabled INTEGER NOT NULL DEFAULT 1,
+    http3_enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT,
+    resource_name TEXT,
+    actor TEXT NOT NULL DEFAULT 'user',
+    detail TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS sso_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    forward_auth_url TEXT NOT NULL,
+    auth_response_headers TEXT NOT NULL DEFAULT '[]',
+    trusted_ips TEXT NOT NULL DEFAULT '[]',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_tested_at INTEGER,
+    test_status TEXT NOT NULL DEFAULT 'unknown',
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS dns_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    credentials TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS certificates (
+    id TEXT PRIMARY KEY,
+    domain TEXT NOT NULL,
+    source TEXT NOT NULL,
+    status TEXT NOT NULL,
+    issued_at INTEGER,
+    expires_at INTEGER,
+    auto_renew INTEGER NOT NULL DEFAULT 1,
+    last_renewed_at INTEGER,
+    route_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS traffic_metrics (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    bucket_ts INTEGER NOT NULL,
+    requests INTEGER NOT NULL DEFAULT 0,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    errors INTEGER NOT NULL DEFAULT 0,
+    status_2xx INTEGER NOT NULL DEFAULT 0,
+    status_3xx INTEGER NOT NULL DEFAULT 0,
+    status_4xx INTEGER NOT NULL DEFAULT 0,
+    status_5xx INTEGER NOT NULL DEFAULT 0,
+    latency_sum_ms INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS access_log (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL,
+    method TEXT,
+    path TEXT,
+    status_code INTEGER,
+    latency_ms INTEGER,
+    bytes_out INTEGER,
+    client_ip TEXT,
+    user_agent TEXT,
+    recorded_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS alert_rules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    target_route_id TEXT,
+    config TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_fired_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS alert_events (
+    id TEXT PRIMARY KEY,
+    rule_id TEXT NOT NULL,
+    route_id TEXT,
+    message TEXT NOT NULL,
+    detail TEXT,
+    fired_at INTEGER NOT NULL
+  )`,
+]
+
+const V2_DDL = [
+  `CREATE TABLE IF NOT EXISTS agents (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    site_tag      TEXT,
+    description   TEXT,
+    token_hash    TEXT NOT NULL,
+    token_expires_at INTEGER NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'offline',
+    last_seen     INTEGER,
+    caddy_version TEXT,
+    route_count   INTEGER NOT NULL DEFAULT 0,
+    cert_count    INTEGER NOT NULL DEFAULT 0,
+    created_at    INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS revoked_agent_tokens (
+    token_hash  TEXT PRIMARY KEY,
+    revoked_at  INTEGER NOT NULL,
+    reason      TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS agent_metrics (
+    agent_id    TEXT NOT NULL,
+    route_id    TEXT NOT NULL,
+    bucket      INTEGER NOT NULL,
+    req_count   INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0,
+    p95_ms      INTEGER,
+    bytes_in    INTEGER NOT NULL DEFAULT 0,
+    bytes_out   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (agent_id, route_id, bucket)
+  )`,
+  `CREATE TABLE IF NOT EXISTS import_sessions (
+    id          TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    route_count INTEGER NOT NULL DEFAULT 0,
+    imported    INTEGER NOT NULL DEFAULT 0,
+    skipped     INTEGER NOT NULL DEFAULT 0,
+    failed      INTEGER NOT NULL DEFAULT 0,
+    result_json TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS scanned_containers (
+    id         TEXT PRIMARY KEY,
+    agent_id   TEXT,
+    name       TEXT NOT NULL,
+    image      TEXT NOT NULL,
+    last_seen  INTEGER NOT NULL,
+    route_id   TEXT REFERENCES routes(id),
+    strategy   TEXT,
+    confidence TEXT
+  )`,
+]
+
+const V3_DDL = [
+  `CREATE TABLE IF NOT EXISTS connections (
+    id           TEXT PRIMARY KEY,
+    type         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    credentials  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'disconnected',
+    last_sync    INTEGER,
+    last_error   TEXT,
+    config       TEXT,
+    created_at   INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS connection_sync_log (
+    id             TEXT PRIMARY KEY,
+    connection_id  TEXT NOT NULL REFERENCES connections(id),
+    timestamp      INTEGER NOT NULL,
+    result         TEXT,
+    message        TEXT,
+    duration_ms    INTEGER
+  )`,
+  `CREATE TABLE IF NOT EXISTS dns_records_shadow (
+    id             TEXT PRIMARY KEY,
+    connection_id  TEXT NOT NULL REFERENCES connections(id),
+    zone_id        TEXT NOT NULL,
+    name           TEXT NOT NULL,
+    type           TEXT NOT NULL,
+    value          TEXT NOT NULL,
+    proxied        INTEGER NOT NULL DEFAULT 0,
+    ttl            INTEGER,
+    route_id       TEXT REFERENCES routes(id),
+    synced_at      INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS tunnel_rules (
+    id             TEXT PRIMARY KEY,
+    connection_id  TEXT NOT NULL REFERENCES connections(id),
+    tunnel_id      TEXT NOT NULL,
+    hostname       TEXT NOT NULL,
+    service        TEXT NOT NULL,
+    route_id       TEXT REFERENCES routes(id),
+    created_at     INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS monitors (
+    id             TEXT PRIMARY KEY,
+    connection_id  TEXT NOT NULL REFERENCES connections(id),
+    route_id       TEXT NOT NULL REFERENCES routes(id),
+    url            TEXT NOT NULL,
+    status         TEXT,
+    last_check     INTEGER,
+    provider_url   TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS chain_nodes (
+    id             TEXT PRIMARY KEY,
+    route_id       TEXT NOT NULL REFERENCES routes(id),
+    node_type      TEXT NOT NULL,
+    label          TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    detail         TEXT,
+    warning        TEXT,
+    provider       TEXT,
+    last_check     INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ip_bans (
+    ip             TEXT PRIMARY KEY,
+    reason         TEXT NOT NULL,
+    rule_name      TEXT,
+    banned_at      INTEGER NOT NULL,
+    expires_at     INTEGER,
+    route_id       TEXT REFERENCES routes(id),
+    permanent      INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS fail2ban_rules (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    config         TEXT NOT NULL,
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    hit_count      INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS route_templates (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    description    TEXT,
+    config         TEXT NOT NULL,
+    built_in       INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS api_keys (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    key_hash       TEXT NOT NULL,
+    scopes         TEXT NOT NULL,
+    last_used      INTEGER,
+    expires_at     INTEGER,
+    created_at     INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS users (
+    id             TEXT PRIMARY KEY,
+    email          TEXT NOT NULL UNIQUE,
+    password_hash  TEXT,
+    role           TEXT NOT NULL DEFAULT 'viewer',
+    sso_provider   TEXT,
+    sso_subject    TEXT,
+    created_at     INTEGER NOT NULL,
+    last_login     INTEGER
+  )`,
+  `CREATE TABLE IF NOT EXISTS route_ownership (
+    route_id       TEXT PRIMARY KEY REFERENCES routes(id),
+    user_id        TEXT NOT NULL REFERENCES users(id),
+    assigned_at    INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS pending_changes (
+    id             TEXT PRIMARY KEY,
+    action         TEXT NOT NULL,
+    payload        TEXT NOT NULL,
+    requested_by   TEXT NOT NULL REFERENCES users(id),
+    requested_at   INTEGER NOT NULL,
+    approved_by    TEXT REFERENCES users(id),
+    approved_at    INTEGER,
+    status         TEXT NOT NULL DEFAULT 'pending'
+  )`,
+  `CREATE TABLE IF NOT EXISTS route_slos (
+    route_id       TEXT PRIMARY KEY REFERENCES routes(id),
+    p95_target_ms  INTEGER NOT NULL,
+    p99_target_ms  INTEGER,
+    window_days    INTEGER NOT NULL DEFAULT 30,
+    alert_on_breach INTEGER NOT NULL DEFAULT 1
+  )`,
+  `CREATE TABLE IF NOT EXISTS slo_compliance (
+    route_id       TEXT NOT NULL REFERENCES routes(id),
+    date           TEXT NOT NULL,
+    p95_actual_ms  INTEGER,
+    p99_actual_ms  INTEGER,
+    p95_compliant  INTEGER,
+    p99_compliant  INTEGER,
+    sample_count   INTEGER,
+    PRIMARY KEY (route_id, date)
+  )`,
+  `CREATE TABLE IF NOT EXISTS anomaly_baselines (
+    route_id       TEXT NOT NULL REFERENCES routes(id),
+    metric         TEXT NOT NULL,
+    hour_of_week   INTEGER NOT NULL,
+    mean           REAL NOT NULL,
+    stddev         REAL NOT NULL,
+    sample_count   INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    PRIMARY KEY (route_id, metric, hour_of_week)
+  )`,
+]
+
+const ALTERS = [
+  `ALTER TABLE routes ADD COLUMN rate_limit TEXT`,
+  `ALTER TABLE routes ADD COLUMN ip_allowlist TEXT`,
+  `ALTER TABLE routes ADD COLUMN basic_auth TEXT`,
+  `ALTER TABLE routes ADD COLUMN headers TEXT`,
+  `ALTER TABLE routes ADD COLUMN agent_id TEXT REFERENCES agents(id)`,
+  `ALTER TABLE users ADD COLUMN display_name TEXT`,
+  `ALTER TABLE users ADD COLUMN avatar_color TEXT`,
+  `ALTER TABLE users ADD COLUMN avatar_url TEXT`,
+]
+
+export function ensureSchema(db: Database.Database): void {
+  db.transaction(() => {
+    for (const stmt of DDL) db.exec(stmt)
+    for (const stmt of V2_DDL) db.exec(stmt)
+    for (const stmt of V3_DDL) db.exec(stmt)
+    db.exec(`CREATE TABLE IF NOT EXISTS route_security (
+      route_id TEXT PRIMARY KEY REFERENCES routes(id) ON DELETE CASCADE,
+      geoip_config TEXT,
+      jwt_config TEXT,
+      mtls_config TEXT,
+      bot_challenge_config TEXT,
+      exit_node_config TEXT,
+      secret_header TEXT,
+      updated_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS webhook_delivery_log (
+      id TEXT PRIMARY KEY,
+      connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      url TEXT NOT NULL,
+      status_code INTEGER,
+      response_time_ms INTEGER NOT NULL,
+      success INTEGER NOT NULL,
+      error TEXT,
+      payload_preview TEXT,
+      delivered_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS system_log (
+      id TEXT PRIMARY KEY,
+      level TEXT NOT NULL,
+      category TEXT NOT NULL,
+      message TEXT NOT NULL,
+      detail TEXT,
+      user_id TEXT,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS ct_alerts (
+      id TEXT PRIMARY KEY,
+      domain TEXT NOT NULL,
+      issuer TEXT NOT NULL,
+      not_before TEXT NOT NULL,
+      serial_number TEXT NOT NULL,
+      detected_at INTEGER NOT NULL,
+      acknowledged INTEGER NOT NULL DEFAULT 0
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS multi_domain_certs (
+      id TEXT PRIMARY KEY,
+      domains TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'auto',
+      routes TEXT NOT NULL DEFAULT '[]',
+      issuer TEXT,
+      expiry INTEGER,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS acme_accounts (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'letsencrypt',
+      acme_url TEXT NOT NULL,
+      certs_count INTEGER NOT NULL DEFAULT 0,
+      rate_limit_used INTEGER NOT NULL DEFAULT 0,
+      rate_limit_reset_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS compose_watchers (
+      id TEXT PRIMARY KEY,
+      project_path TEXT NOT NULL,
+      agent_id TEXT,
+      auto_apply INTEGER NOT NULL DEFAULT 1,
+      watch_interval INTEGER NOT NULL DEFAULT 30,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_checked INTEGER,
+      last_result TEXT,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS lockbox_refs (
+      id TEXT PRIMARY KEY,
+      connection_id TEXT NOT NULL,
+      credential_key TEXT NOT NULL,
+      vault_id TEXT NOT NULL,
+      secret_path TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS patchos_versions (
+      agent_id TEXT PRIMARY KEY,
+      version TEXT NOT NULL,
+      health TEXT NOT NULL DEFAULT 'ok',
+      recorded_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS billing_subscriptions (
+      id TEXT PRIMARY KEY,
+      product TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      ls_subscription_id TEXT NOT NULL UNIQUE,
+      ls_customer_id TEXT NOT NULL,
+      ls_order_id TEXT NOT NULL,
+      ls_variant_id TEXT NOT NULL,
+      ls_customer_portal_url TEXT,
+      plan TEXT NOT NULL,
+      billing_interval TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      licence_type TEXT NOT NULL DEFAULT 'cloud',
+      current_period_start INTEGER NOT NULL,
+      current_period_end INTEGER NOT NULL,
+      trial_ends_at INTEGER,
+      cancelled_at INTEGER,
+      expires_at INTEGER,
+      payment_failed_at INTEGER,
+      dunning_step INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS billing_entitlements (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      product TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      source TEXT NOT NULL,
+      valid_until INTEGER,
+      updated_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_entitlements_user_product ON billing_entitlements(user_id, product)`)
+    db.exec(`CREATE TABLE IF NOT EXISTS licence_keys (
+      id TEXT PRIMARY KEY,
+      product TEXT NOT NULL,
+      purchaser_email TEXT NOT NULL,
+      ls_licence_key TEXT NOT NULL UNIQUE,
+      ls_order_id TEXT NOT NULL,
+      ls_variant_id TEXT NOT NULL,
+      ls_instance_id TEXT,
+      plan TEXT NOT NULL,
+      billing_interval TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'inactive',
+      instance_name TEXT,
+      last_validated_at INTEGER,
+      validation_failures INTEGER NOT NULL DEFAULT 0,
+      grace_period_until INTEGER,
+      expires_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS billing_events (
+      id TEXT PRIMARY KEY,
+      product TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      plan_from TEXT,
+      plan_to TEXT,
+      amount_usd_cents INTEGER,
+      billing_interval TEXT,
+      ls_event_id TEXT,
+      created_at INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS billing_webhook_events (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL UNIQUE,
+      event_name TEXT NOT NULL,
+      product TEXT,
+      payload TEXT NOT NULL,
+      processed_at INTEGER NOT NULL,
+      error TEXT
+    )`)
+  })()
+  for (const stmt of ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
+}

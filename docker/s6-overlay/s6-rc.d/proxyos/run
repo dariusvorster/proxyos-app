@@ -1,0 +1,13 @@
+#!/bin/sh
+mkdir -p /data/proxyos /data/caddy /config/caddy
+
+# Wait for Caddy admin API before starting ProxyOS
+i=0
+while [ $i -lt 60 ]; do
+  wget -q -O- http://localhost:2019/config/ >/dev/null 2>&1 && break
+  sleep 1
+  i=$(( i + 1 ))
+done
+
+cd /app/apps/web
+exec node server.js

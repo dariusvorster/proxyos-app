@@ -1,0 +1,182 @@
+/* =====================================================================
+   ProxyOS V3 Design Tokens
+   Dark is default — `.dark` class on <html>. Light via toggle.
+   ===================================================================== */
+
+:root {
+  /* Brand ramp — constant */
+  --pu-50: #F0EFFE; --pu-100: #D8D4FC; --pu-200: #B9B2F7; --pu-400: #7C6FF0;
+  --pu-500: #5C52D9; --pu-600: #4338CA; --pu-700: #3730A3; --pu-800: #2D2880; --pu-900: #1E1B5E;
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --topbar-h: 44px;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* Fonts */
+  --font-sans: var(--font-inter, 'Inter'), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-ibm-plex-mono, 'IBM Plex Mono'), var(--font-jbmono, 'JetBrains Mono'), 'Menlo', 'Monaco', monospace;
+}
+
+/* ── Light ──────────────────────────────────────────────────── */
+:root {
+  --bg: #F8F9FB;
+  --bg2: #F0F2F6;
+  --surf: #FFFFFF;
+  --surf2: #F4F6FA;
+  --text: #0D1117;
+  --text2: #4A5568;
+  --text3: #8892A4;
+  --border: rgba(0, 0, 0, 0.07);
+  --border2: rgba(0, 0, 0, 0.12);
+
+  --accent: #7C6FF0;
+  --accent-dim: #EEEDFE;
+  --accent-border: #AFA9EC;
+  --accent-dark: #4338CA;
+  --accent-hover: #3730A3;
+
+  --green: #0F6E56;
+  --green-dim: #E1F5EE;
+  --green-border: #9FE1CB;
+  --amber: #854F0B;
+  --amber-dim: #FAEEDA;
+  --amber-border: #FAC775;
+  --red: #A32D2D;
+  --red-dim: #FCEBEB;
+  --red-border: #F09595;
+  --blue: #185FA5;
+  --blue-dim: #E6F1FB;
+  --blue-border: #B5D4F4;
+  --blue-mid: #378ADD;
+
+  /* Legacy aliases — keep old names working across page files */
+  --canvas: var(--bg);
+  --surface: var(--surf);
+  --surface-2: var(--surf2);
+  --elevated: var(--surf2);
+  --night-deep: #EEF0F4;
+  --night-50: var(--surf);
+  --night-100: var(--surf2);
+  --night-200: #E4E1FB;
+  --night-300: #D8D4FC;
+  --night-400: #B9B2F7;
+  --text-primary: var(--text);
+  --text-secondary: var(--text2);
+  --text-muted: var(--accent);
+  --text-dim: var(--text3);
+  --text-ghost: var(--text3);
+  --border-strong: var(--border2);
+  --green-bg: var(--green-dim);
+  --amber-bg: var(--amber-dim);
+  --red-bg: var(--red-dim);
+}
+
+/* ── Dark (default) ─────────────────────────────────────────── */
+.dark {
+  --bg: #0B0E14;
+  --bg2: #111520;
+  --surf: #1C2333;
+  --surf2: #232A3D;
+  --text: #E8EDF5;
+  --text2: #8892A4;
+  --text3: #4A5568;
+  --border: #1E2738;
+  --border2: #2A3450;
+
+  --accent: #9D8FFF;
+  --accent-dim: #7C6FF018;
+  --accent-border: #7C6FF040;
+  --accent-dark: #7C6FF0;
+  --accent-hover: #8A7DF5;
+
+  --green: #00C896;
+  --green-dim: #00C89618;
+  --green-border: #00C89640;
+  --amber: #F5A623;
+  --amber-dim: #F5A62318;
+  --amber-border: #F5A62340;
+  --red: #F55A5A;
+  --red-dim: #F55A5A18;
+  --red-border: #F55A5A40;
+  --blue: #4A9EFF;
+  --blue-dim: #4A9EFF18;
+  --blue-border: #4A9EFF40;
+  --blue-mid: #378ADD;
+
+  /* Legacy aliases */
+  --canvas: var(--bg);
+  --surface: var(--surf);
+  --surface-2: var(--surf2);
+  --elevated: var(--surf2);
+  --night-deep: #0B0E14;
+  --night-50: var(--surf);
+  --night-100: var(--surf2);
+  --night-200: #2E2A55;
+  --night-300: #3D3870;
+  --night-400: #4C4690;
+  --text-primary: var(--text);
+  --text-secondary: var(--text2);
+  --text-muted: var(--accent);
+  --text-dim: var(--text3);
+  --text-ghost: var(--text3);
+  --border-strong: var(--border2);
+  --green-bg: var(--green-dim);
+  --amber-bg: var(--amber-dim);
+  --red-bg: var(--red-dim);
+}
+
+/* ── Base reset ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+code, kbd, samp, pre { font-family: var(--font-mono); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+::selection { background: var(--accent-dark); color: #fff; }
+
+.mono { font-family: var(--font-mono); }
+
+h1, h2, h3, h4 { margin: 0; font-weight: 500; color: var(--text); }
+p { margin: 0; }
+
+/* ── Input focus ring ───────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+.proxyos-shell { grid-template-columns: var(--sidebar-w) 1fr; }
+
+@media (max-width: 1279px) {
+  :root { --sidebar-w: 44px; }
+  .proxyos-sidebar .proxyos-nav-label { display: none; }
+  .proxyos-sidebar .proxyos-section-label { display: none; }
+  .proxyos-sidebar .proxyos-wordmark-text { display: none; }
+  .proxyos-sidebar .proxyos-wordmark-badge { display: none; }
+  .proxyos-sidebar .proxyos-logo-row { padding: 9px !important; justify-content: center !important; }
+  .proxyos-sidebar .proxyos-navlink { padding: 9px !important; justify-content: center; }
+}
+
+@media (max-width: 1023px) {
+  .proxyos-shell { display: none !important; }
+  .proxyos-splash { display: flex !important; }
+}

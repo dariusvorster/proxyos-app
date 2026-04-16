@@ -1,0 +1,8 @@
+#!/bin/sh
+i=0
+while [ $i -lt 60 ]; do
+  wget -q -O- http://localhost:2019/config/ >/dev/null 2>&1 && exit 0
+  sleep 1
+  i=$(( i + 1 ))
+done
+exit 1
