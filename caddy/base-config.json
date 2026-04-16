@@ -26,23 +26,7 @@
     },
     "tls": {
       "automation": {
-        "policies": [
-          {
-            "issuers": [
-              {
-                "module": "acme",
-                "challenges": {
-                  "dns": {
-                    "provider": {
-                      "name": "cloudflare",
-                      "api_token": "{env.CLOUDFLARE_API_TOKEN}"
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        ]
+        "policies": []
       }
     }
   }

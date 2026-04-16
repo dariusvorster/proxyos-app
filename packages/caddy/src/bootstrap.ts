@@ -56,6 +56,29 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
     // Non-fatal: log and continue. upsertTlsPolicy will surface per-route errors.
   }
 
+  // If a Cloudflare API token is set, inject a catch-all DNS-01 policy so all
+  // ACME certs use DNS challenge instead of HTTP-01 (required when port 80 is not
+  // publicly accessible). This is a no-op for users without the token.
+  const cfToken = process.env.CLOUDFLARE_API_TOKEN
+  if (cfToken) {
+    try {
+      await client.upsertTlsPolicy({
+        issuers: [
+          {
+            module: 'acme',
+            challenges: {
+              dns: {
+                provider: { name: 'cloudflare', api_token: cfToken },
+              },
+            },
+          },
+        ],
+      })
+    } catch {
+      // Non-fatal: certs may fall back to HTTP-01.
+    }
+  }
+
   const providers = opts.getProviders ? await opts.getProviders() : new Map<string, SSOProvider>()
   const build = opts.buildRoute ?? ((r: Route) => buildCaddyRoute(r))
   const routes = await opts.getRoutes()
