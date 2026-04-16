@@ -130,7 +130,6 @@ export default function DocsPage() {
 
   // Track active section via IntersectionObserver on the scroll container
   useEffect(() => {
-    const container = contentRef.current?.closest('main') ?? document
     const observers: IntersectionObserver[] = []
 
     // Use a map to track which sections are intersecting, pick the topmost
@@ -150,7 +149,7 @@ export default function DocsPage() {
           const first = SECTIONS.find((s) => visible.has(s.id))
           if (first) setActive(first.id)
         },
-        { root: container instanceof Document ? null : container, rootMargin: '0px 0px -60% 0px', threshold: 0 },
+        { root: null, rootMargin: '0px 0px -60% 0px', threshold: 0 },
       )
       obs.observe(el)
       observers.push(obs)
