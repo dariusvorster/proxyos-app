@@ -167,7 +167,7 @@ export function buildErrorRoute(host: {
   customHtml?: string | null
   redirectUrl?: string | null
 }): CaddyRoute {
-  const handlers: unknown[] = []
+  const handlers: CaddyHandler[] = []
 
   if (host.pageType === 'redirect' && host.redirectUrl) {
     handlers.push({
