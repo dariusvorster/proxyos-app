@@ -9,19 +9,24 @@ RUN pnpm --filter @proxyos/web build
 
 # ── runner ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
-RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++
+RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++ go
 
-# Install Caddy
+# Install Caddy with layer4 module via xcaddy
 ARG CADDY_VERSION=2.8.4
+ARG XCADDY_VERSION=0.4.4
 RUN set -eux; \
     ARCH=$(case "$(uname -m)" in \
       x86_64)  echo amd64;; \
       aarch64) echo arm64;; \
       *) echo "unknown arch"; exit 1;; \
     esac); \
-    wget -O /tmp/caddy.tar.gz "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_${ARCH}.tar.gz"; \
-    tar -xzf /tmp/caddy.tar.gz -C /usr/local/bin caddy; \
-    rm /tmp/caddy.tar.gz; \
+    wget -O /tmp/xcaddy.tar.gz "https://github.com/caddyserver/xcaddy/releases/download/v${XCADDY_VERSION}/xcaddy_${XCADDY_VERSION}_linux_${ARCH}.tar.gz"; \
+    tar -xzf /tmp/xcaddy.tar.gz -C /usr/local/bin xcaddy; \
+    rm /tmp/xcaddy.tar.gz; \
+    chmod +x /usr/local/bin/xcaddy; \
+    GOFLAGS=-mod=mod xcaddy build "v${CADDY_VERSION}" \
+      --with github.com/mholt/caddy-l4 \
+      --output /usr/local/bin/caddy; \
     chmod +x /usr/local/bin/caddy
 
 # Install s6-overlay v3
