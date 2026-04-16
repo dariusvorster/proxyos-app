@@ -49,6 +49,20 @@ export class CaddyClient {
     if (!res.ok) throw new Error(`Caddy replaceRoutes failed: ${res.status} ${await res.text()}`)
   }
 
+  async ensureTlsAppExists(): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/config/apps/tls`)
+    const text = await res.text()
+    if (!res.ok || text === 'null') {
+      const initRes = await this.fetchJson(`${this.baseUrl}/config/apps/tls`, {
+        method: 'PUT',
+        body: { automation: { policies: [] } },
+      })
+      if (!initRes.ok) {
+        throw new Error(`Caddy TLS app init failed: ${initRes.status} ${await initRes.text()}`)
+      }
+    }
+  }
+
   async upsertTlsPolicy(policy: unknown): Promise<void> {
     const policiesUrl = `${this.baseUrl}/config/apps/tls/automation/policies`
 

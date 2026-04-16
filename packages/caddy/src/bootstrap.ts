@@ -48,6 +48,14 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
     initialConfigLoaded = true
   }
 
+  // Always ensure the TLS app exists — persistent volumes skip loadConfig on restart,
+  // so we must initialize the tls app explicitly every time.
+  try {
+    await client.ensureTlsAppExists()
+  } catch {
+    // Non-fatal: log and continue. upsertTlsPolicy will surface per-route errors.
+  }
+
   const providers = opts.getProviders ? await opts.getProviders() : new Map<string, SSOProvider>()
   const build = opts.buildRoute ?? ((r: Route) => buildCaddyRoute(r))
   const routes = await opts.getRoutes()

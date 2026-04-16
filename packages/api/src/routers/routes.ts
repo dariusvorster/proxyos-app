@@ -2,7 +2,8 @@ import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
-import { dnsProviders, nanoid, routes, ssoProviders, auditLog } from '@proxyos/db'
+import { dnsProviders, nanoid, routes, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { buildLogEntry } from './systemLog'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, router } from '../trpc'
 
@@ -187,6 +188,13 @@ export const routesRouter = router({
       await ctx.caddy.addRoute(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
     } catch (err) {
       await ctx.db.delete(routes).where(eq(routes.id, id))
+      await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to push route "${input.domain}" to Caddy`, {
+        domain: input.domain,
+        tlsMode: input.tlsMode,
+        upstreams: input.upstreams,
+        error: (err as Error).message,
+        stack: (err as Error).stack,
+      })).catch(() => {})
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: `Failed to push route to Caddy: ${(err as Error).message}`,
@@ -293,6 +301,13 @@ export const routesRouter = router({
       await ctx.caddy.addRoute(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
     } catch (err) {
       await ctx.db.delete(routes).where(eq(routes.id, id))
+      await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to expose "${input.domain}" in Caddy`, {
+        domain: input.domain,
+        tlsMode: input.tlsMode,
+        upstreamUrl: input.upstreamUrl,
+        error: (err as Error).message,
+        stack: (err as Error).stack,
+      })).catch(() => {})
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: `Failed to push route to Caddy: ${(err as Error).message}`,
@@ -382,6 +397,13 @@ export const routesRouter = router({
       try {
         await syncRouteToCaddy(ctx, route)
       } catch (err) {
+        await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to update route "${route.domain}" in Caddy`, {
+          domain: route.domain,
+          tlsMode: route.tlsMode,
+          patch: input.patch,
+          error: (err as Error).message,
+          stack: (err as Error).stack,
+        })).catch(() => {})
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Failed to update Caddy: ${(err as Error).message}` })
       }
 
