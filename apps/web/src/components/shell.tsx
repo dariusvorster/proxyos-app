@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
     label: 'Account',
     items: [
       { href: '/billing', label: 'Billing', icon: '◈' },
+      { href: '/docs', label: 'Docs', icon: '?' },
     ],
   },
 ]
