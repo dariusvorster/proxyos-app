@@ -8,6 +8,8 @@ import { trpc } from '~/lib/trpc'
 
 export default function CertificatesPage() {
   const list = trpc.certificates.list.useQuery(undefined, { refetchInterval: 10_000 })
+  const firstDomain = list.data?.[0]?.domain ?? 'main'
+  const rateLimit = trpc.certificates.getRateLimitStatus.useQuery({ domain: firstDomain }, { refetchInterval: 60_000 })
   const [caOpen, setCaOpen] = useState(false)
 
   const now = Date.now()
@@ -18,10 +20,24 @@ export default function CertificatesPage() {
 
   function daysUntil(d: Date) { return (new Date(d).getTime() - now) / 86_400_000 }
 
+  const rlData = rateLimit.data
+  const rateLimitBanner = rlData?.atLimit ? (
+    <div style={{ background: 'rgba(226,75,74,0.12)', borderBottom: '1px solid rgba(226,75,74,0.3)', padding: '8px 20px', fontSize: 12, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span>✗</span>
+      <span>Let&apos;s Encrypt rate limit reached. You cannot issue more certificates this week.</span>
+    </div>
+  ) : rlData?.nearLimit ? (
+    <div style={{ background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', padding: '8px 20px', fontSize: 12, color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span>⚠</span>
+      <span>Let&apos;s Encrypt rate limit: {rlData.used}/50 this week. Consider using ZeroSSL for new certificates.</span>
+    </div>
+  ) : null
+
   return (
     <>
       <Topbar
         title="Certificates"
+        banner={rateLimitBanner}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link href="/certificates/ct" style={{ fontSize: 11, color: 'var(--pu-400)' }}>CT monitor</Link>

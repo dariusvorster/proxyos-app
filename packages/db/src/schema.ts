@@ -574,3 +574,109 @@ export type BillingSubscriptionRow = typeof billingSubscriptions.$inferSelect
 export type BillingEntitlementRow = typeof billingEntitlements.$inferSelect
 export type LicenceKeyRow = typeof licenceKeys.$inferSelect
 export type BillingEventRow = typeof billingEvents.$inferSelect
+
+// V3.1 — Host types, access lists, operation logs
+
+export const redirectHosts = sqliteTable('redirect_hosts', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id'),
+  sourceDomain: text('source_domain').notNull().unique(),
+  destinationUrl: text('destination_url').notNull(),
+  redirectCode: integer('redirect_code').notNull().default(301),
+  preservePath: integer('preserve_path', { mode: 'boolean' }).notNull().default(true),
+  preserveQuery: integer('preserve_query', { mode: 'boolean' }).notNull().default(true),
+  tlsEnabled: integer('tls_enabled', { mode: 'boolean' }).notNull().default(true),
+  accessListId: text('access_list_id'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const streams = sqliteTable('streams', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id'),
+  listenPort: integer('listen_port').notNull().unique(),
+  protocol: text('protocol').notNull().default('tcp'), // 'tcp' | 'udp' | 'tcp+udp'
+  upstreamHost: text('upstream_host').notNull(),
+  upstreamPort: integer('upstream_port').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const errorHosts = sqliteTable('error_hosts', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id'),
+  domain: text('domain').notNull().unique(),
+  statusCode: integer('status_code').notNull().default(404),
+  pageType: text('page_type').notNull().default('default'), // 'default' | 'custom_html' | 'redirect'
+  customHtml: text('custom_html'),
+  redirectUrl: text('redirect_url'),
+  tlsEnabled: integer('tls_enabled', { mode: 'boolean' }).notNull().default(true),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const accessLists = sqliteTable('access_lists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  satisfyMode: text('satisfy_mode').notNull().default('any'), // 'any' | 'all'
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const accessListIpRules = sqliteTable('access_list_ip_rules', {
+  id: text('id').primaryKey(),
+  accessListId: text('access_list_id').notNull(),
+  type: text('type').notNull(), // 'allow' | 'deny'
+  value: text('value').notNull(), // CIDR or IP
+  comment: text('comment'),
+  sortOrder: integer('sort_order').notNull().default(0),
+})
+
+export const accessListAuthUsers = sqliteTable('access_list_auth_users', {
+  id: text('id').primaryKey(),
+  accessListId: text('access_list_id').notNull(),
+  username: text('username').notNull(),
+  passwordHash: text('password_hash').notNull(),
+})
+
+export const accessListAuthConfig = sqliteTable('access_list_auth_config', {
+  accessListId: text('access_list_id').primaryKey(),
+  realm: text('realm').notNull().default('ProxyOS'),
+  protectedPaths: text('protected_paths'), // JSON string[]
+})
+
+export const operationLogs = sqliteTable('operation_logs', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'route_create' | 'cert_issue' | etc.
+  subject: text('subject').notNull(),
+  status: text('status').notNull().default('in_progress'), // 'in_progress' | 'success' | 'error'
+  steps: text('steps').notNull().default('[]'), // JSON OperationStep[]
+  durationMs: integer('duration_ms'),
+  error: text('error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const certIssuanceLog = sqliteTable('cert_issuance_log', {
+  id: text('id').primaryKey(),
+  domain: text('domain').notNull(),
+  registeredDomain: text('registered_domain').notNull(),
+  provider: text('provider').notNull(), // 'letsencrypt' | 'zerossl' | 'internal' | 'custom'
+  method: text('method'), // 'http01' | 'dns01'
+  issuedAt: integer('issued_at', { mode: 'timestamp' }).notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+})
+
+export type RedirectHostRow = typeof redirectHosts.$inferSelect
+export type StreamRow = typeof streams.$inferSelect
+export type ErrorHostRow = typeof errorHosts.$inferSelect
+export type AccessListRow = typeof accessLists.$inferSelect
+export type AccessListIpRuleRow = typeof accessListIpRules.$inferSelect
+export type AccessListAuthUserRow = typeof accessListAuthUsers.$inferSelect
+export type AccessListAuthConfigRow = typeof accessListAuthConfig.$inferSelect
+export type OperationLogRow = typeof operationLogs.$inferSelect
+export type CertIssuanceLogRow = typeof certIssuanceLog.$inferSelect

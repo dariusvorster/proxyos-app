@@ -27,6 +27,12 @@ import { approvalsRouter } from './routers/approvals'
 import { integrationsRouter } from './routers/integrations'
 import { systemLogRouter } from './routers/systemLog'
 import { billingRouter } from './routers/billing'
+import { redirectHostsRouter } from './routers/redirectHosts'
+import { errorHostsRouter } from './routers/errorHosts'
+import { operationLogsRouter } from './routers/operationLogs'
+import { preflightRouter } from './routers/preflight'
+import { accessListsRouter } from './routers/accessLists'
+import { streamsRouter } from './routers/streams'
 
 const PKG_VERSION = '0.2.0'
 
@@ -60,6 +66,12 @@ export const appRouter = router({
   integrations: integrationsRouter,
   systemLog: systemLogRouter,
   billing: billingRouter,
+  redirectHosts: redirectHostsRouter,
+  errorHosts: errorHostsRouter,
+  operationLogs: operationLogsRouter,
+  preflight: preflightRouter,
+  accessLists: accessListsRouter,
+  streams: streamsRouter,
 })
 
 export type AppRouter = typeof appRouter

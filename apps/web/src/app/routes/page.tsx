@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -9,6 +9,7 @@ import type { Route } from '@proxyos/types'
 
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SsoFilter = 'all' | 'on' | 'off'
+type TypeFilter = 'all' | 'proxy'
 
 export default function RoutesPage() {
   const utils = trpc.useUtils()
@@ -18,6 +19,7 @@ export default function RoutesPage() {
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
   const [ssoFilter, setSsoFilter] = useState<SsoFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [panelId, setPanelId] = useState<string | null>(null)
 
@@ -47,12 +49,28 @@ export default function RoutesPage() {
 
   const panelRoute = list.data?.find((r) => r.id === panelId) ?? null
 
+  const tabStyle = (active: boolean): CSSProperties => ({
+    padding: '5px 14px',
+    fontSize: 12,
+    fontWeight: active ? 500 : 400,
+    color: active ? 'var(--text-primary)' : 'var(--text-dim)',
+    background: active ? 'rgba(124,111,240,0.15)' : 'transparent',
+    border: 0,
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  })
+
   return (
     <>
       <Topbar
         title="Routes"
         actions={<Link href="/expose"><Button variant="primary">+ Expose service</Button></Link>}
       />
+      <div style={{ display: 'flex', gap: 4, padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surf)' }}>
+        <button style={tabStyle(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>All</button>
+        <button style={tabStyle(typeFilter === 'proxy')} onClick={() => setTypeFilter('proxy')}>Proxy</button>
+      </div>
       <PageContent>
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', flexWrap: 'wrap' }}>

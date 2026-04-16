@@ -111,6 +111,67 @@ export class CaddyClient {
     }
   }
 
+  async setHttpRedirectServer(): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/http_redirect`
+    const config = {
+      listen: [':80'],
+      routes: [{
+        handle: [{
+          handler: 'static_response',
+          status_code: 308,
+          headers: {
+            Location: ['https://{http.request.host}{http.request.uri}'],
+          },
+        }],
+      }],
+    }
+    const res = await this.fetchJson(url, { method: 'PUT', body: config })
+    if (!res.ok) throw new Error(`Caddy setHttpRedirectServer failed: ${res.status} ${await res.text()}`)
+  }
+
+  async removeHttpRedirectServer(): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/http_redirect`
+    const res = await fetch(url, { method: 'DELETE' })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Caddy removeHttpRedirectServer failed: ${res.status} ${await res.text()}`)
+    }
+  }
+
+  async addLayerFourStream(stream: {
+    id: string
+    listenPort: number
+    protocol: string
+    upstreamHost: string
+    upstreamPort: number
+  }): Promise<void> {
+    const serverKey = `stream_${stream.id}`
+    const listenAddr = stream.protocol === 'udp'
+      ? `udp//:${stream.listenPort}`
+      : `:${stream.listenPort}`
+    const body = {
+      listen: [listenAddr],
+      routes: [{
+        handle: [{
+          handler: 'proxy',
+          upstreams: [{ dial: `${stream.upstreamHost}:${stream.upstreamPort}` }],
+        }],
+      }],
+    }
+    const url = `${this.baseUrl}/config/apps/layer4/servers/${serverKey}`
+    const res = await this.fetchJson(url, { method: 'PUT', body })
+    if (!res.ok) {
+      throw new Error(`Caddy addLayerFourStream failed: ${res.status} ${await res.text()}`)
+    }
+  }
+
+  async removeLayerFourStream(streamId: string): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/layer4/servers/stream_${streamId}`
+    const res = await fetch(url, { method: 'DELETE' })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Caddy removeLayerFourStream failed: ${res.status} ${await res.text()}`)
+    }
+  }
+
   private fetchJson(url: string, init: { method: string; body: unknown }) {
     return fetch(url, {
       method: init.method,

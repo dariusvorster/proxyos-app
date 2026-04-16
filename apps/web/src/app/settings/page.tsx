@@ -6,11 +6,12 @@ import { Badge, Button, Card, Checkbox, Input, Select, Toggle } from '~/componen
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
-type Section = 'general' | 'alerts' | 'sso' | 'dns' | 'integrations' | 'apikeys' | 'users' | 'tracing' | 'templates' | 'export' | 'danger' | 'profile'
+type Section = 'general' | 'alerts' | 'sso' | 'dns' | 'integrations' | 'apikeys' | 'users' | 'tracing' | 'templates' | 'export' | 'danger' | 'profile' | 'http'
 
 const sections: { id: Section; label: string }[] = [
   { id: 'profile', label: 'My profile' },
   { id: 'general', label: 'General' },
+  { id: 'http', label: 'HTTP behaviour' },
   { id: 'alerts', label: 'Alerts' },
   { id: 'sso', label: 'SSO Providers' },
   { id: 'dns', label: 'DNS Providers' },
@@ -56,6 +57,7 @@ export default function SettingsPage() {
           <div style={{ display: 'grid', gap: 14 }}>
             {active === 'profile' && <ProfileSection />}
             {active === 'general' && <GeneralSection />}
+            {active === 'http' && <HttpBehaviourSection />}
             {active === 'alerts' && <AlertsSection />}
             {active === 'sso' && <SSOSection />}
             {active === 'dns' && <DNSSection />}
@@ -295,6 +297,30 @@ function DangerSection() {
         <Button variant="danger" disabled>Factory reset</Button>
       </SectionCard>
     </>
+  )
+}
+
+function HttpBehaviourSection() {
+  const utils = trpc.useUtils()
+  const query = trpc.system.getForceHttps.useQuery()
+  const mut = trpc.system.setForceHttps.useMutation({ onSuccess: () => utils.system.getForceHttps.invalidate() })
+  const enabled = query.data?.enabled ?? false
+
+  return (
+    <SectionCard title="HTTP behaviour" desc="Controls how ProxyOS handles plain HTTP traffic on port 80.">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Force HTTPS</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', maxWidth: 380 }}>
+            Redirect all HTTP traffic (port 80) to HTTPS automatically. Recommended for all installations.
+          </div>
+        </div>
+        <Toggle
+          checked={enabled}
+          onChange={(v) => mut.mutate({ enabled: v })}
+        />
+      </div>
+    </SectionCard>
   )
 }
 

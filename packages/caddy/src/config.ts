@@ -114,7 +114,106 @@ export function buildTlsPolicy(route: Route, dnsProvider?: DnsProvider | null): 
   }
 }
 
+export function buildAccessListHandlers(accessList: {
+  satisfyMode: 'any' | 'all'
+  ipRules: Array<{ type: 'allow' | 'deny'; value: string }>
+  basicAuth: {
+    realm: string
+    users: Array<{ username: string; passwordHash: string }>
+    protectedPaths?: string[]
+  } | null
+}): unknown[] {
+  const handlers: unknown[] = []
+
+  if (accessList.ipRules.length > 0) {
+    const allows = accessList.ipRules.filter((r) => r.type === 'allow').map((r) => r.value)
+    const denies = accessList.ipRules.filter((r) => r.type === 'deny').map((r) => r.value)
+    if (denies.length > 0) {
+      handlers.push({ handler: 'remote_ip', deny: denies })
+    }
+    if (allows.length > 0) {
+      handlers.push({ handler: 'remote_ip', ranges: allows })
+    }
+  }
+
+  if (accessList.basicAuth) {
+    handlers.push({
+      handler: 'authentication',
+      providers: {
+        http_basic: {
+          realm: accessList.basicAuth.realm,
+          accounts: accessList.basicAuth.users.map((u) => ({
+            username: u.username,
+            password: u.passwordHash,
+            salt: '',
+          })),
+        },
+      },
+    })
+  }
+
+  return handlers
+}
+
 function stripScheme(address: string): string {
   const stripped = address.replace(/^https?:\/\//, '')
   return stripped.includes(':') ? stripped : `${stripped}:80`
+}
+
+export function buildErrorRoute(host: {
+  domain: string
+  statusCode: number
+  pageType: 'default' | 'custom_html' | 'redirect'
+  customHtml?: string | null
+  redirectUrl?: string | null
+}): CaddyRoute {
+  const handlers: unknown[] = []
+
+  if (host.pageType === 'redirect' && host.redirectUrl) {
+    handlers.push({
+      handler: 'static_response',
+      status_code: 301,
+      headers: { Location: [host.redirectUrl] },
+    })
+  } else {
+    handlers.push({
+      handler: 'static_response',
+      status_code: host.statusCode,
+      body: host.pageType === 'custom_html' && host.customHtml
+        ? host.customHtml
+        : `<!DOCTYPE html><html><head><title>${host.statusCode} Error</title></head><body><h1>${host.statusCode}</h1><p>This service is not available.</p><p style="color:#888;font-size:12px">Powered by ProxyOS</p></body></html>`,
+    })
+  }
+
+  return {
+    '@id': `error_${host.domain}`,
+    match: [{ host: [host.domain] }],
+    handle: handlers,
+    terminal: true,
+  }
+}
+
+export function buildRedirectRoute(host: {
+  sourceDomain: string
+  destinationUrl: string
+  redirectCode: number
+  preservePath: boolean
+  preserveQuery: boolean
+}): CaddyRoute {
+  const location = host.preservePath
+    ? host.preserveQuery
+      ? `${host.destinationUrl}{http.request.uri}`
+      : `${host.destinationUrl}{http.request.uri.path}`
+    : host.destinationUrl
+
+  return {
+    '@id': `redirect_${host.sourceDomain}`,
+    match: [{ host: [host.sourceDomain] }],
+    handle: [{
+      handler: 'static_response',
+      status_code: host.redirectCode,
+      headers: { Location: [location] },
+    }],
+    terminal: true,
+  }
 }

@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, count, eq, gte, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import { certificates, nanoid, routes } from '@proxyos/db'
+import { certIssuanceLog, certificates, nanoid, routes } from '@proxyos/db'
 import type { Certificate, CertSource, CertStatus } from '@proxyos/types'
 import { publicProcedure, router } from '../trpc'
 
@@ -82,6 +82,43 @@ export const certificatesRouter = router({
         createdAt: now, updatedAt: now,
       })
       return { id, domain: input.domain, message: 'Cert recorded. Caddy load_cert wiring is a TODO.' }
+    }),
+
+  getRateLimitStatus: publicProcedure
+    .input(z.object({ domain: z.string() }))
+    .query(async ({ input, ctx }) => {
+      // Extract eTLD+1: take last 2 parts of domain
+      const parts = input.domain.split('.')
+      const registeredDomain = parts.length >= 2 ? parts.slice(-2).join('.') : input.domain
+
+      // Start of current week (Monday 00:00 UTC)
+      const now = new Date()
+      const dayOfWeek = now.getUTCDay() // 0=Sun, 1=Mon...
+      const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      const weekStart = new Date(now)
+      weekStart.setUTCDate(now.getUTCDate() - daysSinceMonday)
+      weekStart.setUTCHours(0, 0, 0, 0)
+
+      const rows = await ctx.db
+        .select({ count: count() })
+        .from(certIssuanceLog)
+        .where(
+          and(
+            eq(certIssuanceLog.registeredDomain, registeredDomain),
+            eq(certIssuanceLog.provider, 'letsencrypt'),
+            gte(certIssuanceLog.issuedAt, weekStart),
+          ),
+        )
+
+      const used = rows[0]?.count ?? 0
+      const limit = 50
+      return {
+        registeredDomain,
+        used,
+        limit,
+        nearLimit: used >= 45,
+        atLimit: used >= 50,
+      }
     }),
 })
 

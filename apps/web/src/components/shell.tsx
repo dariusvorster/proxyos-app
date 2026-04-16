@@ -15,6 +15,9 @@ const navSections: NavSection[] = [
     items: [
       { href: '/', label: 'Dashboard', icon: '◆' },
       { href: '/routes', label: 'Routes', icon: '↗' },
+      { href: '/redirect-hosts', label: 'Redirect hosts', icon: '↪' },
+      { href: '/error-hosts', label: 'Error hosts', icon: '✕' },
+      { href: '/streams', label: 'Streams', icon: '⇌' },
       { href: '/analytics', label: 'Analytics', icon: '▤' },
       { href: '/certificates', label: 'Certificates', icon: '◼' },
     ],
@@ -31,8 +34,10 @@ const navSections: NavSection[] = [
     label: 'Tools',
     items: [
       { href: '/import', label: 'Import', icon: '⇣' },
+      { href: '/access-lists', label: 'Access lists', icon: '⊘' },
       { href: '/audit', label: 'Audit log', icon: '≡' },
       { href: '/logs', label: 'Logs', icon: '▤' },
+      { href: '/logs/operations', label: 'Operations', icon: '◎' },
     ],
   },
   {
@@ -245,7 +250,7 @@ function Sidebar() {
             color: 'var(--text3)',
             marginTop: 1,
           }}>
-            {TIER_LABEL} · v3
+            {TIER_LABEL} · v3.1
           </div>
         </div>
       </div>
@@ -351,7 +356,7 @@ export function Topbar({
   banner?: ReactNode
 }) {
   useEffect(() => {
-    if (typeof document !== 'undefined') document.title = `ProxyOS — ${title}`
+    if (typeof document !== 'undefined') document.title = `ProxyOS v3.1 — ${title}`
   }, [title])
   return (
     <>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Topbar, PageContent } from '~/components/shell'
 
 // ─── TOC structure ────────────────────────────────────────────────────────────
@@ -126,7 +126,38 @@ function Callout({ tone, children }: { tone: 'blue' | 'amber' | 'green'; childre
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DocsPage() {
-  const [active, setActive] = useState<string>('getting-started')
+  const [active, setActive] = useState<string>(SECTIONS[0].id)
+
+  // Track active section via IntersectionObserver on the scroll container
+  useEffect(() => {
+    const container = contentRef.current?.closest('main') ?? document
+    const observers: IntersectionObserver[] = []
+
+    // Use a map to track which sections are intersecting, pick the topmost
+    const visible = new Set<string>()
+
+    SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id)
+      if (!el) return
+      const obs = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            visible.add(id)
+          } else {
+            visible.delete(id)
+          }
+          // Pick the first SECTIONS entry that is visible
+          const first = SECTIONS.find((s) => visible.has(s.id))
+          if (first) setActive(first.id)
+        },
+        { root: container instanceof Document ? null : container, rootMargin: '0px 0px -60% 0px', threshold: 0 },
+      )
+      obs.observe(el)
+      observers.push(obs)
+    })
+
+    return () => observers.forEach((o) => o.disconnect())
+  }, [])
 
   function scrollTo(id: string) {
     setActive(id)
@@ -140,7 +171,7 @@ export default function DocsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 32, alignItems: 'start' }}>
 
           {/* TOC sidebar */}
-          <nav style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <nav style={{ position: 'sticky', top: 0, maxHeight: 'calc(100vh - 60px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4, paddingBottom: 16 }}>
             {SECTIONS.map((s) => (
               <button
                 key={s.id}

@@ -496,8 +496,103 @@ export function ensureSchema(db: Database.Database): void {
       processed_at INTEGER NOT NULL,
       error TEXT
     )`)
+    // V3.1 tables
+    db.exec(`CREATE TABLE IF NOT EXISTS redirect_hosts (
+      id              TEXT PRIMARY KEY,
+      agent_id        TEXT REFERENCES agents(id),
+      source_domain   TEXT NOT NULL UNIQUE,
+      destination_url TEXT NOT NULL,
+      redirect_code   INTEGER NOT NULL DEFAULT 301,
+      preserve_path   INTEGER NOT NULL DEFAULT 1,
+      preserve_query  INTEGER NOT NULL DEFAULT 1,
+      tls_enabled     INTEGER NOT NULL DEFAULT 1,
+      access_list_id  TEXT REFERENCES access_lists(id),
+      enabled         INTEGER NOT NULL DEFAULT 1,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS streams (
+      id              TEXT PRIMARY KEY,
+      agent_id        TEXT REFERENCES agents(id),
+      listen_port     INTEGER NOT NULL UNIQUE,
+      protocol        TEXT NOT NULL DEFAULT 'tcp',
+      upstream_host   TEXT NOT NULL,
+      upstream_port   INTEGER NOT NULL,
+      enabled         INTEGER NOT NULL DEFAULT 1,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS error_hosts (
+      id              TEXT PRIMARY KEY,
+      agent_id        TEXT REFERENCES agents(id),
+      domain          TEXT NOT NULL UNIQUE,
+      status_code     INTEGER NOT NULL DEFAULT 404,
+      page_type       TEXT NOT NULL DEFAULT 'default',
+      custom_html     TEXT,
+      redirect_url    TEXT,
+      tls_enabled     INTEGER NOT NULL DEFAULT 1,
+      enabled         INTEGER NOT NULL DEFAULT 1,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS access_lists (
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      description     TEXT,
+      satisfy_mode    TEXT NOT NULL DEFAULT 'any',
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS access_list_ip_rules (
+      id              TEXT PRIMARY KEY,
+      access_list_id  TEXT NOT NULL REFERENCES access_lists(id) ON DELETE CASCADE,
+      type            TEXT NOT NULL,
+      value           TEXT NOT NULL,
+      comment         TEXT,
+      sort_order      INTEGER NOT NULL DEFAULT 0
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS access_list_auth_users (
+      id              TEXT PRIMARY KEY,
+      access_list_id  TEXT NOT NULL REFERENCES access_lists(id) ON DELETE CASCADE,
+      username        TEXT NOT NULL,
+      password_hash   TEXT NOT NULL,
+      UNIQUE(access_list_id, username)
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS access_list_auth_config (
+      access_list_id  TEXT PRIMARY KEY REFERENCES access_lists(id) ON DELETE CASCADE,
+      realm           TEXT NOT NULL DEFAULT 'ProxyOS',
+      protected_paths TEXT
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS operation_logs (
+      id              TEXT PRIMARY KEY,
+      type            TEXT NOT NULL,
+      subject         TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'in_progress',
+      steps           TEXT NOT NULL DEFAULT '[]',
+      duration_ms     INTEGER,
+      error           TEXT,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS cert_issuance_log (
+      id                TEXT PRIMARY KEY,
+      domain            TEXT NOT NULL,
+      registered_domain TEXT NOT NULL,
+      provider          TEXT NOT NULL,
+      method            TEXT,
+      issued_at         INTEGER NOT NULL,
+      expires_at        INTEGER
+    )`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_cert_issuance_registered_domain ON cert_issuance_log(registered_domain, issued_at)`)
   })()
   for (const stmt of ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
+  // V3.1 alters — run after table creation
+  const V31_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN access_list_id TEXT REFERENCES access_lists(id)`,
+  ]
+  for (const stmt of V31_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
 }

@@ -1,3 +1,5 @@
+export * from './version'
+
 export type UpstreamType = 'http' | 'tcp' | 'static' | 'redirect' | 'loadbalance'
 
 export type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'
