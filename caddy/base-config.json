@@ -23,6 +23,11 @@
           "logs": { "default_logger_name": "access" }
         }
       }
+    },
+    "tls": {
+      "automation": {
+        "policies": []
+      }
     }
   }
 }

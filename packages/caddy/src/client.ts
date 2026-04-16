@@ -50,14 +50,26 @@ export class CaddyClient {
   }
 
   async upsertTlsPolicy(policy: unknown): Promise<void> {
-    const url = `${this.baseUrl}/config/apps/tls/automation/policies`
-    const getRes = await fetch(url)
-    if (getRes.status === 404 || (await getRes.clone().text()) === 'null') {
-      const res = await this.fetchJson(url, { method: 'POST', body: [policy] })
-      if (!res.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${res.status} ${await res.text()}`)
+    const policiesUrl = `${this.baseUrl}/config/apps/tls/automation/policies`
+
+    const getRes = await fetch(policiesUrl)
+    const getText = await getRes.text()
+
+    // Any non-ok response (404, 500 "invalid traversal path", etc.) or null body
+    // means the tls app or automation path doesn't exist yet — initialize it via PUT.
+    if (!getRes.ok || getText === 'null') {
+      const initRes = await this.fetchJson(`${this.baseUrl}/config/apps/tls`, {
+        method: 'PUT',
+        body: { automation: { policies: [policy] } },
+      })
+      if (!initRes.ok) {
+        throw new Error(`Caddy upsertTlsPolicy init failed: ${initRes.status} ${await initRes.text()}`)
+      }
       return
     }
-    const res = await this.fetchJson(url, { method: 'POST', body: policy })
+
+    // policies array exists — append
+    const res = await this.fetchJson(policiesUrl, { method: 'POST', body: policy })
     if (!res.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${res.status} ${await res.text()}`)
   }
 
