@@ -283,10 +283,14 @@ function IconBtn({ onClick, label, children }: { onClick: () => void; label: str
   )
 }
 
+const allNavHrefs = new Set(navSections.flatMap((s) => s.items.map((i) => i.href)))
+
 function isActive(pathname: string | null, href: string) {
   if (!pathname) return false
   if (href === '/') return pathname === '/'
-  return pathname === href || pathname.startsWith(href + '/')
+  if (pathname === href) return true
+  // Only use prefix match when the current path isn't itself a direct nav item
+  return pathname.startsWith(href + '/') && !allNavHrefs.has(pathname)
 }
 
 function SectionLabel({ label }: { label: string }) {

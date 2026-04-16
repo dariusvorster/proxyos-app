@@ -6,11 +6,73 @@ import { Badge, Button, Card, DataTable, ProgressBar, td, th } from '~/component
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
+const INPUT_STYLE = {
+  width: '100%',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  color: 'var(--text)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  padding: '6px 8px',
+  boxSizing: 'border-box' as const,
+}
+
+function AddCertModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [domain, setDomain] = useState('')
+  const [cert, setCert] = useState('')
+  const [key, setKey] = useState('')
+  const [err, setErr] = useState('')
+  const upload = trpc.certificates.upload.useMutation({
+    onSuccess: () => { onSaved(); onClose() },
+    onError: (e) => setErr(e.message),
+  })
+
+  function submit() {
+    setErr('')
+    if (!domain.trim() || !cert.trim() || !key.trim()) { setErr('All fields are required.'); return }
+    upload.mutate({ domain: domain.trim(), cert: cert.trim(), key: key.trim() })
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'var(--surf)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, width: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>Add custom certificate</div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 11, color: 'var(--text2)' }}>Domain</label>
+          <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="example.com" style={{ ...INPUT_STYLE, fontFamily: 'var(--font-sans)', fontSize: 12 }} />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 11, color: 'var(--text2)' }}>Certificate (PEM)</label>
+          <textarea value={cert} onChange={e => setCert(e.target.value)} rows={5} placeholder="-----BEGIN CERTIFICATE-----" style={{ ...INPUT_STYLE, resize: 'vertical' }} />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 11, color: 'var(--text2)' }}>Private key (PEM)</label>
+          <textarea value={key} onChange={e => setKey(e.target.value)} rows={5} placeholder="-----BEGIN PRIVATE KEY-----" style={{ ...INPUT_STYLE, resize: 'vertical' }} />
+        </div>
+
+        {err && <div style={{ fontSize: 11, color: 'var(--red)' }}>{err}</div>}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={submit} disabled={upload.isPending}>
+            {upload.isPending ? 'Saving…' : 'Save certificate'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CertificatesPage() {
   const list = trpc.certificates.list.useQuery(undefined, { refetchInterval: 10_000 })
   const firstDomain = list.data?.[0]?.domain ?? 'main'
   const rateLimit = trpc.certificates.getRateLimitStatus.useQuery({ domain: firstDomain }, { refetchInterval: 60_000 })
   const [caOpen, setCaOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   const now = Date.now()
   const total = list.data?.length ?? 0
@@ -35,6 +97,7 @@ export default function CertificatesPage() {
 
   return (
     <>
+      {addOpen && <AddCertModal onClose={() => setAddOpen(false)} onSaved={() => list.refetch()} />}
       <Topbar
         title="Certificates"
         banner={rateLimitBanner}
@@ -43,7 +106,7 @@ export default function CertificatesPage() {
             <Link href="/certificates/ct" style={{ fontSize: 11, color: 'var(--pu-400)' }}>CT monitor</Link>
             <Link href="/certificates/multi" style={{ fontSize: 11, color: 'var(--pu-400)' }}>Multi-domain</Link>
             <Link href="/certificates/acme" style={{ fontSize: 11, color: 'var(--pu-400)' }}>ACME accounts</Link>
-            <Button variant="primary" disabled title="Custom certs not wired in V1">+ Add custom cert</Button>
+            <Button variant="primary" onClick={() => setAddOpen(true)}>+ Add custom cert</Button>
           </div>
         }
       />
