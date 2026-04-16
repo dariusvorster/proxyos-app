@@ -126,7 +126,7 @@ function Callout({ tone, children }: { tone: 'blue' | 'amber' | 'green'; childre
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DocsPage() {
-  const [active, setActive] = useState<string>(SECTIONS[0].id)
+  const [active, setActive] = useState<string>(SECTIONS[0]!.id)
 
   // Track active section via IntersectionObserver on the scroll container
   useEffect(() => {
