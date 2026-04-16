@@ -4,19 +4,33 @@ services:
     image: proxyos:latest
     container_name: proxyos
     restart: unless-stopped
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - PORT=${PROXYOS_DASHBOARD_PORT:-3000}
+    env_file:
+      - .env
     ports:
-      - "${PROXYOS_HTTP_PORT:-80}:80"
-      - "${PROXYOS_HTTPS_PORT:-443}:443"
-      - "${PROXYOS_HTTPS_PORT:-443}:443/udp"
-      - "${PROXYOS_DASHBOARD_PORT:-3000}:${PROXYOS_DASHBOARD_PORT:-3000}"
+      # Host port is configurable — set in .env. Container-side is always fixed.
+      - "${PROXYOS_DASHBOARD_PORT:-3000}:3000"   # dashboard (Next.js)
+      - "${PROXYOS_HTTP_PORT:-80}:80"             # Caddy HTTP
+      - "${PROXYOS_HTTPS_PORT:-443}:443"          # Caddy HTTPS
+      - "${PROXYOS_HTTPS_PORT:-443}:443/udp"      # HTTP/3 QUIC
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      PROXYOS_SECRET: ${PROXYOS_SECRET:?set PROXYOS_SECRET in .env}
+      PROXYOS_URL: ${PROXYOS_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - proxyos-data:/data/proxyos
       - caddy-data:/data/caddy
       - caddy-config:/config/caddy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   proxyos-data:
