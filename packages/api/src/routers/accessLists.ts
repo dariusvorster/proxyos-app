@@ -266,8 +266,9 @@ function ipMatches(ip: string, cidrOrIp: string): boolean {
   if (!cidrOrIp.includes('/')) {
     return ip === cidrOrIp
   }
-  const [range, bits] = cidrOrIp.split('/')
-  const prefixLen = parseInt(bits, 10)
+  const parts = cidrOrIp.split('/')
+  const range = parts[0] ?? ''
+  const prefixLen = parseInt(parts[1] ?? '32', 10)
   const ipNum = ipToNum(ip)
   const rangeNum = ipToNum(range)
   if (ipNum === null || rangeNum === null) return false
@@ -278,5 +279,6 @@ function ipMatches(ip: string, cidrOrIp: string): boolean {
 function ipToNum(ip: string): number | null {
   const parts = ip.split('.').map(Number)
   if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return null
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  const [a = 0, b = 0, c = 0, d = 0] = parts
+  return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0
 }
