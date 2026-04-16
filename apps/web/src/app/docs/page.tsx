@@ -140,7 +140,7 @@ export default function DocsPage() {
       if (!el) return
       const obs = new IntersectionObserver(
         ([entry]) => {
-          if (entry.isIntersecting) {
+          if (entry?.isIntersecting) {
             visible.add(id)
           } else {
             visible.delete(id)
