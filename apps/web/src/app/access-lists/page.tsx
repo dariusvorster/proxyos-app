@@ -112,7 +112,7 @@ export default function AccessListsPage() {
 
   function updateAuthUser(i: number, patch: Partial<AuthUserDraft>) {
     const next = [...form.authUsers]
-    next[i] = { ...next[i], ...patch }
+    next[i] = { ...next[i], ...patch } as AuthUserDraft
     setField('authUsers', next)
   }
 
