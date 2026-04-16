@@ -126,8 +126,7 @@ export const accessListsRouter = router({
       updatedAt: now,
     })
 
-    for (let i = 0; i < input.ipRules.length; i++) {
-      const rule = input.ipRules[i]
+    for (const [i, rule] of input.ipRules.entries()) {
       await ctx.db.insert(accessListIpRules).values({
         id: nanoid(),
         accessListId: id,
@@ -173,8 +172,7 @@ export const accessListsRouter = router({
 
     // Replace IP rules
     await ctx.db.delete(accessListIpRules).where(eq(accessListIpRules.accessListId, input.id))
-    for (let i = 0; i < input.ipRules.length; i++) {
-      const rule = input.ipRules[i]
+    for (const [i, rule] of input.ipRules.entries()) {
       await ctx.db.insert(accessListIpRules).values({
         id: nanoid(),
         accessListId: input.id,
