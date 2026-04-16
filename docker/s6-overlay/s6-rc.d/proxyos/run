@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/command/with-contenv sh
 mkdir -p /data/proxyos /data/caddy /config/caddy
 
 # Wait for Caddy admin API before starting ProxyOS

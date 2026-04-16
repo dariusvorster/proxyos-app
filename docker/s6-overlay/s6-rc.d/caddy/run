@@ -1,2 +1,2 @@
-#!/bin/sh
+#!/command/with-contenv sh
 exec /usr/local/bin/caddy run --config /config/caddy/base-config.json
