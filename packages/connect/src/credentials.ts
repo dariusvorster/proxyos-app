@@ -1,10 +1,11 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
+import { env } from 'process'
 
 function getKey(): Buffer {
-  // String concatenation prevents webpack DefinePlugin from inlining this at build time.
-  // The value is resolved from the actual process.env at runtime.
-  const envKey = 'PROXYOS' + '_SECRET'
-  const secret = process.env[envKey]
+  // Import `env` from 'process' rather than accessing process.env.X directly —
+  // webpack's DefinePlugin only transforms the `process.env.KEY` member-expression
+  // pattern and does not transform named imports of the env object.
+  const secret = env['PROXYOS_SECRET']
   if (!secret) {
     throw new Error(
       '[connect] PROXYOS_SECRET environment variable is not set. ' +
