@@ -15,9 +15,13 @@ export class CaddyClient {
     this.serverName = opts.serverName ?? 'main'
   }
 
+  private get adminHeaders(): HeadersInit {
+    return { 'Origin': this.baseUrl }
+  }
+
   async health(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/config/`)
+      const res = await fetch(`${this.baseUrl}/config/`, { headers: this.adminHeaders })
       return res.ok
     } catch {
       return false
@@ -25,7 +29,7 @@ export class CaddyClient {
   }
 
   async getConfig(): Promise<unknown> {
-    const res = await fetch(`${this.baseUrl}/config/`)
+    const res = await fetch(`${this.baseUrl}/config/`, { headers: this.adminHeaders })
     if (!res.ok) throw new Error(`Caddy getConfig failed: ${res.status}`)
     return res.json()
   }
@@ -36,7 +40,7 @@ export class CaddyClient {
   }
 
   async hasServer(name: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/config/apps/http/servers/${name}`)
+    const res = await fetch(`${this.baseUrl}/config/apps/http/servers/${name}`, { headers: this.adminHeaders })
     if (res.status === 404) return false
     if (!res.ok) return false
     const body = await res.text()
@@ -50,7 +54,7 @@ export class CaddyClient {
   }
 
   async ensureTlsAppExists(): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/config/apps/tls`)
+    const res = await fetch(`${this.baseUrl}/config/apps/tls`, { headers: this.adminHeaders })
     const text = await res.text()
     if (!res.ok || text === 'null') {
       const initRes = await this.fetchJson(`${this.baseUrl}/config/apps/tls`, {
@@ -66,7 +70,7 @@ export class CaddyClient {
   async upsertTlsPolicy(policy: unknown): Promise<void> {
     const policiesUrl = `${this.baseUrl}/config/apps/tls/automation/policies`
 
-    const getRes = await fetch(policiesUrl)
+    const getRes = await fetch(policiesUrl, { headers: this.adminHeaders })
     const getText = await getRes.text()
 
     // Any non-ok response (404, 500 "invalid traversal path", etc.) or null body
@@ -105,7 +109,7 @@ export class CaddyClient {
 
   async removeRoute(routeId: string): Promise<void> {
     const url = `${this.baseUrl}/id/${caddyRouteId(routeId)}`
-    const res = await fetch(url, { method: 'DELETE' })
+    const res = await fetch(url, { method: 'DELETE', headers: this.adminHeaders })
     if (!res.ok && res.status !== 404) {
       throw new Error(`Caddy removeRoute failed: ${res.status} ${await res.text()}`)
     }
@@ -131,7 +135,7 @@ export class CaddyClient {
 
   async removeHttpRedirectServer(): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/http_redirect`
-    const res = await fetch(url, { method: 'DELETE' })
+    const res = await fetch(url, { method: 'DELETE', headers: this.adminHeaders })
     if (!res.ok && res.status !== 404) {
       throw new Error(`Caddy removeHttpRedirectServer failed: ${res.status} ${await res.text()}`)
     }
@@ -166,7 +170,7 @@ export class CaddyClient {
 
   async removeLayerFourStream(streamId: string): Promise<void> {
     const url = `${this.baseUrl}/config/apps/layer4/servers/stream_${streamId}`
-    const res = await fetch(url, { method: 'DELETE' })
+    const res = await fetch(url, { method: 'DELETE', headers: this.adminHeaders })
     if (!res.ok && res.status !== 404) {
       throw new Error(`Caddy removeLayerFourStream failed: ${res.status} ${await res.text()}`)
     }
@@ -175,7 +179,7 @@ export class CaddyClient {
   private fetchJson(url: string, init: { method: string; body: unknown }) {
     return fetch(url, {
       method: init.method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.adminHeaders },
       body: JSON.stringify(init.body),
     })
   }
