@@ -4,8 +4,8 @@ const NODE_BUILTINS = ['path', 'fs', 'fs/promises', 'readline', 'better-sqlite3'
 const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: '../../',
-  transpilePackages: ['@proxyos/alerts', '@proxyos/analytics', '@proxyos/api', '@proxyos/caddy', '@proxyos/db', '@proxyos/federation', '@proxyos/importers', '@proxyos/scanner', '@proxyos/sso', '@proxyos/types'],
-  serverExternalPackages: ['better-sqlite3', 'bindings', 'ws', '@proxyos/connect'],
+  transpilePackages: ['@proxyos/alerts', '@proxyos/analytics', '@proxyos/api', '@proxyos/caddy', '@proxyos/connect', '@proxyos/db', '@proxyos/federation', '@proxyos/importers', '@proxyos/scanner', '@proxyos/sso', '@proxyos/types'],
+  serverExternalPackages: ['better-sqlite3', 'bindings', 'ws'],
   webpack: (config, { isServer, nextRuntime }) => {
     if (nextRuntime === 'edge' || !isServer) {
       const existing = config.resolve?.fallback ?? {}
@@ -32,7 +32,6 @@ const nextConfig = {
         'better-sqlite3': 'commonjs better-sqlite3',
         bindings: 'commonjs bindings',
         ws: 'commonjs ws',
-        '@proxyos/connect': 'commonjs @proxyos/connect',
       })
     }
     return config

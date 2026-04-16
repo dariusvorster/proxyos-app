@@ -1,7 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 
 function getKey(): Buffer {
-  const secret = process.env['PROXYOS_SECRET']
+  // String concatenation prevents webpack DefinePlugin from inlining this at build time.
+  // The value is resolved from the actual process.env at runtime.
+  const envKey = 'PROXYOS' + '_SECRET'
+  const secret = process.env[envKey]
   if (!secret) {
     throw new Error(
       '[connect] PROXYOS_SECRET environment variable is not set. ' +
