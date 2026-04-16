@@ -7,39 +7,12 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
-      - PORT=3000
-
-    # ── Port configuration ────────────────────────────────────────────────────
-    #
-    # Choose ONE of the three options below. Comment out the others.
-    #
-    # OPTION A — Direct IP / Tailscale / Netbird access
-    #   Access the dashboard at http://<your-ip>:3000
-    #   Caddy still runs for any routes you create (proxying only, no TLS for dashboard)
-    #   No domain required. Ideal for homelab-only access via VPN.
-    #
+      - PORT=${PROXYOS_DASHBOARD_PORT:-3000}
     ports:
-      - "3000:3000"     # dashboard (Next.js direct)
-      - "80:80"         # Caddy — comment out if port 80 is already taken
-      - "443:443"       # Caddy TLS
-      - "443:443/udp"   # HTTP/3 QUIC
-
-    #
-    # OPTION B — Domain + TLS (full Caddy-fronted setup)
-    #   Set PROXYOS_URL=https://proxy.yourdomain.com in .env
-    #   Caddy provisions a TLS cert and serves the dashboard on 443
-    #   Comment out port 3000 above if you don't want it exposed externally
-    #
-    # (same ports as Option A — the difference is in PROXYOS_URL)
-
-    #
-    # OPTION C — Tailscale / Netbird only (no public ports)
-    #   Remove 80 and 443 entirely if you only want internal VPN access.
-    #   Accessible at http://<tailscale-ip>:3000
-    #
-    # ports:
-    #   - "3000:3000"
-
+      - "${PROXYOS_HTTP_PORT:-80}:80"
+      - "${PROXYOS_HTTPS_PORT:-443}:443"
+      - "${PROXYOS_HTTPS_PORT:-443}:443/udp"
+      - "${PROXYOS_DASHBOARD_PORT:-3000}:${PROXYOS_DASHBOARD_PORT:-3000}"
     volumes:
       - proxyos-data:/data/proxyos
       - caddy-data:/data/caddy
