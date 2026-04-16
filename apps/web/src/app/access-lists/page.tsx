@@ -96,7 +96,9 @@ export default function AccessListsPage() {
     const next = [...form.ipRules]
     const j = i + dir
     if (j < 0 || j >= next.length) return
-    ;[next[i], next[j]] = [next[j], next[i]]
+    const tmp = next[i]!
+    next[i] = next[j]!
+    next[j] = tmp
     setField('ipRules', next)
   }
 
