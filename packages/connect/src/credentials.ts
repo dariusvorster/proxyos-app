@@ -1,12 +1,14 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 
 function getKey(): Buffer {
-  const secret = process.env.PROXYOS_SECRET
-  if (!secret) throw new Error('PROXYOS_SECRET env var is required for credential encryption')
-  // Pad or truncate to 32 bytes for AES-256
-  const buf = Buffer.alloc(32)
-  Buffer.from(secret, 'utf8').copy(buf)
-  return buf
+  const secret = process.env['PROXYOS_SECRET']
+  if (!secret) {
+    throw new Error(
+      '[connect] PROXYOS_SECRET environment variable is not set. ' +
+      'Set it to a strong random string to enable credential encryption.',
+    )
+  }
+  return scryptSync(secret, 'proxyos-salt', 32) as Buffer
 }
 
 export function encryptCredentials(plaintext: string): string {
