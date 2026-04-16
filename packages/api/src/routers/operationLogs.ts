@@ -119,8 +119,8 @@ export const operationLogsRouter = router({
         .where(eq(operationLogs.id, input.id))
         .limit(1)
 
-      if (!rows.length) return null
       const r = rows[0]
+      if (!r) return null
 
       return {
         id: r.id,
