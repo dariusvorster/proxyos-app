@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
 import { publicProcedure, router } from '../trpc'
+import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, message: string, detail?: Record<string, unknown>, userId?: string) {
@@ -32,16 +33,26 @@ export const usersRouter = router({
   // ── Auth ────────────────────────────────────────────────────────────────────
 
   login: publicProcedure
-    .input(z.object({ email: z.string().email(), password: z.string() }))
+    .input(z.object({ email: z.string().email(), password: z.string(), totpCode: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.email, input.email)).get()
       if (!u || !u.passwordHash || u.passwordHash !== hashPassword(input.password)) {
         void syslog(ctx.db, 'warn', 'auth', `Failed login attempt`, { email: input.email })
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' })
       }
+      // TOTP check
+      if (u.totpEnabled && u.totpSecret) {
+        if (!input.totpCode) {
+          return { requiresTotp: true as const, id: null, email: null, role: null, displayName: null, avatarColor: null, avatarUrl: null }
+        }
+        if (!verifyTotp(u.totpSecret, input.totpCode)) {
+          void syslog(ctx.db, 'warn', 'auth', `Failed TOTP attempt`, { email: input.email })
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
+        }
+      }
       await ctx.db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, u.id))
       void syslog(ctx.db, 'info', 'auth', `User signed in`, { email: u.email }, u.id)
-      return { id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null }
+      return { requiresTotp: false as const, id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null }
     }),
 
   register: publicProcedure
@@ -62,7 +73,7 @@ export const usersRouter = router({
     .query(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
       if (!u) return null
-      return { id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, lastLogin: u.lastLogin, createdAt: u.createdAt }
+      return { id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, lastLogin: u.lastLogin, createdAt: u.createdAt, totpEnabled: !!u.totpEnabled }
     }),
 
   updateProfile: publicProcedure
@@ -137,6 +148,47 @@ export const usersRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(users).where(eq(users.id, input.id))
+      return { ok: true }
+    }),
+
+  // ── TOTP ────────────────────────────────────────────────────────────────────
+
+  setupTotp: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
+      if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
+      const secret = generateTotpSecret()
+      const uri = buildOtpAuthUri(secret, u.email)
+      return { secret, uri }
+    }),
+
+  verifyAndEnableTotp: publicProcedure
+    .input(z.object({ userId: z.string(), secret: z.string(), code: z.string().length(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
+      if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!verifyTotp(input.secret, input.code)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid code — check your authenticator app and try again' })
+      }
+      await ctx.db.update(users).set({ totpSecret: input.secret, totpEnabled: 1 }).where(eq(users.id, input.userId))
+      void syslog(ctx.db, 'info', 'auth', 'TOTP enabled', { userId: input.userId }, input.userId)
+      return { ok: true }
+    }),
+
+  disableTotp: publicProcedure
+    .input(z.object({ userId: z.string(), password: z.string(), code: z.string().length(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
+      if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!u.passwordHash || u.passwordHash !== hashPassword(input.password)) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Incorrect password' })
+      }
+      if (!u.totpSecret || !verifyTotp(u.totpSecret, input.code)) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
+      }
+      await ctx.db.update(users).set({ totpSecret: null, totpEnabled: 0 }).where(eq(users.id, input.userId))
+      void syslog(ctx.db, 'info', 'auth', 'TOTP disabled', { userId: input.userId }, input.userId)
       return { ok: true }
     }),
 

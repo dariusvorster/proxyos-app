@@ -8,6 +8,152 @@ import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
 
+function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boolean; onToggled: () => void }) {
+  const [step, setStep] = useState<'idle' | 'setup'>('idle')
+  const [secret, setSecret] = useState('')
+  const [uri, setUri] = useState('')
+  const [code, setCode] = useState('')
+  const [setupError, setSetupError] = useState<string | null>(null)
+  const [showDisable, setShowDisable] = useState(false)
+  const [disablePw, setDisablePw] = useState('')
+  const [disableCode, setDisableCode] = useState('')
+  const [disableError, setDisableError] = useState<string | null>(null)
+
+  const setupTotp = trpc.users.setupTotp.useMutation()
+  const verifyAndEnable = trpc.users.verifyAndEnableTotp.useMutation()
+  const disableTotp = trpc.users.disableTotp.useMutation()
+
+  async function startSetup() {
+    setSetupError(null)
+    try {
+      const res = await setupTotp.mutateAsync({ userId })
+      setSecret(res.secret)
+      setUri(res.uri)
+      setCode('')
+      setStep('setup')
+    } catch (err: unknown) {
+      setSetupError(err instanceof Error ? err.message : 'Failed to generate secret')
+    }
+  }
+
+  async function verifyCode() {
+    setSetupError(null)
+    try {
+      await verifyAndEnable.mutateAsync({ userId, secret, code })
+      setStep('idle')
+      onToggled()
+    } catch (err: unknown) {
+      setSetupError(err instanceof Error ? err.message : 'Invalid code')
+    }
+  }
+
+  async function doDisable() {
+    setDisableError(null)
+    try {
+      await disableTotp.mutateAsync({ userId, password: disablePw, code: disableCode })
+      setDisablePw(''); setDisableCode(''); setShowDisable(false)
+      onToggled()
+    } catch (err: unknown) {
+      setDisableError(err instanceof Error ? err.message : 'Failed to disable 2FA')
+    }
+  }
+
+  if (enabled) {
+    return (
+      <Card header={<span>Two-factor authentication</span>}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 11, background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 4, padding: '2px 8px' }}>Enabled</span>
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>TOTP authenticator app is protecting your account.</span>
+        </div>
+        {!showDisable ? (
+          <Button variant="danger" onClick={() => setShowDisable(true)}>Disable 2FA</Button>
+        ) : (
+          <div style={{ display: 'grid', gap: 10, maxWidth: 320 }}>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>Enter your password and a current authenticator code to disable 2FA.</div>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Password</span>
+              <Input type="password" value={disablePw} onChange={e => setDisablePw(e.target.value)} autoComplete="current-password" />
+            </label>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Authenticator code</span>
+              <Input type="text" inputMode="numeric" maxLength={6} value={disableCode}
+                onChange={e => setDisableCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000" style={{ letterSpacing: '0.15em', maxWidth: 140 }} />
+            </label>
+            {disableError && <p style={{ fontSize: 11, color: 'var(--red)', margin: 0 }}>{disableError}</p>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="danger" onClick={doDisable}
+                disabled={!disablePw || disableCode.length !== 6 || disableTotp.isPending}>
+                {disableTotp.isPending ? 'Disabling…' : 'Confirm disable'}
+              </Button>
+              <Button onClick={() => { setShowDisable(false); setDisableError(null); setDisablePw(''); setDisableCode('') }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+    )
+  }
+
+  if (step === 'idle') {
+    return (
+      <Card header={<span>Two-factor authentication</span>}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 11, background: 'var(--surf2)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px' }}>Not enabled</span>
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>Add an extra layer of security with an authenticator app.</span>
+        </div>
+        {setupError && <p style={{ fontSize: 11, color: 'var(--red)', margin: '0 0 10px' }}>{setupError}</p>}
+        <Button variant="primary" onClick={startSetup} disabled={setupTotp.isPending}>
+          {setupTotp.isPending ? 'Generating…' : 'Set up authenticator'}
+        </Button>
+      </Card>
+    )
+  }
+
+  // step === 'setup'
+  return (
+    <Card header={<span>Two-factor authentication — Setup</span>}>
+      <div style={{ display: 'grid', gap: 14, maxWidth: 400 }}>
+        <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+          Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and add a new account using the secret key below, or tap the link to open it directly.
+        </div>
+        <div style={{ background: 'var(--surf2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px' }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Secret key — manual entry</div>
+          <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13, letterSpacing: '0.12em', color: 'var(--text)', wordBreak: 'break-all' }}>{secret}</code>
+        </div>
+        <a href={uri} style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none' }}>
+          Open in authenticator app →
+        </a>
+        <label style={{ display: 'grid', gap: 5 }}>
+          <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Confirm — enter the 6-digit code from your app
+          </span>
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+            autoFocus
+            autoComplete="one-time-code"
+            placeholder="000000"
+            style={{ letterSpacing: '0.2em', textAlign: 'center', fontSize: 18, maxWidth: 160 }}
+          />
+        </label>
+        {setupError && <p style={{ fontSize: 11, color: 'var(--red)', margin: 0 }}>{setupError}</p>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="primary" onClick={verifyCode} disabled={code.length !== 6 || verifyAndEnable.isPending}>
+            {verifyAndEnable.isPending ? 'Verifying…' : 'Verify & enable'}
+          </Button>
+          <Button onClick={() => { setStep('idle'); setCode(''); setSetupError(null) }}>Cancel</Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 const AVATAR_COLORS = [
   '#4338CA', '#0E9F6E', '#B4231F', '#B4600E',
   '#7C6FF0', '#0369A1', '#6D28D9', '#047857',
@@ -271,6 +417,8 @@ function ProfileForm({ session }: { session: Session }) {
             {pwError && <p style={{ fontSize: 11, color: 'var(--red)', margin: 0 }}>{pwError}</p>}
           </div>
         </Card>
+
+        <TotpCard userId={session.id} enabled={!!serverData?.totpEnabled} onToggled={() => void profile.refetch()} />
 
         <Card header={<span>Account</span>}>
           <div style={{ display: 'grid', gap: 8, fontSize: 12 }}>

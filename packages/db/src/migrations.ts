@@ -591,6 +591,8 @@ export function ensureSchema(db: Database.Database): void {
   // V3.1 alters — run after table creation
   const V31_ALTERS = [
     `ALTER TABLE routes ADD COLUMN access_list_id TEXT REFERENCES access_lists(id)`,
+    `ALTER TABLE users ADD COLUMN totp_secret TEXT`,
+    `ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`,
   ]
   for (const stmt of V31_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }

@@ -12,6 +12,8 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [step, setStep] = useState<'credentials' | 'totp'>('credentials')
   const [error, setError] = useState<string | null>(null)
   const login = trpc.users.login.useMutation()
 
@@ -24,11 +26,15 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
     try {
-      const s = await login.mutateAsync({ email, password })
-      setSession({ id: s.id, email: s.email, role: s.role, displayName: s.displayName, avatarColor: s.avatarColor })
+      const s = await login.mutateAsync({ email, password, totpCode: step === 'totp' ? totpCode : undefined })
+      if (s.requiresTotp) {
+        setStep('totp')
+        return
+      }
+      setSession({ id: s.id!, email: s.email!, role: s.role!, displayName: s.displayName!, avatarColor: s.avatarColor! })
       router.push('/')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password')
+      setError(err instanceof Error ? err.message : 'Invalid credentials')
     }
   }
 
@@ -75,55 +81,53 @@ export default function LoginPage() {
           </p>
 
           <form onSubmit={onSubmit} style={{ display: 'grid', gap: 14 }}>
-            <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-                Email
-              </span>
-              <Input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoFocus
-                autoComplete="email"
-                placeholder="you@example.com"
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-                Password
-              </span>
-              <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </label>
+            {step === 'credentials' ? (
+              <>
+                <label style={{ display: 'grid', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Email</span>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email" placeholder="you@example.com" />
+                </label>
+                <label style={{ display: 'grid', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Password</span>
+                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+                </label>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--font-sans)' }}>
+                  Enter the 6-digit code from your authenticator app.
+                </div>
+                <label style={{ display: 'grid', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Authenticator code</span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    required
+                    autoFocus
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    style={{ letterSpacing: '0.2em', textAlign: 'center', fontSize: 20 }}
+                  />
+                </label>
+                <button type="button" onClick={() => { setStep('credentials'); setError(null); setTotpCode('') }}
+                  style={{ fontSize: 11, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'var(--font-sans)' }}>
+                  ← Back
+                </button>
+              </>
+            )}
 
             {error && (
-              <div style={{
-                background: 'var(--red-dim)',
-                border: '1px solid var(--red-border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '8px 12px',
-                fontSize: 12,
-                color: 'var(--red)',
-                fontFamily: 'var(--font-sans)',
-              }}>
+              <div style={{ background: 'var(--red-dim)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 12, color: 'var(--red)', fontFamily: 'var(--font-sans)' }}>
                 {error}
               </div>
             )}
 
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={login.isPending}
-              style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', marginTop: 2 }}
-            >
-              {login.isPending ? 'Signing in…' : 'Sign in'}
+            <Button type="submit" variant="primary" disabled={login.isPending} style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', marginTop: 2 }}>
+              {login.isPending ? 'Signing in…' : step === 'totp' ? 'Verify' : 'Sign in'}
             </Button>
           </form>
         </div>

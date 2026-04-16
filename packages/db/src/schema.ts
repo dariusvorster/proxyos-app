@@ -318,6 +318,8 @@ export const users = sqliteTable('users', {
   avatarUrl: text('avatar_url'),
   ssoProvider: text('sso_provider'),
   ssoSubject: text('sso_subject'),
+  totpSecret: text('totp_secret'),
+  totpEnabled: integer('totp_enabled').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   lastLogin: integer('last_login', { mode: 'timestamp' }),
 })
