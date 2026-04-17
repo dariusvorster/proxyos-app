@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, routeTemplates } from '@proxyos/db'
 import { BUILT_IN_TEMPLATES } from '../automation/built-in-templates'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const templatesRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -36,7 +36,7 @@ export const templatesRouter = router({
       return { id: row.id, name: row.name, description: row.description ?? '', config: JSON.parse(row.config) as Record<string, unknown>, builtIn: false, createdAt: row.createdAt }
     }),
 
-  create: publicProcedure
+  create: operatorProcedure
     .input(z.object({
       name: z.string().min(1).max(64),
       description: z.string().max(256).optional(),
@@ -56,7 +56,7 @@ export const templatesRouter = router({
       return { id }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (BUILT_IN_TEMPLATES.some(t => t.id === input.id)) {

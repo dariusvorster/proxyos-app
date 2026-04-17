@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { and, eq, gte } from 'drizzle-orm'
 import { z } from 'zod'
 import { agents, agentMetrics, revokedAgentTokens, nanoid } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 import { createHash } from 'crypto'
 
 // Simple deterministic JWT using HMAC-SHA256 (no external dependency)
@@ -54,7 +54,7 @@ export const agentsRouter = router({
       return rowToAgent(row)
     }),
 
-  register: publicProcedure
+  register: operatorProcedure
     .input(z.object({
       name: z.string().min(1).max(100),
       siteTag: z.string().optional(),
@@ -83,7 +83,7 @@ export const agentsRouter = router({
       return { id, token, expiresAt }
     }),
 
-  revokeToken: publicProcedure
+  revokeToken: operatorProcedure
     .input(z.object({ id: z.string(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const agent = await ctx.db.select().from(agents).where(eq(agents.id, input.id)).get()
@@ -98,7 +98,7 @@ export const agentsRouter = router({
       return { ok: true }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(agents).where(eq(agents.id, input.id))

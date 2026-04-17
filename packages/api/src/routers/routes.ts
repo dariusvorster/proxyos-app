@@ -5,7 +5,7 @@ import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
 
@@ -115,7 +115,7 @@ export const routesRouter = router({
     return rows.map(rowToRoute)
   }),
 
-  create: publicProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+  create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.select().from(routes).where(eq(routes.domain, input.domain)).get()
     if (existing) {
       throw new TRPCError({ code: 'CONFLICT', message: `${input.domain} already has a route` })
@@ -222,7 +222,7 @@ export const routesRouter = router({
     return route
   }),
 
-  expose: publicProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
+  expose: operatorProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
     if (!(await ctx.caddy.health())) {
       throw new TRPCError({
         code: 'SERVICE_UNAVAILABLE',
@@ -350,7 +350,7 @@ export const routesRouter = router({
       return rowToRoute(row)
     }),
 
-  update: publicProcedure
+  update: operatorProcedure
     .input(
       z.object({
         id: z.string(),
@@ -429,7 +429,7 @@ export const routesRouter = router({
       return route
     }),
 
-  toggle: publicProcedure
+  toggle: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
@@ -453,7 +453,7 @@ export const routesRouter = router({
       return { success: true }
     }),
 
-  test: publicProcedure
+  test: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
@@ -477,7 +477,7 @@ export const routesRouter = router({
       return { results }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()

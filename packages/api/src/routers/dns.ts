@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { auditLog, dnsProviders, nanoid } from '@proxyos/db'
 import type { DnsProvider, DnsProviderType } from '@proxyos/types'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 import { encryptJson, decryptJson } from '../crypto'
 
 const dnsTypes = ['cloudflare', 'route53', 'porkbun', 'digitalocean', 'godaddy'] as const
@@ -32,7 +32,7 @@ export const dnsRouter = router({
     return rows.map((r) => rowToProvider(r, true))
   }),
 
-  create: publicProcedure
+  create: operatorProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
@@ -64,7 +64,7 @@ export const dnsRouter = router({
       return { id }
     }),
 
-  test: publicProcedure
+  test: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, input.id)).get()
@@ -86,7 +86,7 @@ export const dnsRouter = router({
       }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, input.id)).get()

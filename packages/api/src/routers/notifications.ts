@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { webhookDeliveryLog, connections, nanoid } from '@proxyos/db'
 import { adapterRegistry } from '@proxyos/connect'
 import { WebhookAdapter } from '@proxyos/connect/notifications'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const notificationsRouter = router({
   webhookLog: publicProcedure
@@ -25,7 +25,7 @@ export const notificationsRouter = router({
       return rows
     }),
 
-  retryWebhook: publicProcedure
+  retryWebhook: operatorProcedure
     .input(z.object({ deliveryId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(webhookDeliveryLog)

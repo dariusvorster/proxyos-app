@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { auditLog, nanoid, ssoProviders } from '@proxyos/db'
 import { getDriver, testForwardAuth } from '@proxyos/sso'
 import type { SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const providerTypes = ['authentik', 'authelia', 'keycloak', 'zitadel'] as const
 
@@ -29,7 +29,7 @@ export const ssoRouter = router({
     return rows.map(rowToProvider)
   }),
 
-  create: publicProcedure
+  create: operatorProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
@@ -70,7 +70,7 @@ export const ssoRouter = router({
       return { id, forwardAuthUrl }
     }),
 
-  update: publicProcedure
+  update: operatorProcedure
     .input(z.object({
       id: z.string(),
       patch: z.object({
@@ -97,7 +97,7 @@ export const ssoRouter = router({
       return { success: true }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, input.id)).get()
@@ -116,7 +116,7 @@ export const ssoRouter = router({
       return { success: true }
     }),
 
-  test: publicProcedure
+  test: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, input.id)).get()

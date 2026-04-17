@@ -4,7 +4,7 @@ import { lockboxRefs, nanoid, patchosVersions, routes, systemSettings } from '@p
 import { buildBackupOSRegistration } from '../automation/backupos'
 import { parseLockBoxConfig, fetchFromLockBox } from '../automation/lockboxos'
 import { detectMailRoutes } from '../automation/mxwatch'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, adminProcedure, router } from '../trpc'
 
 // ─── InfraOS ─────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ export const integrationsRouter = router({
     try { return InfraOSConfigSchema.parse(JSON.parse(row.value)) } catch { return null }
   }),
 
-  setInfraOSConfig: publicProcedure
+  setInfraOSConfig: adminProcedure
     .input(InfraOSConfigSchema)
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -49,7 +49,7 @@ export const integrationsRouter = router({
     }),
 
   // ios expose: create a ProxyOS route from InfraOS
-  infraOSExpose: publicProcedure
+  infraOSExpose: adminProcedure
     .input(z.object({
       domain: z.string().min(1),
       upstream: z.string().min(1),
@@ -99,7 +99,7 @@ export const integrationsRouter = router({
     return cfg ? { baseUrl: cfg.baseUrl } : null // never return token in GET
   }),
 
-  setLockBoxConfig: publicProcedure
+  setLockBoxConfig: adminProcedure
     .input(LockBoxConfigSchema)
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -112,7 +112,7 @@ export const integrationsRouter = router({
     return ctx.db.select().from(lockboxRefs).all()
   }),
 
-  createLockBoxRef: publicProcedure
+  createLockBoxRef: adminProcedure
     .input(z.object({
       connectionId: z.string(),
       credentialKey: z.string().min(1),
@@ -126,14 +126,14 @@ export const integrationsRouter = router({
       return { id }
     }),
 
-  deleteLockBoxRef: publicProcedure
+  deleteLockBoxRef: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(lockboxRefs).where(eq(lockboxRefs.id, input.id))
       return { ok: true }
     }),
 
-  testLockBoxRef: publicProcedure
+  testLockBoxRef: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const ref = await ctx.db.select().from(lockboxRefs).where(eq(lockboxRefs.id, input.id)).get()
@@ -153,7 +153,7 @@ export const integrationsRouter = router({
     try { return JSON.parse(row.value) as { baseUrl: string } } catch { return null }
   }),
 
-  setMxWatchConfig: publicProcedure
+  setMxWatchConfig: adminProcedure
     .input(z.object({ baseUrl: z.string().url(), token: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -175,7 +175,7 @@ export const integrationsRouter = router({
     try { return PatchOSConfigSchema.parse(JSON.parse(row.value)) } catch { return null }
   }),
 
-  setPatchOSConfig: publicProcedure
+  setPatchOSConfig: adminProcedure
     .input(PatchOSConfigSchema)
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -188,7 +188,7 @@ export const integrationsRouter = router({
     return ctx.db.select().from(patchosVersions).all()
   }),
 
-  recordAgentVersion: publicProcedure
+  recordAgentVersion: adminProcedure
     .input(z.object({
       agentId: z.string(),
       version: z.string().min(1),

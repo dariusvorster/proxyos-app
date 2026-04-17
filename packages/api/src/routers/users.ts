@@ -3,7 +3,7 @@ import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, protectedProcedure, adminProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
 import { encrypt, decrypt } from '../crypto'
@@ -77,7 +77,7 @@ export const usersRouter = router({
       return { id, email: input.email, role, displayName: input.displayName ?? null, avatarColor: null, avatarUrl: null }
     }),
 
-  getProfile: publicProcedure
+  getProfile: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
@@ -85,7 +85,7 @@ export const usersRouter = router({
       return { id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, lastLogin: u.lastLogin, createdAt: u.createdAt, totpEnabled: !!u.totpEnabled }
     }),
 
-  updateProfile: publicProcedure
+  updateProfile: protectedProcedure
     .input(z.object({
       id: z.string(),
       displayName: z.string().nullable().optional(),
@@ -101,7 +101,7 @@ export const usersRouter = router({
       return { ok: true }
     }),
 
-  updatePassword: publicProcedure
+  updatePassword: protectedProcedure
     .input(z.object({ id: z.string(), currentPassword: z.string(), newPassword: z.string().min(8) }))
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
@@ -115,7 +115,7 @@ export const usersRouter = router({
 
   // ── User management ─────────────────────────────────────────────────────────
 
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: adminProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(users).orderBy(desc(users.createdAt)).all()
     return rows.map(r => ({
       id: r.id,
@@ -127,7 +127,7 @@ export const usersRouter = router({
     }))
   }),
 
-  create: publicProcedure
+  create: adminProcedure
     .input(z.object({
       email: z.string().email(),
       password: z.string().min(8).optional(),
@@ -146,14 +146,14 @@ export const usersRouter = router({
       return { id }
     }),
 
-  updateRole: publicProcedure
+  updateRole: adminProcedure
     .input(z.object({ id: z.string(), role: z.enum(ROLES) }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.update(users).set({ role: input.role }).where(eq(users.id, input.id))
       return { ok: true }
     }),
 
-  delete: publicProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(users).where(eq(users.id, input.id))
@@ -162,7 +162,7 @@ export const usersRouter = router({
 
   // ── TOTP ────────────────────────────────────────────────────────────────────
 
-  setupTotp: publicProcedure
+  setupTotp: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
@@ -172,7 +172,7 @@ export const usersRouter = router({
       return { secret, uri }
     }),
 
-  verifyAndEnableTotp: publicProcedure
+  verifyAndEnableTotp: protectedProcedure
     .input(z.object({ userId: z.string(), secret: z.string(), code: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
@@ -185,7 +185,7 @@ export const usersRouter = router({
       return { ok: true }
     }),
 
-  disableTotp: publicProcedure
+  disableTotp: protectedProcedure
     .input(z.object({ userId: z.string(), password: z.string(), code: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
@@ -203,7 +203,7 @@ export const usersRouter = router({
 
   // ── Route ownership ─────────────────────────────────────────────────────────
 
-  getRouteOwner: publicProcedure
+  getRouteOwner: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routeOwnership).where(eq(routeOwnership.routeId, input.routeId)).get()
@@ -212,7 +212,7 @@ export const usersRouter = router({
       return user ? { userId: user.id, email: user.email, assignedAt: row.assignedAt } : null
     }),
 
-  claimRoute: publicProcedure
+  claimRoute: protectedProcedure
     .input(z.object({ routeId: z.string(), userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -221,7 +221,7 @@ export const usersRouter = router({
       return { ok: true }
     }),
 
-  releaseRoute: publicProcedure
+  releaseRoute: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(routeOwnership).where(eq(routeOwnership.routeId, input.routeId))
@@ -236,7 +236,7 @@ export const usersRouter = router({
     try { return DashboardSSOSchema.parse(JSON.parse(row.value)) } catch { return null }
   }),
 
-  setDashboardSSO: publicProcedure
+  setDashboardSSO: adminProcedure
     .input(DashboardSSOSchema)
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -246,7 +246,7 @@ export const usersRouter = router({
       return { ok: true }
     }),
 
-  deleteDashboardSSO: publicProcedure.mutation(async ({ ctx }) => {
+  deleteDashboardSSO: adminProcedure.mutation(async ({ ctx }) => {
     await ctx.db.delete(systemSettings).where(eq(systemSettings.key, 'dashboard_sso'))
     return { ok: true }
   }),

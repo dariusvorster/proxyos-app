@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { composeWatchers, nanoid } from '@proxyos/db'
 import { startWatcher, stopWatcher, activeWatcherIds } from '../automation/compose-watcher'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const automationRouter = router({
   listComposeWatchers: publicProcedure.query(async ({ ctx }) => {
@@ -11,7 +11,7 @@ export const automationRouter = router({
     return rows.map(r => ({ ...r, running: active.has(r.id) }))
   }),
 
-  createComposeWatcher: publicProcedure
+  createComposeWatcher: operatorProcedure
     .input(z.object({
       projectPath: z.string().min(1),
       agentId: z.string().nullable().default(null),
@@ -42,7 +42,7 @@ export const automationRouter = router({
       return { id }
     }),
 
-  toggleComposeWatcher: publicProcedure
+  toggleComposeWatcher: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(composeWatchers).where(eq(composeWatchers.id, input.id)).get()
@@ -63,7 +63,7 @@ export const automationRouter = router({
       return { ok: true }
     }),
 
-  deleteComposeWatcher: publicProcedure
+  deleteComposeWatcher: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       stopWatcher(input.id)

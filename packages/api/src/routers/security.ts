@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { routeSecurity, ipBans, fail2banRules, routes, nanoid } from '@proxyos/db'
 import { FAIL2BAN_PRESETS, parseRule } from '../security/fail2ban'
 import { HIGH_RISK_COUNTRIES } from '../security/geoip'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const GeoIPConfigSchema = z.object({
   mode: z.enum(['allowlist', 'blocklist']),
@@ -45,7 +45,7 @@ export const securityRouter = router({
       return { config: raw, highRiskPreset: HIGH_RISK_COUNTRIES }
     }),
 
-  setGeoIPConfig: publicProcedure
+  setGeoIPConfig: operatorProcedure
     .input(z.object({ routeId: z.string(), config: GeoIPConfigSchema.nullable() }))
     .mutation(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
@@ -71,7 +71,7 @@ export const securityRouter = router({
       return { config: row?.jwtConfig ? JSON.parse(row.jwtConfig) : null }
     }),
 
-  setJWTConfig: publicProcedure
+  setJWTConfig: operatorProcedure
     .input(z.object({ routeId: z.string(), config: JWTConfigSchema.nullable() }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -92,7 +92,7 @@ export const securityRouter = router({
     return ctx.db.select().from(fail2banRules).all()
   }),
 
-  createFail2banRule: publicProcedure
+  createFail2banRule: operatorProcedure
     .input(Fail2banRuleSchema)
     .mutation(async ({ ctx, input }) => {
       const id = nanoid()
@@ -107,14 +107,14 @@ export const securityRouter = router({
       return { id }
     }),
 
-  deleteFail2banRule: publicProcedure
+  deleteFail2banRule: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(fail2banRules).where(eq(fail2banRules.id, input.id))
       return { ok: true }
     }),
 
-  toggleFail2banRule: publicProcedure
+  toggleFail2banRule: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.update(fail2banRules)
@@ -139,7 +139,7 @@ export const securityRouter = router({
       ).all()
     }),
 
-  banIP: publicProcedure
+  banIP: operatorProcedure
     .input(z.object({
       ip: z.string(),
       reason: z.string(),
@@ -167,7 +167,7 @@ export const securityRouter = router({
       return { ok: true }
     }),
 
-  unbanIP: publicProcedure
+  unbanIP: operatorProcedure
     .input(z.object({ ip: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(ipBans).where(eq(ipBans.ip, input.ip))
@@ -175,7 +175,7 @@ export const securityRouter = router({
     }),
 
   // Bulk cleanup expired bans
-  purgeExpiredBans: publicProcedure.mutation(async ({ ctx }) => {
+  purgeExpiredBans: operatorProcedure.mutation(async ({ ctx }) => {
     const now = new Date()
     await ctx.db.delete(ipBans).where(
       and(lt(ipBans.expiresAt, now), eq(ipBans.permanent, 0))

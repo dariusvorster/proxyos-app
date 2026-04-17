@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { buildRedirectRoute } from '@proxyos/caddy'
 import { redirectHosts, nanoid, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const createInput = z.object({
   sourceDomain: z.string().min(1).max(253),
@@ -58,7 +58,7 @@ export const redirectHostsRouter = router({
       return rowToRedirectHost(row)
     }),
 
-  create: publicProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+  create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.select().from(redirectHosts).where(eq(redirectHosts.sourceDomain, input.sourceDomain)).get()
     if (existing) {
       throw new TRPCError({ code: 'CONFLICT', message: `${input.sourceDomain} already has a redirect host` })
@@ -126,7 +126,7 @@ export const redirectHostsRouter = router({
     return host
   }),
 
-  update: publicProcedure
+  update: operatorProcedure
     .input(z.object({
       id: z.string(),
       patch: createInput.partial(),
@@ -176,7 +176,7 @@ export const redirectHostsRouter = router({
       return host
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(redirectHosts).where(eq(redirectHosts.id, input.id)).get()
@@ -198,7 +198,7 @@ export const redirectHostsRouter = router({
       return { success: true }
     }),
 
-  toggle: publicProcedure
+  toggle: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(redirectHosts).where(eq(redirectHosts.id, input.id)).get()

@@ -4,7 +4,7 @@ import { alertEvents, alertRules, auditLog, nanoid, systemSettings } from '@prox
 import type { AlertEvent, AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
 import { sendTestEmail, sendTestWebhook } from '@proxyos/alerts'
 import type { SmtpConfig } from '@proxyos/alerts'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const alertTypes = ['error_rate_spike', 'latency_spike', 'cert_expiring', 'traffic_spike'] as const
 
@@ -48,7 +48,7 @@ export const alertsRouter = router({
     return rows.map(rowToRule)
   }),
 
-  createRule: publicProcedure
+  createRule: operatorProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
@@ -82,7 +82,7 @@ export const alertsRouter = router({
       return { id }
     }),
 
-  upsertRule: publicProcedure
+  upsertRule: operatorProcedure
     .input(z.object({
       id: z.string().nullable().optional(),
       name: z.string().min(1).max(100),
@@ -113,7 +113,7 @@ export const alertsRouter = router({
       return { id, created: true }
     }),
 
-  deleteRule: publicProcedure
+  deleteRule: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(alertRules).where(eq(alertRules.id, input.id)).get()
@@ -132,7 +132,7 @@ export const alertsRouter = router({
       return { success: true }
     }),
 
-  toggleRule: publicProcedure
+  toggleRule: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.update(alertRules).set({ enabled: input.enabled }).where(eq(alertRules.id, input.id))
@@ -163,7 +163,7 @@ export const alertsRouter = router({
     return { smtp, webhookUrl: webhookRow?.value ?? null }
   }),
 
-  setSmtpConfig: publicProcedure
+  setSmtpConfig: operatorProcedure
     .input(z.object({
       host: z.string(),
       port: z.number().int().min(1).max(65535).default(587),
@@ -189,7 +189,7 @@ export const alertsRouter = router({
       return { ok: true }
     }),
 
-  setWebhookConfig: publicProcedure
+  setWebhookConfig: operatorProcedure
     .input(z.object({ url: z.string().url().or(z.literal('')) }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -202,7 +202,7 @@ export const alertsRouter = router({
       return { ok: true }
     }),
 
-  testSmtp: publicProcedure
+  testSmtp: operatorProcedure
     .input(z.object({
       host: z.string().min(1),
       port: z.number().int().min(1).max(65535),
@@ -225,7 +225,7 @@ export const alertsRouter = router({
       return { ok: true }
     }),
 
-  testWebhook: publicProcedure
+  testWebhook: operatorProcedure
     .input(z.object({ url: z.string().url() }))
     .mutation(async ({ input }) => {
       await sendTestWebhook(input.url)

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { streams, nanoid, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 import net from 'net'
 
 const portSchema = z.number().int().min(1).max(65535)
@@ -59,7 +59,7 @@ export const streamsRouter = router({
       return rowToStream(row)
     }),
 
-  create: publicProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+  create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.select().from(streams).where(eq(streams.listenPort, input.listenPort)).get()
     if (existing) {
       throw new TRPCError({ code: 'CONFLICT', message: `Port ${input.listenPort} is already in use by another stream` })
@@ -111,7 +111,7 @@ export const streamsRouter = router({
     return rowToStream(row!)
   }),
 
-  update: publicProcedure
+  update: operatorProcedure
     .input(z.object({
       id: z.string(),
       patch: z.object({
@@ -172,7 +172,7 @@ export const streamsRouter = router({
       return stream
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(streams).where(eq(streams.id, input.id)).get()
@@ -201,7 +201,7 @@ export const streamsRouter = router({
       return { success: true }
     }),
 
-  toggle: publicProcedure
+  toggle: operatorProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(streams).where(eq(streams.id, input.id)).get()
@@ -241,7 +241,7 @@ export const streamsRouter = router({
       return { success: true }
     }),
 
-  checkUpstream: publicProcedure
+  checkUpstream: operatorProcedure
     .input(z.object({ host: z.string().min(1), port: portSchema }))
     .mutation(async ({ input }) => {
       const result = await probeTcp(input.host, input.port, 3000)

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { systemSettings } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, adminProcedure, router } from '../trpc'
 
 export const systemRouter = router({
   caddyStatus: publicProcedure.query(async ({ ctx }) => {
@@ -20,7 +20,7 @@ export const systemRouter = router({
     return { enabled: row?.value === 'true' }
   }),
 
-  setForceHttps: publicProcedure
+  setForceHttps: adminProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
       const now = new Date()

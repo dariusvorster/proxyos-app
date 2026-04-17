@@ -31,9 +31,33 @@ const t = initTRPC.context<Context>().create({ transformer: superjson })
 
 export const router = t.router
 export const publicProcedure = t.procedure
+
+/** Any authenticated user */
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.session) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Not authenticated' })
+  }
+  return next({ ctx: { ...ctx, session: ctx.session } })
+})
+
+/** admin or operator — can create/edit/delete resources */
+export const operatorProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.session) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Not authenticated' })
+  }
+  if (ctx.session.role !== 'admin' && ctx.session.role !== 'operator') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Operator or admin role required' })
+  }
+  return next({ ctx: { ...ctx, session: ctx.session } })
+})
+
+/** admin only — user management, system settings */
+export const adminProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.session) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Not authenticated' })
+  }
+  if (ctx.session.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin role required' })
   }
   return next({ ctx: { ...ctx, session: ctx.session } })
 })

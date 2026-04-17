@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, pendingChanges, systemSettings, users } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
 
 const ApprovalConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -21,7 +21,7 @@ export const approvalsRouter = router({
     try { return ApprovalConfigSchema.parse(JSON.parse(row.value)) } catch { return ApprovalConfigSchema.parse({}) }
   }),
 
-  setConfig: publicProcedure
+  setConfig: adminProcedure
     .input(ApprovalConfigSchema)
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -54,7 +54,7 @@ export const approvalsRouter = router({
       }))
     }),
 
-  submit: publicProcedure
+  submit: operatorProcedure
     .input(z.object({
       action: z.string().min(1),
       payload: z.record(z.unknown()),
@@ -74,7 +74,7 @@ export const approvalsRouter = router({
       return { id }
     }),
 
-  approve: publicProcedure
+  approve: operatorProcedure
     .input(z.object({ id: z.string(), approvedBy: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -86,7 +86,7 @@ export const approvalsRouter = router({
       return { ok: true }
     }),
 
-  reject: publicProcedure
+  reject: operatorProcedure
     .input(z.object({ id: z.string(), approvedBy: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const now = new Date()
@@ -98,7 +98,7 @@ export const approvalsRouter = router({
       return { ok: true }
     }),
 
-  purgeExpired: publicProcedure.mutation(async ({ ctx }) => {
+  purgeExpired: operatorProcedure.mutation(async ({ ctx }) => {
     const cfgRow = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'approval_config')).get()
     const cfg = cfgRow ? ApprovalConfigSchema.parse(JSON.parse(cfgRow.value)) : ApprovalConfigSchema.parse({})
     const cutoff = new Date(Date.now() - cfg.timeout * 60_000)

@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises'
 import { buildCaddyRoute, buildTlsPolicy, type CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, routes, ssoProviders } from '@proxyos/db'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const caddyRouter = router({
   status: publicProcedure.query(async ({ ctx }) => {
@@ -42,7 +42,7 @@ export const caddyRouter = router({
     }
   }),
 
-  reload: publicProcedure.mutation(async ({ ctx }) => {
+  reload: operatorProcedure.mutation(async ({ ctx }) => {
     if (!(await ctx.caddy.health())) {
       throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: 'Caddy admin API not reachable' })
     }

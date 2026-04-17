@@ -9,7 +9,7 @@ import { UptimeKumaAdapter, BetterstackAdapter, FreshpingAdapter } from '@proxyo
 import type { UptimeKumaCreds, BetterstackCreds, FreshpingCreds } from '@proxyos/connect/monitoring'
 import { ZulipAdapter, SlackAdapter, WebhookAdapter } from '@proxyos/connect/notifications'
 import type { ZulipCreds, SlackCreds, WebhookCreds } from '@proxyos/connect/notifications'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const connectionsRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -27,7 +27,7 @@ export const connectionsRouter = router({
       return rest
     }),
 
-  create: publicProcedure
+  create: operatorProcedure
     .input(z.object({
       type: z.string(),
       name: z.string().min(1),
@@ -75,7 +75,7 @@ export const connectionsRouter = router({
       return { id }
     }),
 
-  updateCredentials: publicProcedure
+  updateCredentials: operatorProcedure
     .input(z.object({
       id: z.string(),
       credentials: z.record(z.unknown()),
@@ -90,7 +90,7 @@ export const connectionsRouter = router({
       return { ok: true }
     }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(connections).where(eq(connections.id, input.id)).get()
@@ -100,7 +100,7 @@ export const connectionsRouter = router({
       return { ok: true }
     }),
 
-  test: publicProcedure
+  test: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(connections).where(eq(connections.id, input.id)).get()
@@ -121,7 +121,7 @@ export const connectionsRouter = router({
       return result
     }),
 
-  sync: publicProcedure
+  sync: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(connections).where(eq(connections.id, input.id)).get()
@@ -204,7 +204,7 @@ export const connectionsRouter = router({
     }),
 
   // Decrypt credentials for server-side use only (not exposed to client via this procedure)
-  _getDecryptedCredentials: publicProcedure
+  _getDecryptedCredentials: operatorProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(connections).where(eq(connections.id, input.id)).get()

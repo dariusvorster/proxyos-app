@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises'
 import { z } from 'zod'
 import { certIssuanceLog, certificates, nanoid, routes } from '@proxyos/db'
 import type { Certificate, CertSource, CertStatus } from '@proxyos/types'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 const CADDY_STORAGE_ROOT = '/data/caddy/caddy/certificates'
 const CA_DIRS = [
@@ -76,7 +76,7 @@ export const certificatesRouter = router({
     return rows.map(rowToCert).sort((a, b) => a.domain.localeCompare(b.domain))
   }),
 
-  check: publicProcedure.mutation(async ({ ctx }) => {
+  check: operatorProcedure.mutation(async ({ ctx }) => {
     await syncFromRoutes(ctx.db)
     const rows = await ctx.db.select().from(certificates)
     const checked: Array<{ domain: string; reachable: boolean; expiresAt?: Date | null }> = []
@@ -86,7 +86,7 @@ export const certificatesRouter = router({
     return { checked: checked.length, results: checked }
   }),
 
-  renew: publicProcedure
+  renew: operatorProcedure
     .input(z.object({ domain: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -100,7 +100,7 @@ export const certificatesRouter = router({
       }
     }),
 
-  upload: publicProcedure
+  upload: operatorProcedure
     .input(z.object({
       domain: z.string().min(1),
       cert: z.string().min(1),

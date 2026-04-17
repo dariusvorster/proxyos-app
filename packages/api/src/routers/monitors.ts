@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { monitors, connections, routes, nanoid, type MonitorRow } from '@proxyos/db'
 import { adapterRegistry } from '@proxyos/connect'
 import { UptimeKumaAdapter, BetterstackAdapter, FreshpingAdapter } from '@proxyos/connect/monitoring'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const monitorsRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -23,7 +23,7 @@ export const monitorsRouter = router({
       return ctx.db.select().from(monitors).where(eq(monitors.routeId, input.routeId)).all()
     }),
 
-  createForRoute: publicProcedure
+  createForRoute: operatorProcedure
     .input(z.object({
       routeId: z.string(),
       connectionId: z.string(),
@@ -74,7 +74,7 @@ export const monitorsRouter = router({
       return { ok: true, monitorId: monitorProviderId, id }
     }),
 
-  pauseForRoute: publicProcedure
+  pauseForRoute: operatorProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const monitorRows = await ctx.db.select().from(monitors).where(eq(monitors.routeId, input.routeId)).all()
@@ -90,7 +90,7 @@ export const monitorsRouter = router({
       return { ok: true }
     }),
 
-  deleteForRoute: publicProcedure
+  deleteForRoute: operatorProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const monitorRows = await ctx.db.select().from(monitors).where(eq(monitors.routeId, input.routeId)).all()

@@ -10,7 +10,7 @@ import {
   routes,
   nanoid,
 } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 // bcryptjs is not in package.json — using SHA-256 for password hashing.
 // NOTE: Replace with bcrypt when bcryptjs is added as a dependency.
@@ -113,7 +113,7 @@ export const accessListsRouter = router({
       }
     }),
 
-  create: publicProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+  create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     const now = new Date()
     const id = nanoid()
 
@@ -156,7 +156,7 @@ export const accessListsRouter = router({
     return { id }
   }),
 
-  update: publicProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
+  update: operatorProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db
       .select()
       .from(accessLists)
@@ -206,7 +206,7 @@ export const accessListsRouter = router({
     return { success: true }
   }),
 
-  delete: publicProcedure
+  delete: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db
@@ -232,7 +232,7 @@ export const accessListsRouter = router({
       return { success: true }
     }),
 
-  testIp: publicProcedure
+  testIp: operatorProcedure
     .input(z.object({ id: z.string(), ip: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db
