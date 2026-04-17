@@ -250,7 +250,16 @@ export default function ExposePage() {
         {/* Step 1: Domain + DNS */}
         {step === 1 && (
           <Card header={<span>Domain + DNS</span>}>
-            <Field label="Public domain"><Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="grafana.example.com" /></Field>
+            <Field label="Public domain"><Input value={domain} onChange={(e) => {
+              const val = e.target.value
+              setDomain(val)
+              if (val.startsWith('*.') && tlsMode === 'auto') {
+                setTlsMode((dnsProviders.data?.length ?? 0) > 0 ? 'dns' : 'internal')
+                if ((dnsProviders.data?.length ?? 0) > 0 && dnsProviders.data?.[0]) {
+                  setTlsDnsProviderId(dnsProviders.data[0].id)
+                }
+              }
+            }} placeholder="grafana.example.com or *.example.com" /></Field>
             <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 6, marginBottom: 6 }}>TLS mode</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
               {(['auto', 'dns', 'internal', 'custom', 'off'] as TlsMode[]).map((m) => (
@@ -278,12 +287,12 @@ export default function ExposePage() {
             {tlsMode === 'off' && <div style={{ marginTop: 10 }}><AlertBanner tone="red">TLS is disabled. Traffic will be unencrypted.</AlertBanner></div>}
             {domain.startsWith('*.') && tlsMode === 'auto' && (
               <div style={{ marginTop: 10 }}>
-                <AlertBanner tone="amber">Wildcard domains cannot use HTTP-01. Select <strong>dns</strong> (requires a DNS provider) or <strong>internal</strong> (Caddy CA).</AlertBanner>
+                <AlertBanner tone="amber">Wildcard domains cannot use HTTP-01. Select <strong>dns</strong> or <strong>internal</strong>.</AlertBanner>
               </div>
             )}
             {domain.startsWith('*.') && (tlsMode === 'dns' || tlsMode === 'internal') && (
-              <div style={{ marginTop: 10 }}>
-                <AlertBanner tone="amber">Wildcard domain detected — {tlsMode === 'dns' ? 'DNS-01 challenge will be used' : 'Caddy internal CA will be used'}.</AlertBanner>
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-sans)' }}>
+                Wildcard — {tlsMode === 'dns' ? 'DNS-01 challenge' : 'Caddy internal CA'} will be used.
               </div>
             )}
 
