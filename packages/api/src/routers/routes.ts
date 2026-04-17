@@ -7,14 +7,18 @@ import { buildLogEntry } from './systemLog'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, router } from '../trpc'
 
+const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
+
 const upstreamSchema = z.object({
   address: z.string().min(1),
+  weight: z.number().int().min(1).max(100).optional(),
 })
 
 const createInput = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1).max(253),
   upstreams: z.array(upstreamSchema).min(1),
+  lbPolicy: z.enum(lbPolicies).default('round_robin'),
   tlsMode: z.enum(['auto', 'dns', 'internal', 'custom', 'off']).default('auto'),
   ssoEnabled: z.boolean().default(false),
   ssoProviderId: z.string().nullable().default(null),
@@ -50,6 +54,7 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     ipAllowlist: row.ipAllowlist ? (JSON.parse(row.ipAllowlist) as string[]) : null,
     basicAuth: row.basicAuth ? (JSON.parse(row.basicAuth) as Route['basicAuth']) : null,
     headers: row.headers ? (JSON.parse(row.headers) as Record<string, unknown>) : null,
+    lbPolicy: (row.lbPolicy ?? 'round_robin') as Route['lbPolicy'],
     healthCheckEnabled: row.healthCheckEnabled,
     healthCheckPath: row.healthCheckPath,
     healthCheckInterval: row.healthCheckInterval,
@@ -145,6 +150,7 @@ export const routesRouter = router({
       enabled: true,
       upstreamType: 'http',
       upstreams: input.upstreams,
+      lbPolicy: input.lbPolicy,
       tlsMode: input.tlsMode,
       tlsDnsProviderId: input.tlsDnsProviderId ?? null,
       ssoEnabled: input.ssoEnabled,
@@ -167,6 +173,7 @@ export const routesRouter = router({
       enabled: true,
       upstreamType: route.upstreamType,
       upstreams: JSON.stringify(route.upstreams),
+      lbPolicy: route.lbPolicy ?? 'round_robin',
       tlsMode: route.tlsMode,
       tlsDnsProviderId: route.tlsDnsProviderId,
       ssoEnabled: route.ssoEnabled,
@@ -350,6 +357,7 @@ export const routesRouter = router({
         patch: z.object({
           name: z.string().min(1).max(100).optional(),
           upstreams: z.array(upstreamSchema).min(1).optional(),
+          lbPolicy: z.enum(lbPolicies).optional(),
           tlsMode: z.enum(['auto', 'dns', 'internal', 'custom', 'off']).optional(),
           tlsDnsProviderId: z.string().nullable().optional(),
           ssoEnabled: z.boolean().optional(),
@@ -375,6 +383,7 @@ export const routesRouter = router({
       const p = input.patch
       if (p.name !== undefined) update.name = p.name
       if (p.upstreams !== undefined) update.upstreams = JSON.stringify(p.upstreams)
+      if (p.lbPolicy !== undefined) update.lbPolicy = p.lbPolicy
       if (p.tlsMode !== undefined) update.tlsMode = p.tlsMode
       if (p.tlsDnsProviderId !== undefined) update.tlsDnsProviderId = p.tlsDnsProviderId
       if (p.ssoEnabled !== undefined) update.ssoEnabled = p.ssoEnabled

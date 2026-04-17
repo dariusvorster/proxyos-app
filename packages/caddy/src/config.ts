@@ -47,11 +47,15 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
     handlers.push({ handler: 'encode', encodings: { gzip: {}, zstd: {} } })
   }
 
+  const policy = route.lbPolicy ?? 'round_robin'
   handlers.push({
     handler: 'reverse_proxy',
-    upstreams: route.upstreams.map((u) => ({ dial: stripScheme(u.address) })),
+    upstreams: route.upstreams.map((u) => ({
+      dial: stripScheme(u.address),
+      ...(u.weight !== undefined && u.weight !== 1 ? { weight: u.weight } : {}),
+    })),
     ...(route.upstreams.length > 1
-      ? { load_balancing: { selection_policy: { policy: 'least_conn' } } }
+      ? { load_balancing: { selection_policy: { policy } } }
       : {}),
     ...(route.healthCheckEnabled
       ? {

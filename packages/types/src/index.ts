@@ -4,8 +4,11 @@ export type UpstreamType = 'http' | 'tcp' | 'static' | 'redirect' | 'loadbalance
 
 export type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 
+export type LbPolicy = 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first'
+
 export interface UpstreamConfig {
   address: string
+  weight?: number  // 1–100, used with round_robin
 }
 
 export interface RateLimitConfig {
@@ -102,6 +105,7 @@ export interface RouteInput {
   domain: string
   upstreamType: UpstreamType
   upstreams: UpstreamConfig[]
+  lbPolicy?: LbPolicy
   tlsMode: TlsMode
   tlsDnsProviderId?: string | null
   ssoEnabled?: boolean

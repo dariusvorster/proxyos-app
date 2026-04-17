@@ -8,6 +8,7 @@ export const routes = sqliteTable('routes', {
 
   upstreamType: text('upstream_type').notNull(),
   upstreams: text('upstreams').notNull(),
+  lbPolicy: text('lb_policy').notNull().default('round_robin'),
 
   tlsMode: text('tls_mode').notNull().default('auto'),
 

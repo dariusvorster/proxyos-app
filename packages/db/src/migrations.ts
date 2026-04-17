@@ -597,4 +597,11 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V31_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+  // V3.2 alters — load balancing
+  const V32_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN lb_policy TEXT NOT NULL DEFAULT 'round_robin'`,
+  ]
+  for (const stmt of V32_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

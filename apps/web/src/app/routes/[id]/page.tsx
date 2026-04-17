@@ -1,8 +1,8 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Badge, Button, Card, DataTable, Dot, StatCard, td, th } from '~/components/ui'
+import { Badge, Button, Card, DataTable, Dot, Input, Select, StatCard, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
@@ -16,6 +16,17 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const fixDns = trpc.chain.fixDns.useMutation({ onSuccess: () => chain.refetch() })
   const debugChain = trpc.chain.debugChain.useMutation()
   const [debugOpen, setDebugOpen] = useState(false)
+  const [lbPolicy, setLbPolicy] = useState<string>('round_robin')
+  const [upstreams, setUpstreams] = useState<{ address: string; weight: number }[]>([])
+  const [lbMsg, setLbMsg] = useState('')
+  const updateRoute = trpc.routes.update.useMutation()
+
+  useEffect(() => {
+    if (route) {
+      setLbPolicy(route.lbPolicy ?? 'round_robin')
+      setUpstreams(route.upstreams.map((u) => ({ address: u.address, weight: u.weight ?? 1 })))
+    }
+  }, [route])
 
   return (
     <>
@@ -122,6 +133,94 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
           <StatCard label="Avg latency" value={`${summary.data?.avgLatencyMs ?? 0} ms`} />
           <StatCard label="Bytes out" value={formatBytes(summary.data?.bytes ?? 0)} />
         </div>
+
+        {/* Load balancing */}
+        {route && (
+          <Card header={<span>Load balancing</span>}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}>Policy</div>
+              <Select
+                value={lbPolicy}
+                onChange={(e) => setLbPolicy(e.target.value)}
+                style={{ width: 160, fontSize: 12 }}
+              >
+                <option value="round_robin">Round robin</option>
+                <option value="least_conn">Least connections</option>
+                <option value="ip_hash">IP hash</option>
+                <option value="random">Random</option>
+                <option value="first">First available</option>
+              </Select>
+              <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-sans)' }}>
+                {upstreams.length === 1 ? '— add more upstreams to enable' : `— ${upstreams.length} upstreams`}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+              {upstreams.map((u, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Input
+                    value={u.address}
+                    placeholder="http://192.168.1.10:8080"
+                    onChange={(e) => {
+                      const next = [...upstreams]
+                      next[i] = { ...next[i]!, address: e.target.value }
+                      setUpstreams(next)
+                    }}
+                    style={{ flex: 1, fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-sans)' }}>wt</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={u.weight}
+                      onChange={(e) => {
+                        const next = [...upstreams]
+                        next[i] = { ...next[i]!, weight: Number(e.target.value) }
+                        setUpstreams(next)
+                      }}
+                      style={{ width: 56, fontSize: 12, textAlign: 'center' }}
+                    />
+                  </div>
+                  {upstreams.length > 1 && (
+                    <button
+                      onClick={() => setUpstreams(upstreams.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 0, color: 'var(--text3)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
+                      title="Remove upstream"
+                    >✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {lbMsg && (
+              <p style={{ fontSize: 11, color: lbMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: 'var(--font-sans)', margin: '0 0 8px' }}>{lbMsg}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                variant="ghost"
+                onClick={() => setUpstreams([...upstreams, { address: '', weight: 1 }])}
+                style={{ fontSize: 11 }}
+              >+ Add upstream</Button>
+              <Button
+                variant="primary"
+                disabled={updateRoute.isPending || upstreams.some((u) => !u.address.trim())}
+                onClick={() => {
+                  updateRoute.mutate(
+                    { id, patch: { upstreams: upstreams.map((u) => ({ address: u.address, weight: u.weight })), lbPolicy: lbPolicy as 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first' } },
+                    {
+                      onSuccess: () => { setLbMsg('Saved'); routes.refetch() },
+                      onError: (e) => setLbMsg(`Error: ${e.message}`),
+                    },
+                  )
+                }}
+                style={{ fontSize: 11 }}
+              >{updateRoute.isPending ? 'Saving…' : 'Save'}</Button>
+            </div>
+          </Card>
+        )}
 
         <Card header={<span>Recent requests</span>}>
           <DataTable>
