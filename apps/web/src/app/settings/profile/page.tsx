@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { QRCodeSVG } from 'qrcode.react'
+import dynamic from 'next/dynamic'
 import { Button, Card, Input } from '~/components/ui'
+
+const QRCodeSVG = dynamic(() => import('qrcode.react').then(m => ({ default: m.QRCodeSVG })), { ssr: false })
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
