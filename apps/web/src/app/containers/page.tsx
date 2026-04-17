@@ -114,9 +114,14 @@ export default function ContainersPage() {
                   <Badge tone={c.state === 'running' ? 'green' : 'neutral'}>{c.state}</Badge>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{c.image}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: c.ports.length > 0 ? 10 : 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>
                   Networks: {c.sharedNetworks.join(', ')}
                 </div>
+                {c.ips.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: c.ports.length > 0 ? 10 : 0, fontFamily: 'var(--font-mono)' }}>
+                    {c.ips.join(', ')}
+                  </div>
+                )}
 
                 {c.ports.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
