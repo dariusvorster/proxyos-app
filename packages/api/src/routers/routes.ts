@@ -119,6 +119,10 @@ export const routesRouter = router({
   }),
 
   create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+    if (input.domain.startsWith('*.') && input.tlsMode === 'auto') {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Wildcard domains require tlsMode=dns or tlsMode=internal — HTTP-01 cannot validate wildcards' })
+    }
+
     const existing = await ctx.db.select().from(routes).where(eq(routes.domain, input.domain)).get()
     if (existing) {
       throw new TRPCError({ code: 'CONFLICT', message: `${input.domain} already has a route` })
@@ -226,6 +230,10 @@ export const routesRouter = router({
   }),
 
   expose: operatorProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
+    if (input.domain.startsWith('*.') && input.tlsMode === 'auto') {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Wildcard domains require tlsMode=dns or tlsMode=internal — HTTP-01 cannot validate wildcards' })
+    }
+
     if (!(await ctx.caddy.health())) {
       throw new TRPCError({
         code: 'SERVICE_UNAVAILABLE',

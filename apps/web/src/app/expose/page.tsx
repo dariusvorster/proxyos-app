@@ -115,7 +115,7 @@ export default function ExposePage() {
 
   function canAdvance() {
     if (step === 0) return ip.length > 0 && port.length > 0 && name.length > 0
-    if (step === 1) return domain.length > 0 && (tlsMode !== 'dns' || tlsDnsProviderId !== '')
+    if (step === 1) return domain.length > 0 && (tlsMode !== 'dns' || tlsDnsProviderId !== '') && !(domain.startsWith('*.') && tlsMode === 'auto')
     if (step === 3) return !ssoEnabled || ssoProviderId !== ''
     return true
   }
@@ -276,6 +276,16 @@ export default function ExposePage() {
               </div>
             )}
             {tlsMode === 'off' && <div style={{ marginTop: 10 }}><AlertBanner tone="red">TLS is disabled. Traffic will be unencrypted.</AlertBanner></div>}
+            {domain.startsWith('*.') && tlsMode === 'auto' && (
+              <div style={{ marginTop: 10 }}>
+                <AlertBanner tone="amber">Wildcard domains cannot use HTTP-01. Select <strong>dns</strong> (requires a DNS provider) or <strong>internal</strong> (Caddy CA).</AlertBanner>
+              </div>
+            )}
+            {domain.startsWith('*.') && (tlsMode === 'dns' || tlsMode === 'internal') && (
+              <div style={{ marginTop: 10 }}>
+                <AlertBanner tone="amber">Wildcard domain detected — {tlsMode === 'dns' ? 'DNS-01 challenge will be used' : 'Caddy internal CA will be used'}.</AlertBanner>
+              </div>
+            )}
 
             {cfConnections.length > 0 && (
               <div style={{ marginTop: 16, padding: '12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>

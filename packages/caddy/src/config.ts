@@ -115,6 +115,20 @@ export interface TlsPolicy {
 }
 
 export function buildTlsPolicy(route: Route, dnsProvider?: DnsProvider | null): TlsPolicy | null {
+  // Wildcard domains can't use HTTP-01 — upgrade to DNS-01 or internal automatically
+  if (route.domain.startsWith('*.') && route.tlsMode === 'auto') {
+    if (dnsProvider) {
+      return {
+        subjects: [route.domain],
+        issuers: [{
+          module: 'acme',
+          challenges: { dns: { provider: { name: dnsProvider.type, ...dnsProvider.credentials } } },
+        }],
+      }
+    }
+    return { subjects: [route.domain], issuers: [{ module: 'internal' }] }
+  }
+
   switch (route.tlsMode) {
     case 'off':
       return null
