@@ -3,6 +3,22 @@ import { bootstrapProxyOs } from '@proxyos/api/bootstrap'
 import { startCollector } from '@proxyos/analytics/collector'
 import { startEvaluator } from '@proxyos/alerts/evaluator'
 
+// ── PROXYOS_SECRET validation ─────────────────────────────────────────────────
+const DEV_SENTINEL = 'dev-secret-change-me'
+const secret = process.env.PROXYOS_SECRET
+if (!secret || secret === DEV_SENTINEL) {
+  const msg = !secret
+    ? '[proxyos] FATAL: PROXYOS_SECRET is not set. Set it to a random 32+ character string.'
+    : '[proxyos] FATAL: PROXYOS_SECRET is still the default dev value. Generate a real secret before running in production.'
+  if (process.env.NODE_ENV === 'production') {
+    console.error(msg)
+    process.exit(1)
+  } else {
+    console.warn('[proxyos] WARNING: PROXYOS_SECRET is not configured — using insecure default. Set it before going to production.')
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const baseConfigPath =
   process.env.CADDY_BASE_CONFIG_PATH ??
   resolve(process.cwd(), '../../caddy/base-config.json')
