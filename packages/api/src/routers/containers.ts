@@ -54,7 +54,7 @@ export interface DiscoverableContainer {
   state: string
   status: string
   sharedNetworks: string[]
-  ips: string[]
+  networksWithIps: Array<{ network: string; ipAddress: string }>
   ports: Array<{
     internalPort: number
     protocol: string
@@ -140,14 +140,16 @@ export const containersRouter = router({
     for (const c of allContainers) {
       if (c.Id === selfId || c.Id.startsWith(selfShort)) continue
 
-      const networkEntries = Object.values(c.NetworkSettings.Networks)
-      const sharedNetworks: string[] = []
-      const ips: string[] = []
-      for (const n of networkEntries) {
-        if (!proxyosNetworks.has(n.NetworkID)) continue
-        sharedNetworks.push(proxyosNetworks.get(n.NetworkID)!)
-        if (n.IPAddress) ips.push(n.IPAddress)
+      const networksWithIps: Array<{ network: string; ipAddress: string }> = []
+      for (const [, netInfo] of Object.entries(c.NetworkSettings.Networks)) {
+        if (proxyosNetworks.has(netInfo.NetworkID)) {
+          networksWithIps.push({
+            network: proxyosNetworks.get(netInfo.NetworkID)!,
+            ipAddress: netInfo.IPAddress,
+          })
+        }
       }
+      const sharedNetworks = networksWithIps.map((n) => n.network)
 
       if (sharedNetworks.length === 0) continue
 
@@ -176,7 +178,7 @@ export const containersRouter = router({
         state: c.State,
         status: c.Status,
         sharedNetworks,
-        ips,
+        networksWithIps,
         ports: Array.from(portMap.values()).sort((a, b) => a.internalPort - b.internalPort),
         labels: c.Labels ?? {},
       })

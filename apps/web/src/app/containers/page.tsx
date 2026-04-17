@@ -39,6 +39,23 @@ export default function ContainersPage() {
           desc="Containers on networks ProxyOS has joined. Click a port to create a route."
         />
 
+        <div style={{
+          background: 'color-mix(in srgb, var(--blue) 10%, var(--surface2))',
+          border: '1px solid color-mix(in srgb, var(--blue) 40%, var(--border))',
+          borderRadius: 6,
+          padding: '10px 14px',
+          fontSize: 12,
+          color: 'var(--text)',
+          marginBottom: 4,
+        }}>
+          <strong>Exposing these services to the internet?</strong>{' '}
+          Every Cloudflare Tunnel hostname should point to{' '}
+          <code style={{ background: 'var(--surface3)', padding: '1px 5px', borderRadius: 3 }}>proxyos:80</code>.
+          {' '}ProxyOS handles the internal routing. See the{' '}
+          <Link href="/setup-guide" style={{ color: 'var(--blue)', textDecoration: 'underline' }}>Setup Guide</Link>{' '}
+          for the full flow.
+        </div>
+
         {data && !data.socketMounted && (
           <div style={{
             background: 'var(--surface2)',
@@ -96,7 +113,7 @@ export default function ContainersPage() {
         {!isLoading && data?.socketMounted && filtered.length === 0 && (
           <Card>
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>
-              {(data.containers.length === 0)
+              {data.containers.length === 0
                 ? 'No discoverable containers. Check that ProxyOS has joined networks with running containers on the Networks page.'
                 : 'No containers match your filter.'}
             </div>
@@ -113,42 +130,108 @@ export default function ContainersPage() {
                   </span>
                   <Badge tone={c.state === 'running' ? 'green' : 'neutral'}>{c.state}</Badge>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{c.image}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>
-                  Networks: {c.sharedNetworks.join(', ')}
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{c.image}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: c.ports.length > 0 ? 10 : 0 }}>
+                  {c.networksWithIps.map((n) => (
+                    <div key={n.network} style={{ marginBottom: 1 }}>
+                      <span style={{ color: 'var(--text3)' }}>Network: </span>
+                      <code style={{ fontFamily: 'var(--font-mono)' }}>{n.network}</code>
+                      <span style={{ color: 'var(--text3)' }}> → IP: </span>
+                      <code style={{ fontFamily: 'var(--font-mono)' }}>{n.ipAddress}</code>
+                    </div>
+                  ))}
                 </div>
-                {c.ips.length > 0 && (
-                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: c.ports.length > 0 ? 10 : 0, fontFamily: 'var(--font-mono)' }}>
-                    {c.ips.join(', ')}
-                  </div>
-                )}
 
                 {c.ports.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {c.ports.map((p) => (
-                      <Link
+                      <div
                         key={`${p.internalPort}-${p.protocol}`}
-                        href={`/routes?upstream=${encodeURIComponent(p.suggestedUpstream)}`}
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '4px 10px',
                           background: 'var(--surface2)',
                           border: '1px solid var(--border)',
                           borderRadius: 4,
-                          fontSize: 11,
-                          fontFamily: 'var(--font-mono)',
-                          color: 'var(--text)',
-                          textDecoration: 'none',
+                          padding: '6px 10px',
                         }}
                       >
-                        {p.suggestedUpstream}
-                        <span style={{ color: 'var(--text3)', fontSize: 10 }}>
-                          {p.protocol.toUpperCase()}
-                          {p.exposedOnHost && p.hostPort ? ` · :${p.hostPort}` : ''}
-                        </span>
-                      </Link>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                            <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)' }}>
+                              {p.suggestedUpstream}
+                            </code>
+                            <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+                              {p.protocol.toUpperCase()}
+                              {p.exposedOnHost && p.hostPort ? ` · :${p.hostPort}` : ''}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(p.suggestedUpstream)}>
+                              Copy
+                            </Button>
+                            <Link
+                              href={`/routes?upstream=${encodeURIComponent(p.suggestedUpstream)}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '3px 8px',
+                                background: 'var(--blue)',
+                                color: '#fff',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Create Route
+                            </Link>
+                          </div>
+                        </div>
+                        <details style={{ marginTop: 6 }}>
+                          <summary style={{ fontSize: 11, color: 'var(--text2)', cursor: 'pointer' }}>
+                            Cloudflare Tunnel settings
+                          </summary>
+                          <div style={{
+                            marginTop: 6,
+                            paddingLeft: 10,
+                            borderLeft: '2px solid var(--border)',
+                            fontSize: 11,
+                            color: 'var(--text2)',
+                          }}>
+                            <div style={{ marginBottom: 4 }}>
+                              Zero Trust → Networks → Tunnels → (your tunnel) → Public Hostname → Add:
+                            </div>
+                            <div style={{
+                              background: 'var(--surface3)',
+                              borderRadius: 4,
+                              padding: '6px 10px',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 11,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 2,
+                            }}>
+                              <div><span style={{ color: 'var(--text3)' }}>Subdomain:</span> {c.name.split(/[-_]/)[0]}</div>
+                              <div><span style={{ color: 'var(--text3)' }}>Domain:</span> your domain</div>
+                              <div><span style={{ color: 'var(--text3)' }}>Path:</span> <em style={{ color: 'var(--text3)' }}>(leave empty)</em></div>
+                              <div><span style={{ color: 'var(--text3)' }}>Service Type:</span> HTTP</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: 'var(--text3)' }}>Service URL:</span>
+                                <code>proxyos:80</code>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText('proxyos:80')}
+                                  style={{ fontSize: 10, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                >
+                                  [copy]
+                                </button>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: 4, color: 'var(--text3)', fontStyle: 'italic' }}>
+                              Always point the tunnel at <code>proxyos:80</code> — not at the service directly.
+                              ProxyOS uses the Host header to route internally.
+                            </div>
+                          </div>
+                        </details>
+                      </div>
                     ))}
                   </div>
                 ) : (
