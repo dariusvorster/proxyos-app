@@ -4,11 +4,12 @@ import { z } from 'zod'
 import { auditLog, dnsProviders, nanoid } from '@proxyos/db'
 import type { DnsProvider, DnsProviderType } from '@proxyos/types'
 import { publicProcedure, router } from '../trpc'
+import { encryptJson, decryptJson } from '../crypto'
 
 const dnsTypes = ['cloudflare', 'route53', 'porkbun', 'digitalocean', 'godaddy'] as const
 
 function rowToProvider(row: typeof dnsProviders.$inferSelect, redacted = true): DnsProvider {
-  const creds = JSON.parse(row.credentials) as Record<string, string>
+  const creds = decryptJson<Record<string, string>>(row.credentials)
   return {
     id: row.id,
     name: row.name,
@@ -46,7 +47,7 @@ export const dnsRouter = router({
         id,
         name: input.name,
         type: input.type,
-        credentials: JSON.stringify(input.credentials),
+        credentials: encryptJson(input.credentials),
         enabled: true,
         createdAt: now,
       })
@@ -68,7 +69,7 @@ export const dnsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
-      const creds = JSON.parse(row.credentials) as Record<string, string>
+      const creds = decryptJson<Record<string, string>>(row.credentials)
       const requiredKeys: Record<string, string[]> = {
         cloudflare: ['api_token'],
         route53: ['access_key_id', 'secret_access_key'],

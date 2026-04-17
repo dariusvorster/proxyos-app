@@ -6,6 +6,7 @@ import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, user
 import { publicProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
+import { encrypt, decrypt } from '../crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, message: string, detail?: Record<string, unknown>, userId?: string) {
@@ -46,7 +47,7 @@ export const usersRouter = router({
         if (!input.totpCode) {
           return { requiresTotp: true as const, id: null, email: null, role: null, displayName: null, avatarColor: null, avatarUrl: null }
         }
-        if (!verifyTotp(u.totpSecret, input.totpCode)) {
+        if (!verifyTotp(decrypt(u.totpSecret), input.totpCode)) {
           void syslog(ctx.db, 'warn', 'auth', `Failed TOTP attempt`, { email: input.email })
           throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
         }
@@ -179,7 +180,7 @@ export const usersRouter = router({
       if (!verifyTotp(input.secret, input.code)) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid code — check your authenticator app and try again' })
       }
-      await ctx.db.update(users).set({ totpSecret: input.secret, totpEnabled: 1 }).where(eq(users.id, input.userId))
+      await ctx.db.update(users).set({ totpSecret: encrypt(input.secret), totpEnabled: 1 }).where(eq(users.id, input.userId))
       void syslog(ctx.db, 'info', 'auth', 'TOTP enabled', { userId: input.userId }, input.userId)
       return { ok: true }
     }),
@@ -192,7 +193,7 @@ export const usersRouter = router({
       if (!u.passwordHash || u.passwordHash !== hashPassword(input.password)) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Incorrect password' })
       }
-      if (!u.totpSecret || !verifyTotp(u.totpSecret, input.code)) {
+      if (!u.totpSecret || !verifyTotp(decrypt(u.totpSecret), input.code)) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
       }
       await ctx.db.update(users).set({ totpSecret: null, totpEnabled: 0 }).where(eq(users.id, input.userId))
