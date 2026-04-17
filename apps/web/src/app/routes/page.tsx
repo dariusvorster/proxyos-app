@@ -200,7 +200,130 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const update = trpc.routes.update.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 1440 }, { refetchInterval: 10_000 })
+
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(route.name)
+  const [upstreams, setUpstreams] = useState(route.upstreams.map((u) => u.address))
+  const [lbPolicy, setLbPolicy] = useState(route.lbPolicy ?? 'round_robin')
+  const [tlsMode, setTlsMode] = useState(route.tlsMode)
+  const [ssoEnabled, setSsoEnabled] = useState(route.ssoEnabled)
+  const [compression, setCompression] = useState(!!route.compressionEnabled)
+  const [websocket, setWebsocket] = useState(!!route.websocketEnabled)
+  const [http3, setHttp3] = useState(!!route.http3Enabled)
+  const [healthPath, setHealthPath] = useState(route.healthCheckPath ?? '/')
+
+  function startEdit() {
+    setName(route.name)
+    setUpstreams(route.upstreams.map((u) => u.address))
+    setLbPolicy(route.lbPolicy ?? 'round_robin')
+    setTlsMode(route.tlsMode)
+    setSsoEnabled(route.ssoEnabled)
+    setCompression(!!route.compressionEnabled)
+    setWebsocket(!!route.websocketEnabled)
+    setHttp3(!!route.http3Enabled)
+    setHealthPath(route.healthCheckPath ?? '/')
+    setEditing(true)
+  }
+
+  function save() {
+    update.mutate({
+      id: route.id,
+      patch: {
+        name,
+        upstreams: upstreams.filter(Boolean).map((a) => ({ address: a })),
+        lbPolicy: lbPolicy as 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first',
+        tlsMode: tlsMode as 'auto' | 'dns' | 'internal' | 'custom' | 'off',
+        ssoEnabled,
+        compressionEnabled: compression,
+        websocketEnabled: websocket,
+        http3Enabled: http3,
+        healthCheckPath: healthPath,
+      },
+    }, { onSuccess: () => setEditing(false) })
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'grid', gap: 14 }}>
+        <Section title="General">
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</span>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+        </Section>
+
+        <Section title="Upstream">
+          {upstreams.map((addr, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Input
+                value={addr}
+                onChange={(e) => setUpstreams((prev) => prev.map((a, j) => j === i ? e.target.value : a))}
+                style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                placeholder="http://host:port"
+              />
+              {upstreams.length > 1 && (
+                <Button size="sm" variant="ghost" onClick={() => setUpstreams((prev) => prev.filter((_, j) => j !== i))}>✕</Button>
+              )}
+            </div>
+          ))}
+          <Button size="sm" variant="ghost" onClick={() => setUpstreams((prev) => [...prev, ''])}>+ Add upstream</Button>
+          {upstreams.length > 1 && (
+            <label style={{ display: 'grid', gap: 4, marginTop: 4 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Load balancing</span>
+              <Select value={lbPolicy} onChange={(e) => setLbPolicy(e.target.value)}>
+                <option value="round_robin">Round Robin</option>
+                <option value="least_conn">Least Connections</option>
+                <option value="ip_hash">IP Hash</option>
+                <option value="random">Random</option>
+                <option value="first">First</option>
+              </Select>
+            </label>
+          )}
+        </Section>
+
+        <Section title="TLS">
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mode</span>
+            <Select value={tlsMode} onChange={(e) => setTlsMode(e.target.value)}>
+              <option value="auto">auto</option>
+              <option value="dns">dns</option>
+              <option value="internal">internal</option>
+              <option value="custom">custom</option>
+              <option value="off">off</option>
+            </Select>
+          </label>
+        </Section>
+
+        <Section title="SSO">
+          <Row k="Enabled" v={<Toggle checked={ssoEnabled} onChange={setSsoEnabled} />} />
+        </Section>
+
+        <Section title="Options">
+          <Row k="Compression" v={<Toggle checked={compression} onChange={setCompression} />} />
+          <Row k="WebSocket" v={<Toggle checked={websocket} onChange={setWebsocket} />} />
+          <Row k="HTTP/3" v={<Toggle checked={http3} onChange={setHttp3} />} />
+          <label style={{ display: 'grid', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Health check path</span>
+            <Input value={healthPath} onChange={(e) => setHealthPath(e.target.value)} placeholder="/" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }} />
+          </label>
+        </Section>
+
+        {update.isError && (
+          <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error.message}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="primary" size="sm" onClick={save} disabled={update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={update.isPending}>Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <Section title="Upstream">
@@ -229,6 +352,7 @@ function RoutePanel({ route }: { route: Route }) {
       </Section>
       <Section title="Actions">
         <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="sm" variant="primary" onClick={startEdit}>Edit</Button>
           <Link href={`/routes/${route.id}`}><Button size="sm">Open analytics</Button></Link>
           <Button size="sm" variant="danger" onClick={() => { if (confirm(`Delete ${route.domain}?`)) del.mutate({ id: route.id }) }}>Delete</Button>
         </div>
