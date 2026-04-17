@@ -88,18 +88,6 @@ export default function StreamsPage() {
       <Topbar
         title="Streams"
         actions={<Button variant="primary" onClick={openCreate}>+ Add stream</Button>}
-        banner={
-          <div style={{
-            background: 'var(--accent-dim)',
-            borderBottom: '1px solid var(--border)',
-            padding: '8px 20px',
-            fontSize: 12,
-            color: 'var(--text-secondary)',
-            fontFamily: 'var(--font-sans)',
-          }}>
-            Streams forward raw TCP/UDP traffic. Requires Caddy with the layer4 module. If your container was built without it, stream rules will be saved but not active.
-          </div>
-        }
       />
       <PageContent>
         <Card header={<><span>Streams</span><span style={{ color: 'var(--text-dim)' }}>{list.data?.length ?? 0}</span></>}>
