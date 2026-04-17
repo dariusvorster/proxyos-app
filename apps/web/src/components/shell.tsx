@@ -20,6 +20,7 @@ const navSections: NavSection[] = [
       { href: '/error-hosts', label: 'Error hosts', icon: '✕' },
       { href: '/streams', label: 'Streams', icon: '⇌' },
       { href: '/analytics', label: 'Analytics', icon: '▤' },
+      { href: '/health', label: 'Upstream health', icon: '◉' },
       { href: '/certificates', label: 'Certificates', icon: '◼' },
     ],
   },
