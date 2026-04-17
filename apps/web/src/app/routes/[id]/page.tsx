@@ -1,5 +1,7 @@
 'use client'
 
+'use client'
+
 import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Dot, Input, Select, StatCard, td, th } from '~/components/ui'
@@ -20,6 +22,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [upstreams, setUpstreams] = useState<{ address: string; weight: number }[]>([])
   const [lbMsg, setLbMsg] = useState('')
   const updateRoute = trpc.routes.update.useMutation()
+
+  const healthHistory = trpc.healthChecks.listByRoute.useQuery({ routeId: id, limit: 50 })
+  const versionHistory = trpc.routeVersions.listByRoute.useQuery({ routeId: id })
+  const rollbackMut = trpc.routeVersions.rollback.useMutation({
+    onSuccess: () => { routes.refetch(); versionHistory.refetch() },
+  })
+  const [versionMsg, setVersionMsg] = useState('')
 
   const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
   const [geoCountries, setGeoCountries] = useState('')
@@ -353,6 +362,96 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             })()}
           </Card>
         )}
+
+        {/* Health check history */}
+        <Card header={<span>Health check history — last {healthHistory.data?.length ?? 0} checks</span>}>
+          {(!healthHistory.data || healthHistory.data.length === 0) ? (
+            <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text3)' }}>No health checks recorded yet.</div>
+          ) : (
+            <DataTable>
+              <thead>
+                <tr>
+                  <th style={{ ...th, width: '26%' }}>Time</th>
+                  <th style={{ ...th, width: '14%' }}>Status</th>
+                  <th style={{ ...th, width: '14%' }}>HTTP</th>
+                  <th style={{ ...th, width: '16%' }}>Latency</th>
+                  <th style={{ ...th }}>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {healthHistory.data.slice(0, 20).map((h) => (
+                  <tr key={h.id}>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>
+                      {new Date(h.checkedAt).toLocaleString()}
+                    </td>
+                    <td style={td}>
+                      <Badge tone={h.overallStatus === 'healthy' ? 'green' : h.overallStatus === 'degraded' ? 'amber' : 'red'}>
+                        {h.overallStatus}
+                      </Badge>
+                    </td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{h.statusCode ?? '—'}</td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{h.responseTimeMs != null ? `${h.responseTimeMs}ms` : '—'}</td>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--red)', fontFamily: 'var(--font-mono)' }}>{h.error ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          )}
+        </Card>
+
+        {/* Version history */}
+        <Card header={<span>Version history — {versionHistory.data?.length ?? 0} versions</span>}>
+          {versionMsg && (
+            <p style={{ fontSize: 11, color: versionMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', margin: '0 0 8px', padding: '0 0 8px', borderBottom: '1px solid var(--border)' }}>{versionMsg}</p>
+          )}
+          {(!versionHistory.data || versionHistory.data.length === 0) ? (
+            <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text3)' }}>No versions recorded yet.</div>
+          ) : (
+            <DataTable>
+              <thead>
+                <tr>
+                  <th style={{ ...th, width: '8%' }}>Ver.</th>
+                  <th style={{ ...th, width: '24%' }}>Changed</th>
+                  <th style={{ ...th, width: '16%' }}>By</th>
+                  <th style={{ ...th }}>Reason</th>
+                  <th style={{ ...th, width: '14%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {versionHistory.data.map((v, i) => (
+                  <tr key={v.id}>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>v{v.versionNumber}</td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>
+                      {new Date(v.changedAt).toLocaleString()}
+                    </td>
+                    <td style={{ ...td, fontSize: 11 }}>{v.changedBy}</td>
+                    <td style={{ ...td, fontSize: 11, color: 'var(--text2)' }}>{v.changeReason ?? '—'}</td>
+                    <td style={td}>
+                      {i !== 0 && (
+                        <Button
+                          variant="ghost"
+                          style={{ fontSize: 11, color: 'var(--amber)', padding: '2px 8px' }}
+                          disabled={rollbackMut.isPending}
+                          onClick={() => {
+                            if (confirm(`Roll back to v${v.versionNumber}?`)) {
+                              rollbackMut.mutate({ versionId: v.id }, {
+                                onSuccess: () => setVersionMsg(`Rolled back to v${v.versionNumber}`),
+                                onError: (e) => setVersionMsg(`Error: ${e.message}`),
+                              })
+                            }
+                          }}
+                        >
+                          Rollback
+                        </Button>
+                      )}
+                      {i === 0 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>current</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          )}
+        </Card>
 
         <Card header={<span>Recent requests</span>}>
           <DataTable>

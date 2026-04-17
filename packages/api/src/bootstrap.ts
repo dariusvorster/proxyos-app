@@ -3,9 +3,15 @@ import { bootstrapCaddy, type BootstrapResult } from '@proxyos/caddy/bootstrap'
 import { getDb, routes as routesTable, ssoProviders as ssoTable } from '@proxyos/db'
 import type { Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { loadAdapters } from './loader'
+import { startDriftDetector } from './automation/drift-detector'
+import { startHealthChecker } from './automation/health-checker'
+import { startTrafficTracker } from './automation/traffic-tracker'
 
 export async function bootstrapProxyOs(baseConfigPath: string): Promise<BootstrapResult> {
   void loadAdapters().catch(err => console.error('[connect] Failed to load adapters:', err))
+  startDriftDetector()
+  startHealthChecker()
+  startTrafficTracker()
   const db = getDb()
   return bootstrapCaddy({
     baseConfigPath,

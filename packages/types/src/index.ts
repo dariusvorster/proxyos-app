@@ -129,6 +129,8 @@ export interface Route extends RouteInput {
   ssoEnabled: boolean
   ssoProviderId: string | null
   tlsDnsProviderId: string | null
+  lastTrafficAt?: Date | null
+  archivedAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }

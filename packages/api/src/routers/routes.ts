@@ -7,6 +7,7 @@ import { buildLogEntry } from './systemLog'
 import { parseGeoIPConfig } from '../security/geoip'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { insertRouteVersion } from './routeVersions'
 
 const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
 
@@ -232,6 +233,7 @@ export const routesRouter = router({
       detail: JSON.stringify({ upstreams: route.upstreams, tlsMode: route.tlsMode, ssoEnabled: route.ssoEnabled }),
       createdAt: now,
     })
+    await insertRouteVersion(ctx.db, route, 'user', 'created')
 
     return route
   }),
@@ -349,6 +351,7 @@ export const routesRouter = router({
       detail: JSON.stringify({ upstreamUrl: input.upstreamUrl, ssoEnabled: input.ssoEnabled, tlsMode: input.tlsMode }),
       createdAt: now,
     })
+    await insertRouteVersion(ctx.db, route, 'user', 'exposed')
 
     return {
       success: true,
@@ -444,6 +447,7 @@ export const routesRouter = router({
         detail: JSON.stringify(p),
         createdAt: new Date(),
       })
+      await insertRouteVersion(ctx.db, route)
       return route
     }),
 
@@ -515,5 +519,53 @@ export const routesRouter = router({
       })
 
       return { success: true }
+    }),
+
+  archive: operatorProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      const now = new Date()
+      await ctx.caddy.removeRoute(input.id)
+      await ctx.db.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, input.id))
+
+      await ctx.db.insert(auditLog).values({
+        id: nanoid(),
+        action: 'route.archive',
+        resourceType: 'route',
+        resourceId: input.id,
+        resourceName: row.domain,
+        actor: 'user',
+        createdAt: now,
+      })
+
+      return { success: true }
+    }),
+
+  unarchive: operatorProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      const now = new Date()
+      await ctx.db.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
+      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      await syncRouteToCaddy(ctx, rowToRoute(updated!))
+
+      return { success: true }
+    }),
+
+  listStale: publicProcedure
+    .input(z.object({ days: z.number().min(1).max(365).default(30) }))
+    .query(async ({ ctx, input }) => {
+      const cutoff = new Date(Date.now() - input.days * 86_400_000)
+      const rows = await ctx.db.select().from(routes)
+      return rows
+        .filter(r => !r.archivedAt && r.enabled)
+        .filter(r => !r.lastTrafficAt || r.lastTrafficAt < cutoff)
+        .map(rowToRoute)
     }),
 })

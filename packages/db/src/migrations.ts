@@ -604,4 +604,46 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V32_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+  // V2 Phase 1 new tables
+  db.exec(`CREATE TABLE IF NOT EXISTS drift_events (
+    id TEXT PRIMARY KEY,
+    detected_at INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    route_id TEXT,
+    diff_json TEXT,
+    resolved_at INTEGER,
+    resolution TEXT
+  )`)
+  db.exec(`CREATE TABLE IF NOT EXISTS route_versions (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    config_snapshot_json TEXT NOT NULL,
+    changed_by TEXT NOT NULL DEFAULT 'user',
+    changed_at INTEGER NOT NULL,
+    change_reason TEXT,
+    rollback_of TEXT
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_route_versions_route_id ON route_versions(route_id, version_number)`)
+  db.exec(`CREATE TABLE IF NOT EXISTS health_checks (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    checked_at INTEGER NOT NULL,
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    body_matched INTEGER,
+    overall_status TEXT NOT NULL,
+    error TEXT
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_health_checks_route_id ON health_checks(route_id, checked_at)`)
+  const V2P1_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN health_check_status_codes TEXT`,
+    `ALTER TABLE routes ADD COLUMN health_check_body_regex TEXT`,
+    `ALTER TABLE routes ADD COLUMN health_check_max_response_ms INTEGER`,
+    `ALTER TABLE routes ADD COLUMN last_traffic_at INTEGER`,
+    `ALTER TABLE routes ADD COLUMN archived_at INTEGER`,
+  ]
+  for (const stmt of V2P1_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

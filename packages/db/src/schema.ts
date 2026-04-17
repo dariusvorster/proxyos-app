@@ -25,6 +25,9 @@ export const routes = sqliteTable('routes', {
   healthCheckEnabled: integer('health_check_enabled', { mode: 'boolean' }).notNull().default(true),
   healthCheckPath: text('health_check_path').notNull().default('/'),
   healthCheckInterval: integer('health_check_interval').notNull().default(30),
+  healthCheckStatusCodes: text('health_check_status_codes'),  // JSON number[]
+  healthCheckBodyRegex: text('health_check_body_regex'),
+  healthCheckMaxResponseMs: integer('health_check_max_response_ms'),
 
   compressionEnabled: integer('compression_enabled', { mode: 'boolean' }).notNull().default(true),
   websocketEnabled: integer('websocket_enabled', { mode: 'boolean' }).notNull().default(true),
@@ -32,6 +35,9 @@ export const routes = sqliteTable('routes', {
   http3Enabled: integer('http3_enabled', { mode: 'boolean' }).notNull().default(true),
 
   agentId: text('agent_id'),
+
+  lastTrafficAt: integer('last_traffic_at', { mode: 'timestamp' }),
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
@@ -683,3 +689,41 @@ export type AccessListAuthUserRow = typeof accessListAuthUsers.$inferSelect
 export type AccessListAuthConfigRow = typeof accessListAuthConfig.$inferSelect
 export type OperationLogRow = typeof operationLogs.$inferSelect
 export type CertIssuanceLogRow = typeof certIssuanceLog.$inferSelect
+
+// V2 — Phase 1 features
+
+export const driftEvents = sqliteTable('drift_events', {
+  id: text('id').primaryKey(),
+  detectedAt: integer('detected_at', { mode: 'timestamp' }).notNull(),
+  type: text('type').notNull(), // 'missing_in_db' | 'missing_in_caddy' | 'config_mismatch'
+  routeId: text('route_id'),
+  diffJson: text('diff_json'),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  resolution: text('resolution'),
+})
+
+export const routeVersions = sqliteTable('route_versions', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  versionNumber: integer('version_number').notNull(),
+  configSnapshotJson: text('config_snapshot_json').notNull(),
+  changedBy: text('changed_by').notNull().default('user'),
+  changedAt: integer('changed_at', { mode: 'timestamp' }).notNull(),
+  changeReason: text('change_reason'),
+  rollbackOf: text('rollback_of'),
+})
+
+export const healthChecks = sqliteTable('health_checks', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  checkedAt: integer('checked_at', { mode: 'timestamp' }).notNull(),
+  statusCode: integer('status_code'),
+  responseTimeMs: integer('response_time_ms'),
+  bodyMatched: integer('body_matched', { mode: 'boolean' }),
+  overallStatus: text('overall_status').notNull(), // 'healthy' | 'degraded' | 'unhealthy'
+  error: text('error'),
+})
+
+export type DriftEventRow = typeof driftEvents.$inferSelect
+export type RouteVersionRow = typeof routeVersions.$inferSelect
+export type HealthCheckRow = typeof healthChecks.$inferSelect

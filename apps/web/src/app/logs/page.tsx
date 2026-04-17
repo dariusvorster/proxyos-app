@@ -204,22 +204,30 @@ function SystemLogsTab() {
 
 // ─── Access logs tab ──────────────────────────────────────────────────────────
 
+type QuickFilter = 'all' | '5xx' | 'slowest' | 'top-ips'
+
 function AccessLogsTab() {
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [statusCode, setStatusCode] = useState('')
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
 
-  const access = trpc.analytics.accessLog.useQuery({ limit: 500 }, { refetchInterval: 10_000 })
+  const access = trpc.accessLogSearch.search.useQuery({
+    query: search || undefined,
+    statusCode: statusCode ? Number(statusCode) : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    limit: 200,
+  })
+
+  const quickData = trpc.accessLogSearch.quickFilters.useQuery({})
 
   const rows = useMemo(() => {
-    return (access.data ?? []).filter(r => {
-      if (search && !(r.path ?? '').toLowerCase().includes(search.toLowerCase()) && !(r.clientIp ?? '').includes(search)) return false
-      const t = new Date(r.recordedAt).getTime()
-      if (dateFrom && t < new Date(dateFrom).getTime()) return false
-      if (dateTo && t > new Date(dateTo).getTime() + 86_400_000) return false
-      return true
-    })
-  }, [access.data, search, dateFrom, dateTo])
+    if (quickFilter === '5xx') return quickData.data?.fivexx ?? []
+    if (quickFilter === 'slowest') return quickData.data?.slowest ?? []
+    return access.data ?? []
+  }, [access.data, quickData.data, quickFilter])
 
   function exportCsv() {
     downloadCsv(
@@ -235,60 +243,106 @@ function AccessLogsTab() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button onClick={exportCsv}>Export CSV</Button>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {([
+          { id: 'all', label: 'All' },
+          { id: '5xx', label: `5xx today (${quickData.data?.fivexx.length ?? 0})` },
+          { id: 'slowest', label: 'Slowest 100' },
+          { id: 'top-ips', label: 'Top IPs' },
+        ] as { id: QuickFilter; label: string }[]).map(f => (
+          <button key={f.id} onClick={() => setQuickFilter(f.id)} style={{
+            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)',
+            border: `1px solid ${quickFilter === f.id ? 'var(--accent-border)' : 'var(--border2)'}`,
+            background: quickFilter === f.id ? 'var(--accent-dim)' : 'var(--surf)',
+            color: quickFilter === f.id ? 'var(--accent-dark)' : 'var(--text2)',
+            cursor: 'pointer',
+          }}>{f.label}</button>
+        ))}
+        <div style={{ marginLeft: 'auto' }}>
+          <Button onClick={exportCsv}>Export CSV</Button>
+        </div>
       </div>
-      <FilterBar
-        search={search} setSearch={setSearch}
-        dateFrom={dateFrom} setDateFrom={setDateFrom}
-        dateTo={dateTo} setDateTo={setDateTo}
-      />
-      <Card header={
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          HTTP access log
-          <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{rows.length} entries</span>
-        </span>
-      }>
-        <DataTable>
-          <thead>
-            <tr>
-              <th style={{ ...th, width: '14%' }}>Time</th>
-              <th style={{ ...th, width: '7%' }}>Method</th>
-              <th style={th}>Path</th>
-              <th style={{ ...th, width: '8%' }}>Status</th>
-              <th style={{ ...th, width: '10%' }}>Latency</th>
-              <th style={{ ...th, width: '14%' }}>Client IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text3)', padding: '32px 12px' }}>
-                {access.isLoading ? 'Loading…' : 'No access log entries.'}
-              </td></tr>
-            )}
-            {rows.map(r => (
-              <tr key={r.id}>
-                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-                  {new Date(r.recordedAt).toLocaleString()}
-                </td>
-                <td style={td}>
-                  {r.method && <Badge tone={r.method === 'GET' ? 'blue' : r.method === 'POST' ? 'green' : r.method === 'DELETE' ? 'red' : 'neutral'}>{r.method}</Badge>}
-                </td>
-                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.path ?? '—'}
-                </td>
-                <td style={td}>
-                  {r.statusCode != null && <Badge tone={STATUS_TONE(r.statusCode)}>{r.statusCode}</Badge>}
-                </td>
-                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, color: (r.latencyMs ?? 0) > 1000 ? 'var(--amber)' : 'var(--text2)' }}>
-                  {r.latencyMs != null ? `${r.latencyMs}ms` : '—'}
-                </td>
-                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>{r.clientIp ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </DataTable>
-      </Card>
+
+      {quickFilter === 'top-ips' ? (
+        <Card header={<span>Top 10 source IPs (last 24h)</span>}>
+          <DataTable>
+            <thead><tr>
+              <th style={{ ...th, width: '60%' }}>IP</th>
+              <th style={th}>Requests</th>
+            </tr></thead>
+            <tbody>
+              {(quickData.data?.topIps ?? []).map(({ ip, count }) => (
+                <tr key={ip}>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{ip}</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </Card>
+      ) : (
+        <>
+          <FilterBar
+            search={search} setSearch={s => { setSearch(s); setQuickFilter('all') }}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            right={
+              <Input
+                placeholder="Status code"
+                value={statusCode}
+                onChange={e => setStatusCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                style={{ width: 100, fontSize: 12 }}
+              />
+            }
+          />
+          <Card header={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              HTTP access log
+              <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{rows.length} entries</span>
+            </span>
+          }>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th style={{ ...th, width: '14%' }}>Time</th>
+                  <th style={{ ...th, width: '7%' }}>Method</th>
+                  <th style={th}>Path</th>
+                  <th style={{ ...th, width: '8%' }}>Status</th>
+                  <th style={{ ...th, width: '10%' }}>Latency</th>
+                  <th style={{ ...th, width: '14%' }}>Client IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 && (
+                  <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text3)', padding: '32px 12px' }}>
+                    {access.isLoading ? 'Loading…' : 'No entries match.'}
+                  </td></tr>
+                )}
+                {rows.map(r => (
+                  <tr key={r.id}>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                      {new Date(r.recordedAt).toLocaleString()}
+                    </td>
+                    <td style={td}>
+                      {r.method && <Badge tone={r.method === 'GET' ? 'blue' : r.method === 'POST' ? 'green' : r.method === 'DELETE' ? 'red' : 'neutral'}>{r.method}</Badge>}
+                    </td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.path ?? '—'}
+                    </td>
+                    <td style={td}>
+                      {r.statusCode != null && <Badge tone={STATUS_TONE(r.statusCode)}>{r.statusCode}</Badge>}
+                    </td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, color: (r.latencyMs ?? 0) > 1000 ? 'var(--amber)' : 'var(--text2)' }}>
+                      {r.latencyMs != null ? `${r.latencyMs}ms` : '—'}
+                    </td>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>{r.clientIp ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </Card>
+        </>
+      )}
     </>
   )
 }

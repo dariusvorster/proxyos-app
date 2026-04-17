@@ -9,6 +9,9 @@ export default function DashboardPage() {
   const routes = trpc.routes.list.useQuery()
   const certs = trpc.certificates.list.useQuery()
   const caddy = trpc.system.caddyStatus.useQuery(undefined, { refetchInterval: 5000 })
+  const drift = trpc.drift.list.useQuery(undefined, { refetchInterval: 30000 })
+  const stale = trpc.routes.listStale.useQuery({ days: 30 })
+  const archiveMut = trpc.routes.archive.useMutation({ onSuccess: () => stale.refetch() })
 
   const activeRoutes = routes.data?.length ?? 0
   const expiringCerts = certs.data?.filter((c) => {
@@ -31,6 +34,32 @@ export default function DashboardPage() {
       />
       <PageContent>
         <PageHeader title="Dashboard" desc="ProxyOS overview — routes, agents, certificates, and traffic." />
+
+        {/* Drift banner */}
+        {(drift.data?.length ?? 0) > 0 && (
+          <div style={{
+            background: 'var(--amber-dim)',
+            border: '1px solid var(--amber-border)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <span style={{ color: 'var(--amber)', fontWeight: 600 }}>⚠</span>
+              <span style={{ color: 'var(--text)', fontWeight: 500 }}>Config drift detected</span>
+              <span style={{ color: 'var(--text2)', fontSize: 12 }}>
+                {drift.data!.length} route{drift.data!.length !== 1 ? 's' : ''} out of sync between ProxyOS and Caddy
+              </span>
+            </div>
+            <Link href="/settings/drift">
+              <Button variant="ghost" style={{ fontSize: 12, color: 'var(--amber)' }}>View →</Button>
+            </Link>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           <StatCard
             label="Active routes"
@@ -108,6 +137,41 @@ export default function DashboardPage() {
             </div>
           </Card>
         </div>
+        {/* Stale routes widget */}
+        {(stale.data?.length ?? 0) > 0 && (
+          <Card header={<span style={{ color: 'var(--amber)' }}>Stale routes — {stale.data!.length} with no traffic in 30+ days</span>}>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th style={{ ...th, width: '40%' }}>Domain</th>
+                  <th style={{ ...th, width: '30%' }}>Last traffic</th>
+                  <th style={{ ...th, width: '30%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {stale.data!.slice(0, 8).map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                      <Link href={`/routes/${r.id}`} style={{ color: 'var(--accent)' }}>{r.domain}</Link>
+                    </td>
+                    <td style={{ ...td, color: 'var(--text3)', fontSize: 11 }}>
+                      {r.lastTrafficAt ? new Date(r.lastTrafficAt).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td style={{ ...td }}>
+                      <Button
+                        variant="ghost"
+                        style={{ fontSize: 11, color: 'var(--amber)', padding: '2px 8px' }}
+                        onClick={() => { if (confirm(`Archive ${r.domain}?`)) archiveMut.mutate({ id: r.id }) }}
+                      >
+                        Archive
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </Card>
+        )}
       </PageContent>
     </>
   )

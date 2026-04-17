@@ -35,6 +35,10 @@ import { accessListsRouter } from './routers/accessLists'
 import { streamsRouter } from './routers/streams'
 import { caddyLogsRouter } from './routers/caddyLogs'
 import { publicApiRouter } from './routers/publicApi'
+import { driftRouter } from './routers/drift'
+import { routeVersionsRouter } from './routers/routeVersions'
+import { healthChecksRouter } from './routers/healthChecks'
+import { accessLogSearchRouter } from './routers/accessLogSearch'
 
 const PKG_VERSION = '0.2.0'
 
@@ -76,6 +80,10 @@ export const appRouter = router({
   streams: streamsRouter,
   caddyLogs: caddyLogsRouter,
   publicApi: publicApiRouter,
+  drift: driftRouter,
+  routeVersions: routeVersionsRouter,
+  healthChecks: healthChecksRouter,
+  accessLogSearch: accessLogSearchRouter,
 })
 
 export type AppRouter = typeof appRouter
