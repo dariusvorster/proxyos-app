@@ -52,7 +52,7 @@ export default function ContainersPage() {
           Every Cloudflare Tunnel hostname should point to{' '}
           <code style={{ background: 'var(--surface3)', padding: '1px 5px', borderRadius: 3 }}>proxyos:80</code>.
           {' '}ProxyOS handles the internal routing. See the{' '}
-          <Link href="/setup-guide" style={{ color: 'var(--blue)', textDecoration: 'underline' }}>Setup Guide</Link>{' '}
+          <Link href="/docs/setup-guide" style={{ color: 'var(--blue)', textDecoration: 'underline' }}>Setup Guide</Link>{' '}
           for the full flow.
         </div>
 
