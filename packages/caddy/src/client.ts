@@ -104,7 +104,7 @@ export class CaddyClient {
       policy,
     ]
 
-    const putRes = await this.fetchJson(policiesUrl, { method: 'PUT', body: deduped })
+    const putRes = await this.fetchJson(policiesUrl, { method: 'PATCH', body: deduped })
     if (!putRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${putRes.status} ${await putRes.text()}`)
   }
 
