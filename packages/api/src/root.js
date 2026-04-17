@@ -58,6 +58,7 @@ import { mxwatchRouter } from './routers/mxwatch';
 import { tenantsRouter } from './routers/tenants';
 import { networksRouter } from './routers/networks';
 import { upstreamsRouter } from './routers/upstreams';
+import { containersRouter } from './routers/containers';
 
 const PKG_VERSION = '0.2.0';
 export const appRouter = router({
@@ -121,4 +122,5 @@ export const appRouter = router({
     tenants: tenantsRouter,
     networks: networksRouter,
     upstreams: upstreamsRouter,
+    containers: containersRouter,
 });
