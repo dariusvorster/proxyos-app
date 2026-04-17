@@ -846,6 +846,10 @@ export function ensureSchema(db: Database.Database): void {
   )`)
   const V5_ALTERS = [
     `ALTER TABLE routes ADD COLUMN tenant_id TEXT REFERENCES tenants(id)`,
+    `ALTER TABLE routes ADD COLUMN force_ssl INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE routes ADD COLUMN hsts_enabled INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE routes ADD COLUMN hsts_subdomains INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE routes ADD COLUMN trust_upstream_headers INTEGER NOT NULL DEFAULT 0`,
   ]
   for (const stmt of V5_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }

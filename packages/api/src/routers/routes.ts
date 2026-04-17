@@ -85,6 +85,10 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     maintenanceSavedUpstreams: (row as Record<string, unknown>).maintenanceSavedUpstreams
       ? JSON.parse((row as Record<string, unknown>).maintenanceSavedUpstreams as string) as Route['maintenanceSavedUpstreams']
       : null,
+    forceSSL: Boolean(row.forceSSL),
+    hstsEnabled: Boolean(row.hstsEnabled),
+    hstsSubdomains: Boolean(row.hstsSubdomains),
+    trustUpstreamHeaders: Boolean(row.trustUpstreamHeaders),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -427,6 +431,10 @@ export const routesRouter = router({
           accessosGroups: z.array(z.string()).nullable().optional(),
           accessosProviderId: z.string().nullable().optional(),
           mxwatchDomain: z.string().nullable().optional(),
+          forceSSL: z.boolean().optional(),
+          hstsEnabled: z.boolean().optional(),
+          hstsSubdomains: z.boolean().optional(),
+          trustUpstreamHeaders: z.boolean().optional(),
         }),
       }),
     )
@@ -466,6 +474,10 @@ export const routesRouter = router({
       if (p.accessosGroups !== undefined) update.accessosGroups = p.accessosGroups ? JSON.stringify(p.accessosGroups) : null
       if (p.accessosProviderId !== undefined) update.accessosProviderId = p.accessosProviderId
       if (p.mxwatchDomain !== undefined) update.mxwatchDomain = p.mxwatchDomain
+      if (p.forceSSL !== undefined) update.forceSSL = p.forceSSL
+      if (p.hstsEnabled !== undefined) update.hstsEnabled = p.hstsEnabled
+      if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
+      if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 
@@ -473,6 +485,14 @@ export const routesRouter = router({
       const route = rowToRoute(updated!)
       try {
         await syncRouteToCaddy(ctx, route)
+        // Force SSL: manage the HTTP redirect server based on whether any enabled route needs it
+        const allRows = await ctx.db.select().from(routes).all()
+        const needsRedirect = allRows.some(r => r.enabled && r.forceSSL && r.tlsMode !== 'off')
+        if (needsRedirect) {
+          await ctx.caddy.setHttpRedirectServer().catch(() => {})
+        } else {
+          await ctx.caddy.removeHttpRedirectServer().catch(() => {})
+        }
       } catch (err) {
         await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to update route "${route.domain}" in Caddy`, {
           domain: route.domain,

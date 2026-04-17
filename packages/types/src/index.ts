@@ -160,6 +160,11 @@ export interface Route extends RouteInput {
   // §4.6 PatchOS maintenance mode
   maintenanceMode?: boolean
   maintenanceSavedUpstreams?: UpstreamConfig[] | null
+  // SSL / security headers
+  forceSSL?: boolean
+  hstsEnabled?: boolean
+  hstsSubdomains?: boolean
+  trustUpstreamHeaders?: boolean
   createdAt: Date
   updatedAt: Date
 }

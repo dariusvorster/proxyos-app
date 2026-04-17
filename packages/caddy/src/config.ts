@@ -70,6 +70,14 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
     })
   }
 
+  if (route.hstsEnabled && route.tlsMode !== 'off') {
+    const hstsValue = `max-age=63072000${route.hstsSubdomains ? '; includeSubDomains' : ''}`
+    handlers.push({
+      handler: 'headers',
+      response: { set: { 'Strict-Transport-Security': [hstsValue] } },
+    })
+  }
+
   if (route.headers) {
     handlers.push({ handler: 'headers', ...route.headers })
   }
@@ -120,6 +128,20 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
               path: route.healthCheckPath ?? '/',
               interval: `${route.healthCheckInterval ?? 30}s`,
               timeout: '5s',
+            },
+          },
+        }
+      : {}),
+    ...(route.trustUpstreamHeaders
+      ? {
+          headers: {
+            request: {
+              set: {
+                'X-Real-IP': ['{http.request.remote.host}'],
+                'X-Forwarded-For': ['{http.request.remote.host}'],
+                'X-Forwarded-Proto': ['{http.request.scheme}'],
+                'X-Forwarded-Host': ['{http.request.host}'],
+              },
             },
           },
         }

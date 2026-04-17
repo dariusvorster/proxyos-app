@@ -61,6 +61,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [maintenanceUrl, setMaintenanceUrl] = useState('')
   const [maintenanceMsg, setMaintenanceMsg] = useState('')
 
+  const [forceSSL, setForceSSL] = useState(false)
+  const [hstsEnabled, setHstsEnabled] = useState(false)
+  const [hstsSubdomains, setHstsSubdomains] = useState(false)
+  const [http2Enabled, setHttp2Enabled] = useState(true)
+  const [trustUpstreamHeaders, setTrustUpstreamHeaders] = useState(false)
+  const [sslMsg, setSslMsg] = useState('')
+
   const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
   const [geoCountries, setGeoCountries] = useState('')
   const [geoAction, setGeoAction] = useState<'block' | 'challenge'>('block')
@@ -81,6 +88,11 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
       setMirrorUpstream(route.mirrorUpstream ?? '')
       setMirrorSampleRate(route.mirrorSampleRate ?? 100)
       setMxwatchDomain(route.mxwatchDomain ?? '')
+      setForceSSL(route.forceSSL ?? false)
+      setHstsEnabled(route.hstsEnabled ?? false)
+      setHstsSubdomains(route.hstsSubdomains ?? false)
+      setHttp2Enabled(route.http2Enabled ?? true)
+      setTrustUpstreamHeaders(route.trustUpstreamHeaders ?? false)
     }
   }, [route])
 
@@ -837,6 +849,60 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               ))}
             </tbody>
           </DataTable>
+        </Card>
+
+        {/* SSL / Security headers */}
+        <Card header={<span>SSL &amp; Security Headers</span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0' }}>
+            {[
+              { label: 'Force SSL', desc: 'Redirect all HTTP traffic to HTTPS for this route', value: forceSSL, set: setForceSSL, field: 'forceSSL' as const },
+              { label: 'HSTS Enabled', desc: 'Add Strict-Transport-Security header (max-age 63072000)', value: hstsEnabled, set: setHstsEnabled, field: 'hstsEnabled' as const },
+              { label: 'HSTS Subdomains', desc: 'Include "includeSubDomains" in the HSTS header', value: hstsSubdomains, set: setHstsSubdomains, field: 'hstsSubdomains' as const },
+              { label: 'HTTP/2 Support', desc: 'Enable HTTP/2 for upstream connections', value: http2Enabled, set: setHttp2Enabled, field: 'http2Enabled' as const },
+              { label: 'Trust Upstream Forwarded Headers', desc: 'Set X-Forwarded-For, X-Forwarded-Proto, X-Real-IP on proxied requests', value: trustUpstreamHeaders, set: setTrustUpstreamHeaders, field: 'trustUpstreamHeaders' as const },
+            ].map(({ label, desc, value, set, field }) => (
+              <div key={field} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{label}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{desc}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !value
+                    set(next)
+                    setSslMsg('')
+                    updateRoute.mutate(
+                      { id, patch: { [field]: next } },
+                      { onSuccess: () => setSslMsg('Saved'), onError: e => setSslMsg(`Error: ${e.message}`) }
+                    )
+                  }}
+                  style={{
+                    flexShrink: 0,
+                    width: 42,
+                    height: 24,
+                    borderRadius: 12,
+                    border: 'none',
+                    background: value ? 'var(--accent)' : 'var(--border)',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: 3,
+                    left: value ? 21 : 3,
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    transition: 'left 0.15s',
+                  }} />
+                </button>
+              </div>
+            ))}
+            {sslMsg && <div style={{ fontSize: 12, fontFamily: 'var(--font-sans)', color: sslMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{sslMsg}</div>}
+          </div>
         </Card>
       </PageContent>
     </>

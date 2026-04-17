@@ -68,6 +68,12 @@ export const routes = sqliteTable('routes', {
   // §3.19 Multi-tenant
   tenantId: text('tenant_id'),
 
+  // SSL / security headers
+  forceSSL: integer('force_ssl', { mode: 'boolean' }).notNull().default(false),
+  hstsEnabled: integer('hsts_enabled', { mode: 'boolean' }).notNull().default(false),
+  hstsSubdomains: integer('hsts_subdomains', { mode: 'boolean' }).notNull().default(false),
+  trustUpstreamHeaders: integer('trust_upstream_headers', { mode: 'boolean' }).notNull().default(false),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
