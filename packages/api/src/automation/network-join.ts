@@ -248,18 +248,19 @@ class NetworkDiscoveryService {
     const config = await loadConfig(this.defaultSocketPath)
     if (!config.enabled || !this.selfContainerId) return
 
-    // GET /networks returns summaries only — Containers field is empty on list.
-    // Must inspect each network individually to get real container membership.
+    // Docker's GET /networks endpoint returns summary data with an EMPTY Containers field.
+    // We must call GET /networks/{id} (inspect) per network to get the real container list.
     const summaries = await dockerRequest<DockerNetwork[]>(config.socketPath, 'GET', '/networks')
+
     const inspectResults = await Promise.allSettled(
-      summaries.map(s => dockerRequest<DockerNetwork>(config.socketPath, 'GET', `/networks/${s.Id}`)),
+      summaries.map(s => dockerRequest<DockerNetwork>(config.socketPath, 'GET', `/networks/${s.Id}`))
     )
-    const allNetworks: DockerNetwork[] = inspectResults.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value
-      const summary = summaries[i]!
-      console.warn(`[discovery] inspect failed for ${summary.Name}: ${(r as PromiseRejectedResult).reason}`)
-      return summary
-    })
+
+    const allNetworks: DockerNetwork[] = inspectResults
+      .map((r, i): DockerNetwork | undefined =>
+        r.status === 'fulfilled' ? r.value : summaries[i]
+      )
+      .filter((n): n is DockerNetwork => n !== undefined)
 
     const relevant = filterRelevant(allNetworks, config.excluded)
     const currentlyJoined = networksAlreadyJoined(allNetworks, this.selfContainerId)
@@ -269,6 +270,10 @@ class NetworkDiscoveryService {
 
     const toJoin = relevant.filter(n => !currentIds.has(n.Id))
     const toLeave = config.leaveEmpty ? currentlyJoined.filter(n => !desiredIds.has(n.Id)) : []
+
+    console.log(
+      `[discovery] scan: ${allNetworks.length} networks, ${relevant.length} relevant, ${currentlyJoined.length} already joined, ${toJoin.length} to join`,
+    )
 
     for (const net of toJoin) {
       try {
