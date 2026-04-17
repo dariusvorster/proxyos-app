@@ -286,7 +286,7 @@ function RoutePanel({ route }: { route: Route }) {
         <Section title="TLS">
           <label style={{ display: 'grid', gap: 4 }}>
             <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mode</span>
-            <Select value={tlsMode} onChange={(e) => setTlsMode(e.target.value)}>
+            <Select value={tlsMode} onChange={(e) => setTlsMode(e.target.value as typeof tlsMode)}>
               <option value="auto">auto</option>
               <option value="dns">dns</option>
               <option value="internal">internal</option>
