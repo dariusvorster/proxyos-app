@@ -62,12 +62,12 @@ export async function renderPrometheusMetrics(db: Db): Promise<string> {
   }
 
   // Gauge — rolling 5-minute average latency
-  lines.push('# HELP proxyos_route_request_duration_seconds Average request duration in seconds (5-min window)')
+  lines.push('# HELP proxyos_route_request_duration_seconds Mean request duration in seconds (5-min window)')
   lines.push('# TYPE proxyos_route_request_duration_seconds gauge')
   for (const [routeId, agg] of byRouteRecent) {
     const d = domainOf.get(routeId) ?? routeId
     const avgSec = agg.requests > 0 ? (agg.latencySum / agg.requests / 1000).toFixed(4) : '0.0000'
-    lines.push(`proxyos_route_request_duration_seconds{route="${d}",quantile="0.95"} ${avgSec}`)
+    lines.push(`proxyos_route_request_duration_seconds{route="${d}",type="mean"} ${avgSec}`)
   }
 
   lines.push('# HELP proxyos_route_upstream_health Route enabled/healthy (1=yes, 0=no)')

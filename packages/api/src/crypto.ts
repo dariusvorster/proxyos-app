@@ -27,7 +27,7 @@ export function decrypt(value: string): string {
   const ciphertext = payload.subarray(28)
   const decipher = createDecipheriv('aes-256-gcm', key, iv)
   decipher.setAuthTag(tag)
-  return decipher.update(ciphertext) + decipher.final('utf8')
+  return decipher.update(ciphertext).toString('utf8') + decipher.final('utf8')
 }
 
 /** Encrypt a JSON-serialisable object */

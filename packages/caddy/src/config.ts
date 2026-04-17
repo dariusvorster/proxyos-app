@@ -169,10 +169,24 @@ export function buildAccessListHandlers(accessList: {
     const allows = accessList.ipRules.filter((r) => r.type === 'allow').map((r) => r.value)
     const denies = accessList.ipRules.filter((r) => r.type === 'deny').map((r) => r.value)
     if (denies.length > 0) {
-      handlers.push({ handler: 'remote_ip', deny: denies })
+      handlers.push({
+        handler: 'subroute',
+        routes: [{
+          match: [{ remote_ip: { ranges: denies } }],
+          handle: [{ handler: 'static_response', status_code: 403, body: 'Access denied' }],
+          terminal: true,
+        }],
+      })
     }
     if (allows.length > 0) {
-      handlers.push({ handler: 'remote_ip', ranges: allows })
+      handlers.push({
+        handler: 'subroute',
+        routes: [{
+          match: [{ not: [{ remote_ip: { ranges: allows } }] }],
+          handle: [{ handler: 'static_response', status_code: 403, body: 'Access denied' }],
+          terminal: true,
+        }],
+      })
     }
   }
 

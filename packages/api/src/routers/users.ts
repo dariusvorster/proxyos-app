@@ -73,10 +73,6 @@ export const usersRouter = router({
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' })
       }
 
-      // Clear rate limit counters on success
-      clearLimit(emailKey)
-      clearLimit(ipKey)
-
       // Transparently upgrade legacy SHA-256 hashes to bcrypt on successful login
       if (u.passwordHash && isLegacyHash(u.passwordHash)) {
         const upgraded = await hashPassword(input.password)
@@ -88,10 +84,15 @@ export const usersRouter = router({
           return { requiresTotp: true as const, id: null, email: null, role: null, displayName: null, avatarColor: null, avatarUrl: null }
         }
         if (!verifyTotp(decrypt(u.totpSecret), input.totpCode)) {
+          recordFailure(emailKey, 5)
+          recordFailure(ipKey, 20)
           void syslog(ctx.db, 'warn', 'auth', `Failed TOTP attempt`, { email: input.email })
           throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
         }
       }
+      // Clear rate limit counters only after both password and TOTP pass
+      clearLimit(emailKey)
+      clearLimit(ipKey)
       await ctx.db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, u.id))
       void syslog(ctx.db, 'info', 'auth', `User signed in`, { email: u.email }, u.id)
       const token = signToken({ userId: u.id, role: u.role })
@@ -133,6 +134,9 @@ export const usersRouter = router({
       avatarUrl: z.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.id && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       await ctx.db.update(users).set({
         displayName: input.displayName !== undefined ? input.displayName : undefined,
         avatarColor: input.avatarColor !== undefined ? input.avatarColor : undefined,
@@ -144,6 +148,9 @@ export const usersRouter = router({
   updatePassword: protectedProcedure
     .input(z.object({ id: z.string(), currentPassword: z.string(), newPassword: z.string().min(8) }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.id && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       if (!u.passwordHash || !(await verifyPassword(input.currentPassword, u.passwordHash))) {
