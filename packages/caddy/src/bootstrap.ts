@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import { CaddyClient } from './client'
-import { buildCaddyRoute } from './config'
+import { buildCaddyRoute, buildHoldingPageHtml } from './config'
 import type { CaddyRoute } from './types'
 import type { Route, SSOProvider } from '@proxyos/types'
 
@@ -85,6 +85,22 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   const caddyRoutes: CaddyRoute[] = routes.filter((r) => r.enabled).map((r) => build(r, providers))
 
   await client.replaceRoutes(serverName, caddyRoutes)
+
+  try {
+    await client.setServerErrors(serverName, {
+      routes: [{
+        match: [{ expression: '{http.error.status_code} in [502, 503, 504]' }],
+        handle: [{
+          handler: 'static_response',
+          status_code: 503,
+          body: buildHoldingPageHtml(),
+          headers: { 'Content-Type': ['text/html; charset=utf-8'] },
+        }],
+      }],
+    })
+  } catch {
+    // Non-fatal: holding page unavailable, Caddy default error pages will show instead.
+  }
 
   return { caddyReachable: true, initialConfigLoaded, routesReplaced: caddyRoutes.length }
 }

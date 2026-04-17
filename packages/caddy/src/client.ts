@@ -150,6 +150,20 @@ export class CaddyClient {
     if (!res.ok) throw new Error(`Caddy setHttpRedirectServer failed: ${res.status} ${await res.text()}`)
   }
 
+  async setServerErrors(serverName: string, errorsConfig: unknown): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/${serverName}/errors`
+    const res = await this.fetchJson(url, { method: 'PATCH', body: errorsConfig })
+    if (!res.ok) {
+      const text = await res.text()
+      if (res.status === 404) {
+        const putRes = await this.fetchJson(url, { method: 'PUT', body: errorsConfig })
+        if (!putRes.ok) throw new Error(`Caddy setServerErrors failed: ${putRes.status} ${await putRes.text()}`)
+        return
+      }
+      throw new Error(`Caddy setServerErrors failed: ${res.status} ${text}`)
+    }
+  }
+
   async removeHttpRedirectServer(): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/http_redirect`
     const res = await fetch(url, { method: 'DELETE', headers: this.adminHeaders })
