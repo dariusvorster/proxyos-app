@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Dot, StatCard, td, th } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 export default function DashboardPage() {
@@ -30,6 +30,7 @@ export default function DashboardPage() {
         }
       />
       <PageContent>
+        <PageHeader title="Dashboard" desc="ProxyOS overview — routes, agents, certificates, and traffic." />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           <StatCard
             label="Active routes"

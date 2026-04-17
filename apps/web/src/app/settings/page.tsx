@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, type ReactNode } from 'react'
 import { Badge, Button, Card, Checkbox, Input, Select, Toggle } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 type Section = 'general' | 'alerts' | 'sso' | 'dns' | 'integrations' | 'apikeys' | 'users' | 'tracing' | 'templates' | 'export' | 'danger' | 'profile' | 'http'
@@ -30,6 +30,7 @@ export default function SettingsPage() {
     <>
       <Topbar title="Settings" />
       <PageContent>
+        <PageHeader title="Settings" desc="Instance configuration, integrations, and access control." />
         <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14 }}>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'sticky', top: 0, alignSelf: 'start' }}>
             {sections.map((s) => (

@@ -173,7 +173,31 @@ input:focus, select:focus, textarea:focus {
   .proxyos-sidebar .proxyos-wordmark-text { display: none; }
   .proxyos-sidebar .proxyos-wordmark-badge { display: none; }
   .proxyos-sidebar .proxyos-logo-row { padding: 9px !important; justify-content: center !important; }
-  .proxyos-sidebar .proxyos-navlink { padding: 9px !important; justify-content: center; }
+  .proxyos-sidebar .proxyos-navlink { padding: 9px !important; justify-content: center; position: relative; }
+
+  /* Styled tooltip on hover for collapsed nav items */
+  .proxyos-sidebar .proxyos-navlink::after {
+    content: attr(title);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--surf);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font: 400 11px/1.4 'IBM Plex Mono', monospace;
+    color: var(--text2);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 50;
+    transition: opacity 0.1s;
+  }
+  .proxyos-sidebar .proxyos-navlink:hover::after {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 1023px) {

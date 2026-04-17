@@ -366,8 +366,13 @@ export function Topbar({
   const [syncTime, setSyncTime] = useState('')
   useEffect(() => {
     if (typeof document !== 'undefined') document.title = `ProxyOS — ${title}`
-    setSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
   }, [title])
+  useEffect(() => {
+    const fmt = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setSyncTime(fmt())
+    const id = setInterval(() => setSyncTime(fmt()), 1000)
+    return () => clearInterval(id)
+  }, [])
   return (
     <>
       <header
@@ -402,6 +407,15 @@ export function Topbar({
       </header>
       {banner}
     </>
+  )
+}
+
+export function PageHeader({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <h1 style={{ font: "600 22px/1.3 'Inter', sans-serif", color: 'var(--text)', margin: 0, marginBottom: 4 }}>{title}</h1>
+      <p style={{ font: "400 13px/1.5 'Inter', sans-serif", color: 'var(--text2)', margin: 0 }}>{desc}</p>
+    </div>
   )
 }
 

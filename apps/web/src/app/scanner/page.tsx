@@ -2,7 +2,7 @@
 
 import { useState, useRef, type ChangeEvent } from 'react'
 import { Badge, Button, Card, Dot, Select, Toggle } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { parseComposeFile } from '@proxyos/scanner'
 
@@ -66,6 +66,7 @@ export default function ScannerPage() {
         </div>
       } />
       <PageContent>
+        <PageHeader title="Scanner" desc="Auto-detect Docker containers ready to be exposed as routes." />
         {/* Status bar */}
         {results.data && (
           <Card style={{ marginBottom: 12 }}>

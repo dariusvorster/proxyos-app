@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Select, td, th, type BadgeTone } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 const ACTION_TONE: Record<string, BadgeTone> = {
@@ -69,6 +69,7 @@ export default function AuditPage() {
         actions={<Button onClick={exportCsv}>Export CSV</Button>}
       />
       <PageContent>
+        <PageHeader title="Audit Log" desc="All configuration changes and system events on this instance." />
         <Card>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Select value={filter} onChange={(e) => setFilter(e.target.value)}>

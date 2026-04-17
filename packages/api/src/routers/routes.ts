@@ -118,6 +118,13 @@ export const routesRouter = router({
     return rows.map(rowToRoute)
   }),
 
+  listByAgent: publicProcedure
+    .input(z.object({ agentId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db.select().from(routes).where(eq(routes.agentId, input.agentId))
+      return rows.map(rowToRoute)
+    }),
+
   create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     if (input.domain.startsWith('*.') && input.tlsMode === 'auto') {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Wildcard domains require tlsMode=dns or tlsMode=internal — HTTP-01 cannot validate wildcards' })

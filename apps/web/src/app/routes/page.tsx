@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import type { Route } from '@proxyos/types'
 
@@ -72,6 +72,7 @@ export default function RoutesPage() {
         <button style={tabStyle(typeFilter === 'proxy')} onClick={() => setTypeFilter('proxy')}>Proxy</button>
       </div>
       <PageContent>
+        <PageHeader title="Routes" desc="All proxy routes managed by this ProxyOS instance." />
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', flexWrap: 'wrap' }}>
             <Select value={tlsFilter} onChange={(e) => setTlsFilter(e.target.value as TlsFilter)}>
@@ -194,6 +195,33 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
         </span>
       </td>
     </tr>
+  )
+}
+
+function SecuritySection({ routeId }: { routeId: string }) {
+  const geo = trpc.security.getGeoIPConfig.useQuery({ routeId })
+  const fail2ban = trpc.security.listFail2banRules.useQuery()
+  const activeRules = fail2ban.data?.filter((r) => r.enabled) ?? []
+
+  return (
+    <Section title="Security">
+      <Row
+        k="GeoIP"
+        v={geo.data?.config
+          ? <Badge tone={geo.data.config.mode === 'allowlist' ? 'green' : 'amber'}>
+              {geo.data.config.mode} · {geo.data.config.countries.length} countries
+            </Badge>
+          : <span style={{ color: 'var(--text3)', fontSize: 11 }}>off</span>
+        }
+      />
+      <Row
+        k="Fail2ban"
+        v={activeRules.length > 0
+          ? <Badge tone="amber">{activeRules.length} active rule{activeRules.length !== 1 ? 's' : ''}</Badge>
+          : <span style={{ color: 'var(--text3)', fontSize: 11 }}>none</span>
+        }
+      />
+    </Section>
   )
 }
 
@@ -372,6 +400,7 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="HTTP/3" v={<Toggle checked={!!route.http3Enabled} onChange={() => {}} disabled />} />
         <Row k="Health path" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.healthCheckPath ?? '/'}</span>} />
       </Section>
+      <SecuritySection routeId={route.id} />
       <Section title="Service chain">
         <ChainNodes routeId={route.id} />
       </Section>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Badge, Button, Card, Dot, td, th } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 export default function AgentsPage() {
@@ -19,6 +19,7 @@ export default function AgentsPage() {
         </Link>
       } />
       <PageContent>
+        <PageHeader title="Agents" desc="Federated Caddy agents connected to this ProxyOS instance." />
         {/* Federation health banner */}
         <div style={{
           background: 'var(--surf)',

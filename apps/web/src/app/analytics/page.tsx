@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { Button, Card, DataTable, LineChart, Select, Sparkline, StatCard, td, th } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 type Range = '1h' | '24h' | '7d' | '30d'
@@ -47,6 +47,7 @@ export default function AnalyticsPage() {
         }
       />
       <PageContent>
+        <PageHeader title="Analytics" desc="Traffic metrics, error rates, and latency across all routes." />
         <AggregateView routes={filteredRoutes} rangeMin={rangeMin[range]} filterId={routeFilter} />
       </PageContent>
     </>

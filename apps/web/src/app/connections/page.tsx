@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Badge, Button, Card, Dot, td, th } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -64,6 +64,7 @@ export default function ConnectionsPage() {
         </Link>
       } />
       <PageContent>
+        <PageHeader title="Connections" desc="External service connections — DNS, tunnels, and WAF providers." />
         <Card header={<span>External service connections</span>}>
           {list.isLoading && (
             <div style={{ padding: 20, color: 'var(--text-dim)', fontSize: 12 }}>Loading…</div>

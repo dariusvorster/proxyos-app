@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useRef, type ChangeEvent } from 'react'
 import { Badge, Button, Card, Checkbox, Input, Select, StepIndicator, Toggle } from '~/components/ui'
-import { Topbar, PageContent } from '~/components/shell'
+import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import type { ImportedRoute } from '@proxyos/importers'
 
@@ -95,6 +95,7 @@ export default function ImportPage() {
     <>
       <Topbar title="Import" actions={<Link href="/import/history"><Button variant="ghost">Import history</Button></Link>} />
       <PageContent>
+        <PageHeader title="Import" desc="Import routes from Nginx, Traefik, or other proxy configurations." />
         <div style={{ marginBottom: 20 }}><StepIndicator steps={STEPS} active={step} /></div>
 
         {/* Step 0 — source selection */}

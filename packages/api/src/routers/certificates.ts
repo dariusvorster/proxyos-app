@@ -117,6 +117,38 @@ export const certificatesRouter = router({
       return { id, domain: input.domain, message: 'Cert recorded. Caddy load_cert wiring is a TODO.' }
     }),
 
+  getInternalCA: publicProcedure.query(async () => {
+    const base = process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'
+    try {
+      const res = await fetch(`${base}/pki/ca/local`)
+      if (!res.ok) return null
+      const data = await res.json() as Record<string, unknown>
+      const root = (data?.root_certificate ?? data?.root) as Record<string, unknown> | undefined
+      const fingerprints = root?.fingerprints as Record<string, string> | undefined
+      const subject = root?.subject as Record<string, string> | undefined
+      return {
+        fingerprint: fingerprints?.sha256 ?? null,
+        notAfter: (root?.not_after as string | undefined) ?? null,
+        subject: subject?.common_name ?? 'Caddy Local Authority',
+      }
+    } catch {
+      return null
+    }
+  }),
+
+  downloadRootCert: publicProcedure.query(async () => {
+    const base = process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'
+    try {
+      const res = await fetch(`${base}/pki/ca/local/certificates`)
+      if (!res.ok) return null
+      const text = await res.text()
+      const blocks = text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? []
+      return blocks.at(-1) ?? null
+    } catch {
+      return null
+    }
+  }),
+
   getRateLimitStatus: publicProcedure
     .input(z.object({ domain: z.string() }))
     .query(async ({ input, ctx }) => {

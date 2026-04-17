@@ -2,9 +2,49 @@
 
 import Link from 'next/link'
 import { use, useState, type CSSProperties, type ReactNode } from 'react'
-import { Badge, Button, Card, Dot, td, th } from '~/components/ui'
+import { Badge, Button, Card, DataTable, Dot, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+
+function AgentRoutesTab({ agentId }: { agentId: string }) {
+  const routes = trpc.routes.listByAgent.useQuery({ agentId })
+  return (
+    <Card header={<span>Routes — {routes.data?.length ?? 0}</span>}>
+      {routes.isLoading && <div style={{ padding: 16, fontSize: 12, color: 'var(--text3)' }}>Loading…</div>}
+      {!routes.isLoading && (routes.data?.length ?? 0) === 0 && (
+        <div style={{ padding: 16, fontSize: 12, color: 'var(--text3)' }}>No routes assigned to this agent.</div>
+      )}
+      {(routes.data?.length ?? 0) > 0 && (
+        <DataTable>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: '30%' }}>Domain</th>
+              <th style={{ ...th, width: '22%' }}>Upstream</th>
+              <th style={{ ...th, width: '12%' }}>TLS</th>
+              <th style={{ ...th, width: '10%' }}>SSO</th>
+              <th style={{ ...th, width: '14%' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {routes.data?.map((r) => (
+              <tr key={r.id}>
+                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+                  <Link href={`/routes/${r.id}`} style={{ color: 'var(--accent)' }}>{r.domain}</Link>
+                </td>
+                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text2)' }}>
+                  {r.upstreams.map((u) => u.address).join(', ')}
+                </td>
+                <td style={td}><Badge tone={r.tlsMode === 'off' ? 'red' : r.tlsMode === 'internal' ? 'amber' : 'green'}>{r.tlsMode}</Badge></td>
+                <td style={td}>{r.ssoEnabled ? <Badge tone="purple">ON</Badge> : <Badge tone="neutral">—</Badge>}</td>
+                <td style={td}><span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Dot tone={r.enabled ? 'green' : 'neutral'} />{r.enabled ? 'active' : 'disabled'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      )}
+    </Card>
+  )
+}
 
 type Tab = 'routes' | 'metrics' | 'health' | 'certificates' | 'logs' | 'settings'
 
@@ -88,13 +128,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <PageContent>
-        {tab === 'routes' && (
-          <Card header={<span>Routes on this agent</span>}>
-            <div style={{ fontSize: 12, color: 'var(--text2)', padding: '8px 0' }}>
-              This agent manages <strong>{a.routeCount}</strong> route{a.routeCount !== 1 ? 's' : ''}.
-            </div>
-          </Card>
-        )}
+        {tab === 'routes' && <AgentRoutesTab agentId={id} />}
 
         {tab === 'metrics' && (
           <Card header={<span>Route metrics (last 60 min)</span>}>
