@@ -1,5 +1,5 @@
 {
-  "admin": { "listen": "localhost:2019" },
+  "admin": { "listen": "localhost:2019", "enforce_origin": false },
   "logging": {
     "logs": {
       "default": {

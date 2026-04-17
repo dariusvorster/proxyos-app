@@ -269,6 +269,10 @@ function RoutePanel({ route }: { route: Route }) {
   const [websocket, setWebsocket] = useState(!!route.websocketEnabled)
   const [http3, setHttp3] = useState(!!route.http3Enabled)
   const [healthPath, setHealthPath] = useState(route.healthCheckPath ?? '/')
+  const [forceSSL, setForceSSL] = useState(!!route.forceSSL)
+  const [hstsEnabled, setHstsEnabled] = useState(!!route.hstsEnabled)
+  const [hstsSubdomains, setHstsSubdomains] = useState(!!route.hstsSubdomains)
+  const [trustHeaders, setTrustHeaders] = useState(!!route.trustUpstreamHeaders)
 
   function startEdit() {
     setName(route.name)
@@ -280,6 +284,10 @@ function RoutePanel({ route }: { route: Route }) {
     setWebsocket(!!route.websocketEnabled)
     setHttp3(!!route.http3Enabled)
     setHealthPath(route.healthCheckPath ?? '/')
+    setForceSSL(!!route.forceSSL)
+    setHstsEnabled(!!route.hstsEnabled)
+    setHstsSubdomains(!!route.hstsSubdomains)
+    setTrustHeaders(!!route.trustUpstreamHeaders)
     setEditing(true)
   }
 
@@ -296,6 +304,10 @@ function RoutePanel({ route }: { route: Route }) {
         websocketEnabled: websocket,
         http3Enabled: http3,
         healthCheckPath: healthPath,
+        forceSSL,
+        hstsEnabled,
+        hstsSubdomains,
+        trustUpstreamHeaders: trustHeaders,
       },
     }, { onSuccess: () => setEditing(false) })
   }
@@ -366,6 +378,13 @@ function RoutePanel({ route }: { route: Route }) {
           </label>
         </Section>
 
+        <Section title="SSL / Security">
+          <Row k="Force SSL" v={<Toggle checked={forceSSL} onChange={setForceSSL} />} />
+          <Row k="HSTS" v={<Toggle checked={hstsEnabled} onChange={setHstsEnabled} />} />
+          <Row k="HSTS Subdomains" v={<Toggle checked={hstsSubdomains} onChange={(v) => { setHstsSubdomains(v); if (v) setHstsEnabled(true) }} />} />
+          <Row k="Trust Upstream Headers" v={<Toggle checked={trustHeaders} onChange={setTrustHeaders} />} />
+        </Section>
+
         {update.isError && (
           <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error.message}</div>
         )}
@@ -399,6 +418,12 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="WebSocket" v={<Toggle checked={!!route.websocketEnabled} onChange={() => {}} disabled />} />
         <Row k="HTTP/3" v={<Toggle checked={!!route.http3Enabled} onChange={() => {}} disabled />} />
         <Row k="Health path" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.healthCheckPath ?? '/'}</span>} />
+      </Section>
+      <Section title="SSL / Security">
+        <Row k="Force SSL" v={<Toggle checked={!!route.forceSSL} onChange={() => {}} disabled />} />
+        <Row k="HSTS" v={<Toggle checked={!!route.hstsEnabled} onChange={() => {}} disabled />} />
+        <Row k="HSTS Subdomains" v={<Toggle checked={!!route.hstsSubdomains} onChange={() => {}} disabled />} />
+        <Row k="Trust Upstream Headers" v={<Toggle checked={!!route.trustUpstreamHeaders} onChange={() => {}} disabled />} />
       </Section>
       <SecuritySection routeId={route.id} />
       <Section title="Service chain">
