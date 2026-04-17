@@ -1,8 +1,8 @@
 import { TRPCError } from '@trpc/server'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
-import { dnsProviders, nanoid, routes, routeSecurity, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
 import { parseGeoIPConfig } from '../security/geoip'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
@@ -64,6 +64,14 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     websocketEnabled: row.websocketEnabled,
     http2Enabled: row.http2Enabled,
     http3Enabled: row.http3Enabled,
+    lastTrafficAt: row.lastTrafficAt ?? null,
+    archivedAt: row.archivedAt ?? null,
+    wafMode: (row.wafMode as Route['wafMode']) ?? 'off',
+    wafExclusions: row.wafExclusions ? JSON.parse(row.wafExclusions) as string[] : null,
+    rateLimitKey: row.rateLimitKey ?? null,
+    tunnelProviderId: row.tunnelProviderId ?? null,
+    oauthProxyProviderId: row.oauthProxyProviderId ?? null,
+    oauthProxyAllowlist: row.oauthProxyAllowlist ? JSON.parse(row.oauthProxyAllowlist) as string[] : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -393,6 +401,12 @@ export const routesRouter = router({
           healthCheckEnabled: z.boolean().optional(),
           healthCheckPath: z.string().optional(),
           healthCheckInterval: z.number().int().min(1).optional(),
+          wafMode: z.enum(['off', 'detection', 'blocking']).optional(),
+          wafExclusions: z.array(z.string()).nullable().optional(),
+          rateLimitKey: z.string().nullable().optional(),
+          tunnelProviderId: z.string().nullable().optional(),
+          oauthProxyProviderId: z.string().nullable().optional(),
+          oauthProxyAllowlist: z.array(z.string()).nullable().optional(),
         }),
       }),
     )
@@ -419,6 +433,12 @@ export const routesRouter = router({
       if (p.healthCheckEnabled !== undefined) update.healthCheckEnabled = p.healthCheckEnabled
       if (p.healthCheckPath !== undefined) update.healthCheckPath = p.healthCheckPath
       if (p.healthCheckInterval !== undefined) update.healthCheckInterval = p.healthCheckInterval
+      if (p.wafMode !== undefined) update.wafMode = p.wafMode
+      if (p.wafExclusions !== undefined) update.wafExclusions = p.wafExclusions ? JSON.stringify(p.wafExclusions) : null
+      if (p.rateLimitKey !== undefined) update.rateLimitKey = p.rateLimitKey
+      if (p.tunnelProviderId !== undefined) update.tunnelProviderId = p.tunnelProviderId
+      if (p.oauthProxyProviderId !== undefined) update.oauthProxyProviderId = p.oauthProxyProviderId
+      if (p.oauthProxyAllowlist !== undefined) update.oauthProxyAllowlist = p.oauthProxyAllowlist ? JSON.stringify(p.oauthProxyAllowlist) : null
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 
@@ -567,5 +587,61 @@ export const routesRouter = router({
         .filter(r => !r.archivedAt && r.enabled)
         .filter(r => !r.lastTrafficAt || r.lastTrafficAt < cutoff)
         .map(rowToRoute)
+    }),
+
+  listByTag: publicProcedure
+    .input(z.object({ tag: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const tagRows = await ctx.db.select({ routeId: routeTags.routeId }).from(routeTags).where(eq(routeTags.tag, input.tag))
+      if (tagRows.length === 0) return []
+      const ids = tagRows.map(r => r.routeId)
+      const rows = await ctx.db.select().from(routes).where(inArray(routes.id, ids))
+      return rows.map(rowToRoute)
+    }),
+
+  bulkEnable: operatorProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      for (const id of input.ids) {
+        const row = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+        if (!row) continue
+        await ctx.db.update(routes).set({ enabled: true, updatedAt: new Date() }).where(eq(routes.id, id))
+        try {
+          const updated = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+          await syncRouteToCaddy(ctx, rowToRoute(updated!))
+        } catch { /* best effort */ }
+      }
+      return { success: true, count: input.ids.length }
+    }),
+
+  bulkDisable: operatorProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      for (const id of input.ids) {
+        await ctx.db.update(routes).set({ enabled: false, updatedAt: new Date() }).where(eq(routes.id, id))
+        try { await ctx.caddy.removeRoute(id) } catch { /* best effort */ }
+      }
+      return { success: true, count: input.ids.length }
+    }),
+
+  bulkArchive: operatorProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date()
+      for (const id of input.ids) {
+        await ctx.db.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, id))
+        try { await ctx.caddy.removeRoute(id) } catch { /* best effort */ }
+      }
+      return { success: true, count: input.ids.length }
+    }),
+
+  bulkDelete: operatorProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      for (const id of input.ids) {
+        try { await ctx.caddy.removeRoute(id) } catch { /* best effort */ }
+        await ctx.db.delete(routes).where(eq(routes.id, id))
+      }
+      return { success: true, count: input.ids.length }
     }),
 })

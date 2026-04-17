@@ -54,10 +54,19 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
     handlers.push({
       handler: 'rate_limit',
       zone: {
-        key: '{remote_host}',
+        key: route.rateLimit.key ?? '{remote_host}',
         events: route.rateLimit.requests,
         window: route.rateLimit.window,
       },
+    })
+  }
+
+  if (route.wafMode && route.wafMode !== 'off') {
+    const exclusions = route.wafExclusions ?? []
+    handlers.push({
+      handler: 'waf',
+      enforcement: route.wafMode === 'blocking' ? 'block' : 'detect',
+      ...(exclusions.length > 0 ? { rules_exclusions: exclusions.map(id => ({ id })) } : {}),
     })
   }
 

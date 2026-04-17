@@ -14,6 +14,7 @@ export interface UpstreamConfig {
 export interface RateLimitConfig {
   requests: number
   window: string
+  key?: string // Caddy key expression e.g. '{http.request.header.X-User-ID}'
 }
 
 export interface BasicAuthConfig {
@@ -123,6 +124,13 @@ export interface RouteInput {
   http3Enabled?: boolean
 }
 
+export type WafMode = 'off' | 'detection' | 'blocking'
+
+export interface OAuthProxyConfig {
+  providerId: string
+  allowlist?: string[] // email domains or usernames
+}
+
 export interface Route extends RouteInput {
   id: string
   enabled: boolean
@@ -131,6 +139,13 @@ export interface Route extends RouteInput {
   tlsDnsProviderId: string | null
   lastTrafficAt?: Date | null
   archivedAt?: Date | null
+  wafMode?: WafMode
+  wafExclusions?: string[] | null
+  rateLimitKey?: string | null
+  tunnelProviderId?: string | null
+  oauthProxyProviderId?: string | null
+  oauthProxyAllowlist?: string[] | null
+  tags?: string[]
   createdAt: Date
   updatedAt: Date
 }

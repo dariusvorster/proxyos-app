@@ -6,12 +6,17 @@ import { loadAdapters } from './loader'
 import { startDriftDetector } from './automation/drift-detector'
 import { startHealthChecker } from './automation/health-checker'
 import { startTrafficTracker } from './automation/traffic-tracker'
+import { startDockerDiscovery } from './automation/docker-discovery'
+import { startDdnsUpdater } from './automation/ddns-updater'
 
 export async function bootstrapProxyOs(baseConfigPath: string): Promise<BootstrapResult> {
   void loadAdapters().catch(err => console.error('[connect] Failed to load adapters:', err))
   startDriftDetector()
   startHealthChecker()
   startTrafficTracker()
+  const db2 = getDb()
+  startDockerDiscovery(db2)
+  startDdnsUpdater(db2)
   const db = getDb()
   return bootstrapCaddy({
     baseConfigPath,

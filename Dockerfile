@@ -27,6 +27,7 @@ RUN set -eux; \
     GOFLAGS=-mod=mod xcaddy build "v${CADDY_VERSION}" \
       --with github.com/mholt/caddy-l4 \
       --with github.com/caddy-dns/cloudflare \
+      --with github.com/corazawaf/coraza-caddy/v2 \
       --output /usr/local/bin/caddy; \
     chmod +x /usr/local/bin/caddy
 
@@ -77,6 +78,9 @@ RUN mkdir -p /data/proxyos /data/caddy /config/caddy
 
 EXPOSE 80 443 3000 2019
 VOLUME ["/data/proxyos", "/data/caddy", "/config/caddy"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"' || exit 1
 
 # s6-overlay is the PID 1 init
 ENTRYPOINT ["/init"]

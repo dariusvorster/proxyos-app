@@ -39,6 +39,12 @@ import { driftRouter } from './routers/drift'
 import { routeVersionsRouter } from './routers/routeVersions'
 import { healthChecksRouter } from './routers/healthChecks'
 import { accessLogSearchRouter } from './routers/accessLogSearch'
+import { tagsRouter } from './routers/tags'
+import { discoveryRouter } from './routers/discovery'
+import { ddnsRouter } from './routers/ddns'
+import { tunnelProvidersRouter } from './routers/tunnelProviders'
+import { oauthProvidersRouter } from './routers/oauthProviders'
+import { wafRouter } from './routers/waf'
 
 const PKG_VERSION = '0.2.0'
 
@@ -84,6 +90,12 @@ export const appRouter = router({
   routeVersions: routeVersionsRouter,
   healthChecks: healthChecksRouter,
   accessLogSearch: accessLogSearchRouter,
+  tags: tagsRouter,
+  discovery: discoveryRouter,
+  ddns: ddnsRouter,
+  tunnelProviders: tunnelProvidersRouter,
+  oauthProviders: oauthProvidersRouter,
+  waf: wafRouter,
 })
 
 export type AppRouter = typeof appRouter

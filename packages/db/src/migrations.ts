@@ -646,4 +646,100 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V2P1_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+
+  // V2 Phase 2 new tables
+  db.exec(`CREATE TABLE IF NOT EXISTS route_tags (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    UNIQUE(route_id, tag)
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_route_tags_route_id ON route_tags(route_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_route_tags_tag ON route_tags(tag)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS discovery_providers (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    config TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_sync_at INTEGER,
+    sync_interval_s INTEGER NOT NULL DEFAULT 60,
+    created_at INTEGER NOT NULL
+  )`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS discovered_routes (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL REFERENCES discovery_providers(id) ON DELETE CASCADE,
+    source_ref TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    upstream_url TEXT NOT NULL,
+    template_id TEXT,
+    promoted_route_id TEXT REFERENCES routes(id) ON DELETE SET NULL,
+    last_seen_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(provider_id, source_ref)
+  )`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS ddns_records (
+    id TEXT PRIMARY KEY,
+    dns_provider_id TEXT NOT NULL,
+    zone TEXT NOT NULL,
+    record_name TEXT NOT NULL,
+    record_type TEXT NOT NULL DEFAULT 'A',
+    last_ip TEXT,
+    last_updated_at INTEGER,
+    update_interval_s INTEGER NOT NULL DEFAULT 300,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_error TEXT,
+    created_at INTEGER NOT NULL
+  )`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS tunnel_providers (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    credentials TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'disconnected',
+    last_tested_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS waf_events (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    rule_id TEXT,
+    action TEXT NOT NULL,
+    client_ip TEXT,
+    path TEXT,
+    message TEXT,
+    detected_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_waf_events_route_id ON waf_events(route_id, detected_at)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS oauth_providers (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    oidc_discovery_url TEXT,
+    allowed_domains TEXT,
+    allowed_users TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  )`)
+
+  const V2P2_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN waf_mode TEXT NOT NULL DEFAULT 'off'`,
+    `ALTER TABLE routes ADD COLUMN waf_exclusions TEXT`,
+    `ALTER TABLE routes ADD COLUMN rate_limit_key TEXT`,
+    `ALTER TABLE routes ADD COLUMN tunnel_provider_id TEXT REFERENCES tunnel_providers(id)`,
+    `ALTER TABLE routes ADD COLUMN oauth_proxy_provider_id TEXT REFERENCES oauth_providers(id)`,
+    `ALTER TABLE routes ADD COLUMN oauth_proxy_allowlist TEXT`,
+  ]
+  for (const stmt of V2P2_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

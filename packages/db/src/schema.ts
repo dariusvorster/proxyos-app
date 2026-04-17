@@ -39,6 +39,13 @@ export const routes = sqliteTable('routes', {
   lastTrafficAt: integer('last_traffic_at', { mode: 'timestamp' }),
   archivedAt: integer('archived_at', { mode: 'timestamp' }),
 
+  wafMode: text('waf_mode').notNull().default('off'),
+  wafExclusions: text('waf_exclusions'),
+  rateLimitKey: text('rate_limit_key'),
+  tunnelProviderId: text('tunnel_provider_id'),
+  oauthProxyProviderId: text('oauth_proxy_provider_id'),
+  oauthProxyAllowlist: text('oauth_proxy_allowlist'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -727,3 +734,97 @@ export const healthChecks = sqliteTable('health_checks', {
 export type DriftEventRow = typeof driftEvents.$inferSelect
 export type RouteVersionRow = typeof routeVersions.$inferSelect
 export type HealthCheckRow = typeof healthChecks.$inferSelect
+
+// V2 Phase 2 features
+
+// §3.21 Tags
+export const routeTags = sqliteTable('route_tags', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  tag: text('tag').notNull(),
+})
+
+// §3.4 Service discovery
+export const discoveryProviders = sqliteTable('discovery_providers', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'docker' | 'proxmox' | 'infraos'
+  name: text('name').notNull(),
+  config: text('config').notNull(), // JSON
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  syncIntervalS: integer('sync_interval_s').notNull().default(60),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const discoveredRoutes = sqliteTable('discovered_routes', {
+  id: text('id').primaryKey(),
+  providerId: text('provider_id').notNull().references(() => discoveryProviders.id, { onDelete: 'cascade' }),
+  sourceRef: text('source_ref').notNull(),
+  domain: text('domain').notNull(),
+  upstreamUrl: text('upstream_url').notNull(),
+  templateId: text('template_id'),
+  promotedRouteId: text('promoted_route_id'),
+  lastSeenAt: integer('last_seen_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.12 DDNS
+export const ddnsRecords = sqliteTable('ddns_records', {
+  id: text('id').primaryKey(),
+  dnsProviderId: text('dns_provider_id').notNull(),
+  zone: text('zone').notNull(),
+  recordName: text('record_name').notNull(),
+  recordType: text('record_type').notNull().default('A'), // 'A' | 'AAAA'
+  lastIp: text('last_ip'),
+  lastUpdatedAt: integer('last_updated_at', { mode: 'timestamp' }),
+  updateIntervalS: integer('update_interval_s').notNull().default(300),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  lastError: text('last_error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.5 Tunnel providers
+export const tunnelProviders = sqliteTable('tunnel_providers', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'cloudflare' | 'tailscale' | 'ngrok'
+  name: text('name').notNull(),
+  credentials: text('credentials').notNull(), // JSON encrypted at rest
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  status: text('status').notNull().default('disconnected'), // 'connected' | 'disconnected' | 'error'
+  lastTestedAt: integer('last_tested_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.10 WAF events
+export const wafEvents = sqliteTable('waf_events', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  ruleId: text('rule_id'),
+  action: text('action').notNull(), // 'detected' | 'blocked'
+  clientIp: text('client_ip'),
+  path: text('path'),
+  message: text('message'),
+  detectedAt: integer('detected_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.6 OAuth2 providers
+export const oauthProviders = sqliteTable('oauth_providers', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'github' | 'google' | 'microsoft' | 'oidc'
+  name: text('name').notNull(),
+  clientId: text('client_id').notNull(),
+  clientSecret: text('client_secret').notNull(),
+  oidcDiscoveryUrl: text('oidc_discovery_url'),
+  allowedDomains: text('allowed_domains'), // JSON string[]
+  allowedUsers: text('allowed_users'), // JSON string[]
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type RouteTagRow = typeof routeTags.$inferSelect
+export type DiscoveryProviderRow = typeof discoveryProviders.$inferSelect
+export type DiscoveredRouteRow = typeof discoveredRoutes.$inferSelect
+export type DdnsRecordRow = typeof ddnsRecords.$inferSelect
+export type TunnelProviderRow = typeof tunnelProviders.$inferSelect
+export type WafEventRow = typeof wafEvents.$inferSelect
+export type OAuthProviderRow = typeof oauthProviders.$inferSelect
