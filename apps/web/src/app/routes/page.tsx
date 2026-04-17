@@ -175,7 +175,23 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
         <Checkbox checked={checked} onChange={onCheck} />
       </td>
       <td style={td} onClick={onOpen} role="button">
-        <div style={{ fontWeight: 500, cursor: 'pointer', color: 'var(--text-primary)' }}>{route.domain}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontWeight: 500, cursor: 'pointer', color: 'var(--text-primary)' }}>{route.domain}</span>
+          <a
+            href={`${route.tlsMode === 'off' ? 'http' : 'https'}://${route.domain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: 'var(--text-dim)', lineHeight: 1, flexShrink: 0 }}
+            title="Open site"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" />
+              <path d="M8 1h3v3" />
+              <path d="M11 1 5.5 6.5" />
+            </svg>
+          </a>
+        </div>
         <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{route.name}</div>
       </td>
       <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', fontSize: 11 }}>
