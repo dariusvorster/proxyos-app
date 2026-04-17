@@ -65,6 +65,9 @@ export const routes = sqliteTable('routes', {
   maintenanceMode: integer('maintenance_mode', { mode: 'boolean' }).notNull().default(false),
   maintenanceSavedUpstreams: text('maintenance_saved_upstreams'),
 
+  // §3.19 Multi-tenant
+  tenantId: text('tenant_id'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -920,3 +923,25 @@ export const mxwatchCache = sqliteTable('mxwatch_cache', {
 })
 
 export type MxwatchCacheRow = typeof mxwatchCache.$inferSelect
+
+// §3.19 Multi-tenant
+
+export const tenants = sqliteTable('tenants', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  logoUrl: text('logo_url'),
+  accentColor: text('accent_color'),
+  subdomain: text('subdomain'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const userTenants = sqliteTable('user_tenants', {
+  userId: text('user_id').notNull(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('user'), // 'admin' | 'user'
+  joinedAt: integer('joined_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type TenantRow = typeof tenants.$inferSelect
+export type UserTenantRow = typeof userTenants.$inferSelect

@@ -826,4 +826,28 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V4_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+
+  // Phase 5 — §3.19 Multi-tenant
+  db.exec(`CREATE TABLE IF NOT EXISTS tenants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    logo_url TEXT,
+    accent_color TEXT,
+    subdomain TEXT,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE TABLE IF NOT EXISTS user_tenants (
+    user_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'user',
+    joined_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, tenant_id)
+  )`)
+  const V5_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN tenant_id TEXT REFERENCES tenants(id)`,
+  ]
+  for (const stmt of V5_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

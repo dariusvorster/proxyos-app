@@ -190,6 +190,27 @@ export interface RouteHealthScore {
   calculatedAt: Date
 }
 
+// §3.19 Multi-tenant
+export type TenantMemberRole = 'admin' | 'user'
+
+export interface Tenant {
+  id: string
+  name: string
+  slug: string
+  logoUrl: string | null
+  accentColor: string | null
+  subdomain: string | null
+  createdAt: Date
+}
+
+export interface TenantMember {
+  userId: string
+  email: string
+  displayName: string | null
+  role: TenantMemberRole
+  joinedAt: Date
+}
+
 // §3.13 Secrets providers
 export type SecretsProviderType = 'lockboxos' | 'vault' | 'env'
 

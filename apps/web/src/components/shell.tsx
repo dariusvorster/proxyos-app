@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { LogoMark, Wordmark } from './logo'
 import { useTheme } from './theme'
 import { getSession, clearSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
@@ -45,6 +45,7 @@ const navSections: NavSection[] = [
   {
     label: 'Account',
     items: [
+      { href: '/settings/tenants', label: 'Tenants', icon: '⊞' },
       { href: '/billing', label: 'Billing', icon: '◈' },
       { href: '/docs', label: 'Docs', icon: '?' },
     ],
@@ -153,6 +154,8 @@ function Sidebar() {
         <Wordmark />
       </div>
 
+      <TenantSwitcher />
+
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto' }}>
         {navSections.map((section, i) => (
@@ -259,6 +262,77 @@ function Sidebar() {
         </div>
       </div>
     </aside>
+  )
+}
+
+const TENANT_KEY = 'proxyos_tenant_id'
+
+function TenantSwitcher() {
+  const { data: mine = [] } = trpc.tenants.mine.useQuery()
+  const [activeTenantId, setActiveTenantId] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setActiveTenantId(typeof localStorage !== 'undefined' ? (localStorage.getItem(TENANT_KEY) ?? null) : null)
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  if (mine.length === 0) return null
+
+  const active = mine.find(t => t.id === activeTenantId) ?? mine[0]
+
+  function select(id: string) {
+    localStorage.setItem(TENANT_KEY, id)
+    setActiveTenantId(id)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', margin: '0 10px 8px' }}>
+      <button
+        onClick={() => mine.length > 1 ? setOpen(o => !o) : undefined}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '6px 10px',
+          background: 'var(--accent-dim)',
+          border: '1px solid var(--accent-border, var(--border))',
+          borderRadius: 7,
+          cursor: mine.length > 1 ? 'pointer' : 'default',
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {active?.name ?? '—'}
+        </span>
+        {mine.length > 1 && (
+          <span style={{ fontSize: 10, color: 'var(--text3)' }}>⌄</span>
+        )}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--surf)', border: '1px solid var(--border)', borderRadius: 7, zIndex: 50, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,.2)' }}>
+          {mine.map(t => (
+            <button
+              key={t.id}
+              onClick={() => select(t.id)}
+              style={{ width: '100%', display: 'block', padding: '8px 12px', background: t.id === active?.id ? 'var(--accent-dim)' : 'transparent', border: 'none', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)', color: t.id === active?.id ? 'var(--accent-dark)' : 'var(--text)', cursor: 'pointer' }}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

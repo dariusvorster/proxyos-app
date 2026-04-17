@@ -55,6 +55,7 @@ import { backupConfigRouter } from './routers/backupConfig'
 import { patchosRouter } from './routers/patchos'
 import { accessosRouter } from './routers/accessos'
 import { mxwatchRouter } from './routers/mxwatch'
+import { tenantsRouter } from './routers/tenants'
 
 const PKG_VERSION = '0.2.0'
 
@@ -116,6 +117,7 @@ export const appRouter = router({
   patchos: patchosRouter,
   accessos: accessosRouter,
   mxwatch: mxwatchRouter,
+  tenants: tenantsRouter,
 })
 
 export type AppRouter = typeof appRouter
