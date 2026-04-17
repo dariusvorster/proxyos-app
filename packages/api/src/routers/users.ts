@@ -8,7 +8,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from '../
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
 import { encrypt, decrypt } from '../crypto'
-import { recordFailure, isBlocked, clearLimit } from '../rateLimiter'
+import { recordFailure, isBlocked, clearLimit, beginAttempt, endAttempt } from '../rateLimiter'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, message: string, detail?: Record<string, unknown>, userId?: string) {
@@ -54,18 +54,29 @@ export const usersRouter = router({
   login: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string(), totpCode: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      // Rate limit: 5 failures per email, 20 per IP within 15 minutes
+      // Rate limit: 5 failures per email, 20 per IP within 15 minutes.
+      // beginAttempt reserves a slot synchronously before bcrypt so concurrent
+      // requests cannot all bypass a full bucket (TOCTOU fix).
       const emailKey = `email:${input.email}`
       const ipKey = `ip:${ctx.clientIp}`
-      const emailBlock = isBlocked(emailKey)
-      const ipBlock = isBlocked(ipKey)
-      if (!emailBlock.allowed || !ipBlock.allowed) {
-        const secs = Math.max(emailBlock.retryAfterSeconds ?? 0, ipBlock.retryAfterSeconds ?? 0)
+      const emailSlot = beginAttempt(emailKey, 5)
+      const ipSlot = beginAttempt(ipKey, 20)
+      if (!emailSlot.allowed || !ipSlot.allowed) {
+        // Release slots we reserved before discovering we're blocked
+        endAttempt(emailKey)
+        endAttempt(ipKey)
+        const secs = Math.max(emailSlot.retryAfterSeconds ?? 0, ipSlot.retryAfterSeconds ?? 0)
         throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: `Too many failed attempts. Try again in ${Math.ceil(secs / 60)} minute(s).` })
       }
 
-      const u = await ctx.db.select().from(users).where(eq(users.email, input.email)).get()
-      const passwordOk = u?.passwordHash ? await verifyPassword(input.password, u.passwordHash) : false
+      let u, passwordOk
+      try {
+        u = await ctx.db.select().from(users).where(eq(users.email, input.email)).get()
+        passwordOk = u?.passwordHash ? await verifyPassword(input.password, u.passwordHash) : false
+      } finally {
+        endAttempt(emailKey)
+        endAttempt(ipKey)
+      }
       if (!u || !passwordOk) {
         recordFailure(emailKey, 5)
         recordFailure(ipKey, 20)

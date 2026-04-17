@@ -11,6 +11,10 @@ interface Bucket {
 
 const store = new Map<string, Bucket>()
 
+// Tracks in-flight requests per key so concurrent requests at the limit
+// boundary cannot all slip through the isBlocked → recordFailure gap.
+const pending = new Map<string, number>()
+
 const WINDOW_MS = 15 * 60 * 1000   // 15 minutes
 const BLOCK_MS  = 15 * 60 * 1000   // block duration after limit hit
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
@@ -77,4 +81,36 @@ export function isBlocked(key: string): RateLimitResult {
 /** Clear rate limit state for a key (call on successful login). */
 export function clearLimit(key: string): void {
   store.delete(key)
+  pending.delete(key)
+}
+
+/**
+ * Reserve a slot before async work (e.g. bcrypt). Counts in-flight requests
+ * against the limit so concurrent requests cannot all bypass a full bucket.
+ * Always pair with `endAttempt` in a finally block.
+ */
+export function beginAttempt(key: string, maxAttempts: number): RateLimitResult {
+  const now = Date.now()
+  const bucket = store.get(key)
+
+  if (bucket?.blockedUntil && bucket.blockedUntil > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((bucket.blockedUntil - now) / 1000) }
+  }
+
+  const recorded = bucket && now - bucket.windowStart <= WINDOW_MS ? bucket.attempts : 0
+  const inFlight = pending.get(key) ?? 0
+
+  if (recorded + inFlight >= maxAttempts) {
+    return { allowed: false, retryAfterSeconds: Math.ceil(BLOCK_MS / 1000) }
+  }
+
+  pending.set(key, inFlight + 1)
+  return { allowed: true }
+}
+
+/** Release the in-flight slot reserved by `beginAttempt`. */
+export function endAttempt(key: string): void {
+  const n = pending.get(key) ?? 0
+  if (n <= 1) pending.delete(key)
+  else pending.set(key, n - 1)
 }
