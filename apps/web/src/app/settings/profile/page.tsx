@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { QRCodeSVG } from 'qrcode.react'
 import { Button, Card, Input } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -116,7 +117,12 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
     <Card header={<span>Two-factor authentication — Setup</span>}>
       <div style={{ display: 'grid', gap: 14, maxWidth: 400 }}>
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-          Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and add a new account using the secret key below, or tap the link to open it directly.
+          Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.), or enter the secret key manually.
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--border)', display: 'inline-block', lineHeight: 0 }}>
+            <QRCodeSVG value={uri} size={160} />
+          </div>
         </div>
         <div style={{ background: 'var(--surf2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px' }}>
           <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Secret key — manual entry</div>
