@@ -294,10 +294,10 @@ export default function NewConnectionPage() {
             }}>
               {group.category}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, alignItems: 'stretch' }}>
               {group.items.map(adapter => (
-                <div key={adapter.type} onClick={() => handleSelect(adapter)} style={{ cursor: 'pointer' }}>
-                  <Card>
+                <div key={adapter.type} onClick={() => handleSelect(adapter)} style={{ cursor: 'pointer', display: 'flex' }}>
+                  <Card style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{adapter.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>
                       {adapter.description}

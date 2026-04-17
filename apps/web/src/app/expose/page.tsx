@@ -94,6 +94,10 @@ export default function ExposePage() {
   const [monitoringConnectionId, setMonitoringConnectionId] = useState('')
   const [monitorInterval, setMonitorInterval] = useState('60s')
 
+  // Custom config
+  const [customJson, setCustomJson] = useState('')
+  const [customJsonError, setCustomJsonError] = useState('')
+
   // Review
   const [jsonOpen, setJsonOpen] = useState(false)
 
@@ -142,20 +146,27 @@ export default function ExposePage() {
     return actions
   }, [domain, ip, port, tlsMode, autoDns, cfConn, routingMode, tunnelId, ssoEnabled, autoConfigConnectionId, identityConnections, autoCreateMonitor, monitoringConnectionId, monitoringConnections, monitorInterval, name])
 
-  const caddyPreview = useMemo(() => JSON.stringify({
-    match: [{ host: [domain] }],
-    handle: [
-      ssoEnabled && ssoProvider ? { handler: 'forward_auth', uri: ssoProvider.forwardAuthUrl, copy_headers: ssoProvider.authResponseHeaders } : undefined,
-      rateLimit ? { handler: 'rate_limit', zone: { key: '{remote_host}', events: Number(rpm), window: '1m' } } : undefined,
-      compression ? { handler: 'encode', encodings: { gzip: {}, zstd: {} } } : undefined,
-      {
-        handler: 'reverse_proxy',
-        upstreams: [{ dial: `${ip}:${port}` }],
-        health_checks: healthCheck ? { active: { path: healthPath, interval: '30s', timeout: '5s' } } : undefined,
-      },
-    ].filter(Boolean),
-    terminal: true,
-  }, null, 2), [domain, ssoEnabled, ssoProvider, rateLimit, rpm, compression, ip, port, healthCheck, healthPath])
+  const caddyPreview = useMemo(() => {
+    let customHandlers: unknown[] = []
+    if (customJson.trim()) {
+      try { customHandlers = JSON.parse(customJson) as unknown[] } catch { /* invalid */ }
+    }
+    return JSON.stringify({
+      match: [{ host: [domain] }],
+      handle: [
+        ssoEnabled && ssoProvider ? { handler: 'forward_auth', uri: ssoProvider.forwardAuthUrl, copy_headers: ssoProvider.authResponseHeaders } : undefined,
+        rateLimit ? { handler: 'rate_limit', zone: { key: '{remote_host}', events: Number(rpm), window: '1m' } } : undefined,
+        compression ? { handler: 'encode', encodings: { gzip: {}, zstd: {} } } : undefined,
+        ...customHandlers,
+        {
+          handler: 'reverse_proxy',
+          upstreams: [{ dial: `${ip}:${port}` }],
+          health_checks: healthCheck ? { active: { path: healthPath, interval: '30s', timeout: '5s' } } : undefined,
+        },
+      ].filter(Boolean),
+      terminal: true,
+    }, null, 2)
+  }, [domain, ssoEnabled, ssoProvider, rateLimit, rpm, compression, ip, port, healthCheck, healthPath, customJson])
 
   if (result) {
     return (
@@ -422,6 +433,30 @@ export default function ExposePage() {
                 <Field label="Health check path"><Input value={healthPath} onChange={(e) => setHealthPath(e.target.value)} /></Field>
               </div>
             )}
+
+            <div style={{ marginTop: 16, borderTop: '0.5px solid var(--border)', paddingTop: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Custom Caddy config</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.5 }}>
+                Paste a JSON array of Caddy handlers to inject before the reverse proxy. These are applied as-is — use Caddy&apos;s handler format.
+              </div>
+              <textarea
+                value={customJson}
+                onChange={(e) => {
+                  setCustomJson(e.target.value)
+                  if (!e.target.value.trim()) { setCustomJsonError(''); return }
+                  try { const v = JSON.parse(e.target.value); if (!Array.isArray(v)) throw new Error('Must be a JSON array'); setCustomJsonError('') }
+                  catch (err) { setCustomJsonError((err as Error).message) }
+                }}
+                placeholder={`[\n  { "handler": "headers", "response": { "set": { "X-Frame-Options": ["DENY"] } } }\n]`}
+                style={{
+                  width: '100%', minHeight: 120, fontFamily: 'var(--font-mono)', fontSize: 11,
+                  background: 'var(--surface-2)', color: 'var(--text-primary)',
+                  border: customJsonError ? '1px solid var(--red)' : '1px solid var(--border)',
+                  borderRadius: 6, padding: '8px 10px', resize: 'vertical', boxSizing: 'border-box',
+                }}
+              />
+              {customJsonError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{customJsonError}</div>}
+            </div>
           </Card>
         )}
 
@@ -473,6 +508,12 @@ export default function ExposePage() {
         {/* Step 6: Review — full chain action preview */}
         {step === 6 && (
           <Card header={<span>Review</span>}>
+            {/* Service name header */}
+            <div style={{ textAlign: 'center', padding: '8px 0 16px', borderBottom: '0.5px solid var(--border)', marginBottom: 16 }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>{name || 'Unnamed service'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3, fontFamily: 'var(--font-mono)' }}>{upstreamUrl || '—'}</div>
+            </div>
+
             {chainActions.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>ProxyOS will:</div>
@@ -516,11 +557,13 @@ export default function ExposePage() {
 
             {error && <div style={{ marginTop: 10 }}><AlertBanner tone="red">{error}</AlertBanner></div>}
 
-            <Button variant="primary" onClick={onSubmit}
-              disabled={expose.isPending || !caddyReady}
-              style={{ marginTop: 14, width: '100%', padding: '10px 14px', fontSize: 13 }}>
-              {expose.isPending ? 'Exposing…' : 'Expose'}
-            </Button>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+              <Button variant="primary" onClick={onSubmit}
+                disabled={expose.isPending || !caddyReady || !!customJsonError}
+                style={{ minWidth: 160, padding: '8px 24px', fontSize: 13 }}>
+                {expose.isPending ? 'Exposing…' : `Expose ${name || 'service'}`}
+              </Button>
+            </div>
           </Card>
         )}
 
