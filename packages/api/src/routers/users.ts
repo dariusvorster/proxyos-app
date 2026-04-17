@@ -6,6 +6,7 @@ import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
 import { publicProcedure, protectedProcedure, adminProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
+import QRCode from 'qrcode'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
 import { encrypt, decrypt } from '../crypto'
 import { recordFailure, isBlocked, clearLimit, beginAttempt, endAttempt } from '../rateLimiter'
@@ -227,7 +228,8 @@ export const usersRouter = router({
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       const secret = generateTotpSecret()
       const uri = buildOtpAuthUri(secret, u.email)
-      return { secret, uri }
+      const qrDataUrl = await QRCode.toDataURL(uri, { width: 200, margin: 2 })
+      return { secret, uri, qrDataUrl }
     }),
 
   verifyAndEnableTotp: protectedProcedure

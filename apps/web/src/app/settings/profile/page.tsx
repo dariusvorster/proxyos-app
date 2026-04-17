@@ -3,18 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { Button, Card, Input } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
 
-const QRCodeSVG = dynamic(() => import('qrcode.react').then(m => ({ default: m.QRCodeSVG })), { ssr: false })
-
 function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boolean; onToggled: () => void }) {
   const [step, setStep] = useState<'idle' | 'setup'>('idle')
   const [secret, setSecret] = useState('')
   const [uri, setUri] = useState('')
+  const [qrDataUrl, setQrDataUrl] = useState('')
   const [code, setCode] = useState('')
   const [setupError, setSetupError] = useState<string | null>(null)
   const [showDisable, setShowDisable] = useState(false)
@@ -32,6 +30,7 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
       const res = await setupTotp.mutateAsync({ userId })
       setSecret(res.secret)
       setUri(res.uri)
+      setQrDataUrl(res.qrDataUrl)
       setCode('')
       setStep('setup')
     } catch (err: unknown) {
@@ -121,11 +120,13 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
           Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.), or enter the secret key manually.
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-          <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--border)', display: 'inline-block', lineHeight: 0 }}>
-            <QRCodeSVG value={uri} size={160} />
+        {qrDataUrl && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+            <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--border)', display: 'inline-block', lineHeight: 0 }}>
+              <img src={qrDataUrl} alt="TOTP QR code" width={176} height={176} />
+            </div>
           </div>
-        </div>
+        )}
         <div style={{ background: 'var(--surf2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px' }}>
           <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Secret key — manual entry</div>
           <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13, letterSpacing: '0.12em', color: 'var(--text)', wordBreak: 'break-all' }}>{secret}</code>
