@@ -74,8 +74,8 @@ export class CaddyClient {
     const getRes = await fetch(policiesUrl, { headers: this.adminHeaders })
     const getText = await getRes.text()
 
-    // TLS app or automation path doesn't exist yet — initialize with just this policy.
-    if (!getRes.ok || getText === 'null') {
+    // TLS app or automation path doesn't exist yet — initialize it.
+    if (!getRes.ok || getText === 'null' || getText === '') {
       const initRes = await this.fetchJson(`${this.baseUrl}/config/apps/tls`, {
         method: 'PUT',
         body: { automation: { policies: [policy] } },
@@ -88,24 +88,24 @@ export class CaddyClient {
 
     let existing: Array<{ subjects?: string[] }>
     try {
-      existing = JSON.parse(getText) as Array<{ subjects?: string[] }>
+      const parsed = JSON.parse(getText)
+      existing = Array.isArray(parsed) ? parsed : []
     } catch {
       existing = []
     }
 
-    // Find an existing policy whose subjects overlap with ours and replace it in-place.
-    // This prevents duplicate policies for the same domain which Caddy 2.11+ rejects.
-    const idx = existing.findIndex(p =>
-      (p.subjects ?? []).some(s => policySubjects.includes(s))
-    )
+    // Strip ALL existing policies that cover any of our subjects (handles pre-existing
+    // duplicates), then append the new policy, and PUT the entire array back atomically.
+    // This is safer than per-index replace because it self-heals any prior duplicates.
+    const deduped = [
+      ...existing.filter(p =>
+        !(p.subjects ?? []).some(s => policySubjects.includes(s))
+      ),
+      policy,
+    ]
 
-    if (idx !== -1) {
-      const replaceRes = await this.fetchJson(`${policiesUrl}/${idx}`, { method: 'PUT', body: policy })
-      if (!replaceRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${replaceRes.status} ${await replaceRes.text()}`)
-    } else {
-      const appendRes = await this.fetchJson(policiesUrl, { method: 'POST', body: policy })
-      if (!appendRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${appendRes.status} ${await appendRes.text()}`)
-    }
+    const putRes = await this.fetchJson(policiesUrl, { method: 'PUT', body: deduped })
+    if (!putRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${putRes.status} ${await putRes.text()}`)
   }
 
   async addRoute(route: CaddyRoute): Promise<void> {
