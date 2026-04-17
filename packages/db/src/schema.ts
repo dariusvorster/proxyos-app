@@ -952,3 +952,30 @@ export const userTenants = sqliteTable('user_tenants', {
 
 export type TenantRow = typeof tenants.$inferSelect
 export type UserTenantRow = typeof userTenants.$inferSelect
+
+// Phase 6 — Docker auto network discovery
+
+export const discoveredNetworks = sqliteTable('discovered_networks', {
+  id: text('id').primaryKey(), // Docker network ID
+  name: text('name').notNull(),
+  driver: text('driver').notNull(),
+  scope: text('scope').notNull(),
+  containerCount: integer('container_count').notNull().default(0),
+  status: text('status').notNull().default('available'), // 'joined' | 'available' | 'excluded' | 'unreachable'
+  joinedAt: integer('joined_at', { mode: 'timestamp' }),
+  lastSeenAt: integer('last_seen_at', { mode: 'timestamp' }).notNull(),
+  excludedByUser: integer('excluded_by_user', { mode: 'boolean' }).notNull().default(false),
+  excludedReason: text('excluded_reason'),
+})
+
+export const networkSyncEvents = sqliteTable('network_sync_events', {
+  id: text('id').primaryKey(),
+  networkId: text('network_id'),
+  eventType: text('event_type').notNull(), // 'joined' | 'left' | 'failed' | 'excluded' | 'rescanned'
+  message: text('message'),
+  detailsJson: text('details_json'),
+  occurredAt: integer('occurred_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type DiscoveredNetworkRow = typeof discoveredNetworks.$inferSelect
+export type NetworkSyncEventRow = typeof networkSyncEvents.$inferSelect

@@ -855,4 +855,28 @@ export function ensureSchema(db: Database.Database): void {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
   try { db.exec(`ALTER TABLE routes ADD COLUMN skip_tls_verify INTEGER NOT NULL DEFAULT 0`) } catch { /* column already exists */ }
+
+  // Phase 6 — Docker auto network discovery
+  db.exec(`CREATE TABLE IF NOT EXISTS discovered_networks (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    driver TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    container_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'available',
+    joined_at INTEGER,
+    last_seen_at INTEGER NOT NULL,
+    excluded_by_user INTEGER NOT NULL DEFAULT 0,
+    excluded_reason TEXT
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_discovered_networks_status ON discovered_networks(status)`)
+  db.exec(`CREATE TABLE IF NOT EXISTS network_sync_events (
+    id TEXT PRIMARY KEY,
+    network_id TEXT REFERENCES discovered_networks(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    message TEXT,
+    details_json TEXT,
+    occurred_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_network_sync_events_network ON network_sync_events(network_id, occurred_at DESC)`)
 }

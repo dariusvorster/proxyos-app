@@ -56,6 +56,7 @@ import { patchosRouter } from './routers/patchos'
 import { accessosRouter } from './routers/accessos'
 import { mxwatchRouter } from './routers/mxwatch'
 import { tenantsRouter } from './routers/tenants'
+import { networksRouter } from './routers/networks'
 
 const PKG_VERSION = '0.2.0'
 
@@ -118,6 +119,7 @@ export const appRouter = router({
   accessos: accessosRouter,
   mxwatch: mxwatchRouter,
   tenants: tenantsRouter,
+  networks: networksRouter,
 })
 
 export type AppRouter = typeof appRouter

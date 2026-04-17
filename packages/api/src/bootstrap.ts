@@ -10,6 +10,7 @@ import { startDockerDiscovery } from './automation/docker-discovery'
 import { startDdnsUpdater } from './automation/ddns-updater'
 import { startScheduledChangesWorker } from './automation/scheduled-changes'
 import { startHealthScorer } from './automation/health-scorer'
+import { networkDiscoveryService } from './automation/network-join'
 
 export async function bootstrapProxyOs(baseConfigPath: string): Promise<BootstrapResult> {
   void loadAdapters().catch(err => console.error('[connect] Failed to load adapters:', err))
@@ -21,6 +22,12 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
   startDdnsUpdater(db2)
   startScheduledChangesWorker(db2)
   startHealthScorer(db2)
+  // Join Docker networks before Caddy bootstrap so container-name upstreams resolve
+  try {
+    await networkDiscoveryService.start()
+  } catch (e) {
+    console.warn('[proxyos] network discovery unavailable:', e instanceof Error ? e.message : e)
+  }
   const db = getDb()
   return bootstrapCaddy({
     baseConfigPath,
