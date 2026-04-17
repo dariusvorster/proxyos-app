@@ -206,8 +206,8 @@ function RoutePanel({ route }: { route: Route }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(route.name)
   const [upstreams, setUpstreams] = useState(route.upstreams.map((u) => u.address))
-  const [lbPolicy, setLbPolicy] = useState(route.lbPolicy ?? 'round_robin')
-  const [tlsMode, setTlsMode] = useState(route.tlsMode)
+  const [lbPolicy, setLbPolicy] = useState<'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first'>(route.lbPolicy ?? 'round_robin')
+  const [tlsMode, setTlsMode] = useState<'auto' | 'dns' | 'internal' | 'custom' | 'off'>(route.tlsMode as 'auto' | 'dns' | 'internal' | 'custom' | 'off')
   const [ssoEnabled, setSsoEnabled] = useState(route.ssoEnabled)
   const [compression, setCompression] = useState(!!route.compressionEnabled)
   const [websocket, setWebsocket] = useState(!!route.websocketEnabled)
@@ -233,8 +233,8 @@ function RoutePanel({ route }: { route: Route }) {
       patch: {
         name,
         upstreams: upstreams.filter(Boolean).map((a) => ({ address: a })),
-        lbPolicy: lbPolicy as 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first',
-        tlsMode: tlsMode as 'auto' | 'dns' | 'internal' | 'custom' | 'off',
+        lbPolicy,
+        tlsMode,
         ssoEnabled,
         compressionEnabled: compression,
         websocketEnabled: websocket,
