@@ -33,6 +33,7 @@ import { operationLogsRouter } from './routers/operationLogs'
 import { preflightRouter } from './routers/preflight'
 import { accessListsRouter } from './routers/accessLists'
 import { streamsRouter } from './routers/streams'
+import { caddyLogsRouter } from './routers/caddyLogs'
 
 const PKG_VERSION = '0.2.0'
 
@@ -72,6 +73,7 @@ export const appRouter = router({
   preflight: preflightRouter,
   accessLists: accessListsRouter,
   streams: streamsRouter,
+  caddyLogs: caddyLogsRouter,
 })
 
 export type AppRouter = typeof appRouter

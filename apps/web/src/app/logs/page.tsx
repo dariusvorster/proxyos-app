@@ -7,7 +7,7 @@ import { trpc } from '~/lib/trpc'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'system' | 'access' | 'alerts'
+type Tab = 'system' | 'access' | 'alerts' | 'caddy'
 type Level = 'info' | 'warn' | 'error'
 type Category = 'auth' | 'caddy' | 'system' | 'api' | 'user'
 
@@ -371,12 +371,114 @@ function AlertEventsTab() {
   )
 }
 
+// ─── Caddy daemon logs tab ────────────────────────────────────────────────────
+
+const CADDY_LEVEL_TONE: Record<string, BadgeTone> = { info: 'blue', warn: 'amber', error: 'red', debug: 'neutral' }
+const CADDY_LEVEL_DOT: Record<string, string> = { info: 'var(--blue)', warn: 'var(--amber)', error: 'var(--red)', debug: 'var(--text3)' }
+
+function CaddyLogsTab() {
+  const [level, setLevel] = useState('')
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+  const list = trpc.caddyLogs.list.useQuery(
+    { limit: 200, level: level as '' | 'info' | 'warn' | 'error' | undefined, search: search || undefined },
+    { refetchInterval: 8_000 },
+  )
+  const rows = list.data ?? []
+
+  function toggleExpand(ts: number) {
+    setExpanded(prev => { const n = new Set(prev); if (n.has(ts)) n.delete(ts); else n.add(ts); return n })
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {(['info', 'warn', 'error'] as const).map(l => (
+          <button
+            key={l}
+            onClick={() => setLevel(prev => prev === l ? '' : l)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+              borderRadius: 6, border: `1px solid ${level === l ? CADDY_LEVEL_DOT[l] : 'var(--border2)'}`,
+              background: level === l ? `color-mix(in srgb, ${CADDY_LEVEL_DOT[l]} 12%, transparent)` : 'var(--surf)',
+              cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-mono)',
+              color: level === l ? CADDY_LEVEL_DOT[l] : 'var(--text2)',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: CADDY_LEVEL_DOT[l], flexShrink: 0 }} />
+            {l}
+          </button>
+        ))}
+        <Input
+          placeholder="Search message or logger…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 180, marginLeft: 4 }}
+        />
+      </div>
+
+      <Card header={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          Caddy daemon logs
+          <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>{rows.length} entries · live</span>
+        </span>
+      }>
+        <DataTable>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: 28 }} />
+              <th style={{ ...th, width: '14%' }}>Time</th>
+              <th style={{ ...th, width: '8%' }}>Level</th>
+              <th style={{ ...th, width: '18%' }}>Logger</th>
+              <th style={th}>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text3)', padding: '32px 12px' }}>
+                {list.isFetching ? 'Loading…' : 'No Caddy logs yet — logs appear after the first restart with the new config.'}
+              </td></tr>
+            )}
+            {rows.map((r) => (
+              <Fragment key={r.ts}>
+                <tr
+                  style={{ cursor: r.detail ? 'pointer' : 'default', borderLeft: `2px solid ${CADDY_LEVEL_DOT[r.level] ?? 'var(--border)'}` }}
+                  onClick={() => r.detail && toggleExpand(r.ts)}
+                >
+                  <td style={{ ...td, color: 'var(--text3)', fontSize: 10 }}>{r.detail ? (expanded.has(r.ts) ? '▾' : '▸') : ''}</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                    {new Date(r.ts * 1000).toLocaleString()}
+                  </td>
+                  <td style={td}><Badge tone={CADDY_LEVEL_TONE[r.level] ?? 'neutral'}>{r.level}</Badge></td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>{r.logger || '—'}</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{r.msg}</td>
+                </tr>
+                {r.detail && expanded.has(r.ts) && (
+                  <tr>
+                    <td colSpan={5} style={{ ...td, background: 'var(--surf2)', padding: '10px 16px' }}>
+                      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                        {r.detail}
+                      </pre>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </DataTable>
+      </Card>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'system', label: 'System logs' },
   { id: 'access', label: 'Access logs' },
   { id: 'alerts', label: 'Alert events' },
+  { id: 'caddy', label: 'Caddy logs' },
 ]
 
 export default function LogsPage() {
@@ -413,6 +515,7 @@ export default function LogsPage() {
         {tab === 'system' && <SystemLogsTab />}
         {tab === 'access' && <AccessLogsTab />}
         {tab === 'alerts' && <AlertEventsTab />}
+        {tab === 'caddy' && <CaddyLogsTab />}
       </PageContent>
     </>
   )

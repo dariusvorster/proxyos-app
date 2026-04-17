@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
+import { X509Certificate } from 'crypto'
 import { and, count, eq, gte, isNull } from 'drizzle-orm'
-import { access } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { z } from 'zod'
 import { certIssuanceLog, certificates, nanoid, routes } from '@proxyos/db'
 import type { Certificate, CertSource, CertStatus } from '@proxyos/types'
@@ -13,16 +14,28 @@ const CA_DIRS = [
   'zerossl',
 ]
 
-async function caddyHasCert(domain: string): Promise<boolean> {
+interface CertFileInfo {
+  active: boolean
+  issuedAt?: Date
+  expiresAt?: Date
+}
+
+async function caddyHasCert(domain: string): Promise<CertFileInfo> {
   for (const ca of CA_DIRS) {
+    const path = `${CADDY_STORAGE_ROOT}/${ca}/${domain}/${domain}.crt`
     try {
-      await access(`${CADDY_STORAGE_ROOT}/${ca}/${domain}/${domain}.crt`)
-      return true
+      const pem = await readFile(path, 'utf8')
+      const x509 = new X509Certificate(pem)
+      return {
+        active: true,
+        issuedAt: new Date(x509.validFrom),
+        expiresAt: new Date(x509.validTo),
+      }
     } catch {
       // not found in this CA dir, try next
     }
   }
-  return false
+  return { active: false }
 }
 
 function rowToCert(row: typeof certificates.$inferSelect): Certificate {
@@ -152,13 +165,15 @@ async function syncFromRoutes(db: import('@proxyos/db').Db): Promise<void> {
     if (r.tlsMode === 'off') continue
     const prior = byDomain.get(r.domain)
     const source = sourceFromTlsMode(r.tlsMode)
-    const hasActiveCert = await caddyHasCert(r.domain)
+    const certInfo = await caddyHasCert(r.domain)
     if (!prior) {
       await db.insert(certificates).values({
         id: nanoid(),
         domain: r.domain,
         source,
-        status: hasActiveCert ? 'active' : 'provisioning',
+        status: certInfo.active ? 'active' : 'provisioning',
+        issuedAt: certInfo.issuedAt ?? null,
+        expiresAt: certInfo.expiresAt ?? null,
         autoRenew: true,
         routeId: r.id,
         createdAt: now,
@@ -168,7 +183,11 @@ async function syncFromRoutes(db: import('@proxyos/db').Db): Promise<void> {
       const updates: Record<string, unknown> = { updatedAt: now }
       if (prior.routeId !== r.id) updates.routeId = r.id
       if (prior.source !== source) updates.source = source
-      if (hasActiveCert && prior.status === 'provisioning') updates.status = 'active'
+      if (certInfo.active) {
+        if (prior.status === 'provisioning') updates.status = 'active'
+        if (certInfo.issuedAt && !prior.issuedAt) updates.issuedAt = certInfo.issuedAt
+        if (certInfo.expiresAt && !prior.expiresAt) updates.expiresAt = certInfo.expiresAt
+      }
       await db.update(certificates).set(updates).where(eq(certificates.id, prior.id))
     }
   }

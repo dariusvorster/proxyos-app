@@ -2,7 +2,14 @@
   "admin": { "listen": "localhost:2019" },
   "logging": {
     "logs": {
-      "default": { "level": "INFO" },
+      "default": {
+        "level": "INFO",
+        "writer": {
+          "output": "file",
+          "filename": "/data/proxyos/caddy-system.log",
+          "roll_size_mb": 50
+        }
+      },
       "access": {
         "writer": {
           "output": "file",
