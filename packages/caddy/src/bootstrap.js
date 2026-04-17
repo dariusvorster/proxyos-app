@@ -1,9 +1,21 @@
 import { readFile } from 'fs/promises';
 import { CaddyClient } from './client';
+import { waitForCaddyReady } from './wait-ready';
 import { buildCaddyRoute, buildHoldingPageHtml } from './config';
 export async function bootstrapCaddy(opts) {
     const client = opts.client ?? new CaddyClient({ serverName: opts.serverName ?? 'main' });
     const serverName = opts.serverName ?? 'main';
+    try {
+        await waitForCaddyReady({ baseUrl: client['baseUrl'] });
+    }
+    catch (e) {
+        return {
+            caddyReachable: false,
+            initialConfigLoaded: false,
+            routesReplaced: 0,
+            error: e instanceof Error ? e.message : String(e),
+        };
+    }
     if (!(await client.health())) {
         return {
             caddyReachable: false,

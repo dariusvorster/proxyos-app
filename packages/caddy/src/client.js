@@ -1,12 +1,21 @@
 import { caddyRouteId } from './config';
 import { request as httpRequest } from 'http';
 
+const TRANSIENT_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ENOTCONN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH']);
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class CaddyClient {
     baseUrl;
     serverName;
+    maxRetries;
+    retryDelayMs;
     constructor(opts = {}) {
         this.baseUrl = opts.baseUrl ?? process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019';
         this.serverName = opts.serverName ?? 'main';
+        this.maxRetries = opts.maxRetries ?? 3;
+        this.retryDelayMs = opts.retryDelayMs ?? 500;
     }
     async health() {
         try {
@@ -147,7 +156,23 @@ export class CaddyClient {
         if (!res.ok && res.status !== 404)
             throw new Error(`Caddy removeLayerFourStream failed: ${res.status} ${await res.text()}`);
     }
-    doRequest(url, method, body) {
+    async doRequest(url, method, body) {
+        let lastError = null;
+        for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+            try {
+                return await this.doRequestOnce(url, method, body);
+            }
+            catch (e) {
+                lastError = e;
+                const code = e?.code ?? '';
+                if (!TRANSIENT_CODES.has(code) || attempt === this.maxRetries)
+                    throw e;
+                await sleep(this.retryDelayMs * (attempt + 1));
+            }
+        }
+        throw lastError;
+    }
+    doRequestOnce(url, method, body) {
         const parsed = new URL(url);
         const bodyStr = body !== undefined ? JSON.stringify(body) : undefined;
         const headers = { 'Origin': this.baseUrl };

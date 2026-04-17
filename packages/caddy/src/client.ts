@@ -5,6 +5,8 @@ import { request as httpRequest } from 'http'
 export interface CaddyClientOptions {
   baseUrl?: string
   serverName?: string
+  maxRetries?: number
+  retryDelayMs?: number
 }
 
 interface AdminResponse {
@@ -13,13 +15,23 @@ interface AdminResponse {
   text(): Promise<string>
 }
 
+const TRANSIENT_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ENOTCONN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH'])
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export class CaddyClient {
   private readonly baseUrl: string
   private readonly serverName: string
+  private readonly maxRetries: number
+  private readonly retryDelayMs: number
 
   constructor(opts: CaddyClientOptions = {}) {
     this.baseUrl = opts.baseUrl ?? process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'
     this.serverName = opts.serverName ?? 'main'
+    this.maxRetries = opts.maxRetries ?? 3
+    this.retryDelayMs = opts.retryDelayMs ?? 500
   }
 
   async health(): Promise<boolean> {
@@ -171,7 +183,22 @@ export class CaddyClient {
     if (!res.ok && res.status !== 404) throw new Error(`Caddy removeLayerFourStream failed: ${res.status} ${await res.text()}`)
   }
 
-  private doRequest(url: string, method: string, body?: unknown): Promise<AdminResponse> {
+  private async doRequest(url: string, method: string, body?: unknown): Promise<AdminResponse> {
+    let lastError: unknown = null
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await this.doRequestOnce(url, method, body)
+      } catch (e) {
+        lastError = e
+        const code = (e as NodeJS.ErrnoException).code ?? ''
+        if (!TRANSIENT_CODES.has(code) || attempt === this.maxRetries) throw e
+        await sleep(this.retryDelayMs * (attempt + 1))
+      }
+    }
+    throw lastError
+  }
+
+  private doRequestOnce(url: string, method: string, body?: unknown): Promise<AdminResponse> {
     const parsed = new URL(url)
     const bodyStr = body !== undefined ? JSON.stringify(body) : undefined
     const headers: Record<string, string> = { 'Origin': this.baseUrl }
