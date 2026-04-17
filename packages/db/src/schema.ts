@@ -966,6 +966,9 @@ export const discoveredNetworks = sqliteTable('discovered_networks', {
   lastSeenAt: integer('last_seen_at', { mode: 'timestamp' }).notNull(),
   excludedByUser: integer('excluded_by_user', { mode: 'boolean' }).notNull().default(false),
   excludedReason: text('excluded_reason'),
+  isProxyosManaged: integer('is_proxyos_managed', { mode: 'boolean' }).notNull().default(false),
+  isWellKnown: integer('is_well_known', { mode: 'boolean' }).notNull().default(false),
+  wellKnownPurpose: text('well_known_purpose'),
 })
 
 export const networkSyncEvents = sqliteTable('network_sync_events', {
@@ -979,3 +982,20 @@ export const networkSyncEvents = sqliteTable('network_sync_events', {
 
 export type DiscoveredNetworkRow = typeof discoveredNetworks.$inferSelect
 export type NetworkSyncEventRow = typeof networkSyncEvents.$inferSelect
+
+// Phase 6b — Static (non-Docker) upstream definitions
+
+export const staticUpstreams = sqliteTable('static_upstreams', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(), // referenced from routes by this name
+  host: text('host').notNull(),          // hostname, IP, or Tailscale MagicDNS name
+  defaultPort: integer('default_port'),
+  defaultScheme: text('default_scheme').notNull().default('http'), // 'http' | 'https'
+  description: text('description'),
+  tlsSkipVerify: integer('tls_skip_verify', { mode: 'boolean' }).notNull().default(false),
+  healthCheckPath: text('health_check_path'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type StaticUpstreamRow = typeof staticUpstreams.$inferSelect

@@ -41,6 +41,7 @@ const navSections: NavSection[] = [
       { href: '/logs', label: 'Logs', icon: '▤' },
       { href: '/logs/operations', label: 'Operations', icon: '◎' },
       { href: '/settings/networks', label: 'Docker networks', icon: '⬡' },
+      { href: '/settings/upstreams', label: 'Static upstreams', icon: '⇥' },
     ],
   },
   {

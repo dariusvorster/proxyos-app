@@ -1,6 +1,10 @@
 import http from 'http'
 import { readFile } from 'fs/promises'
+import { eq } from 'drizzle-orm'
 import { getDb, discoveredNetworks, networkSyncEvents, systemSettings } from '@proxyos/db'
+
+const HOMELAB_EDGE = 'homelab-edge'
+const WELL_KNOWN_NAMES = new Set([HOMELAB_EDGE])
 
 interface DockerNetwork {
   Id: string
@@ -82,9 +86,47 @@ function filterRelevant(networks: DockerNetwork[], excluded: string[]): DockerNe
     if (SKIP_DRIVERS.has(n.Driver)) return false
     if (n.Scope === 'swarm') return false
     if (excluded.includes(n.Name)) return false
+    if (WELL_KNOWN_NAMES.has(n.Name)) return true // always join well-known networks even if empty
     if (Object.keys(n.Containers ?? {}).length === 0) return false
     return true
   })
+}
+
+async function createNetwork(socketPath: string, name: string, labels: Record<string, string>): Promise<string> {
+  const result = await dockerRequest<{ Id: string }>(socketPath, 'POST', '/networks/create', {
+    Name: name,
+    Driver: 'bridge',
+    Labels: labels,
+  })
+  return result.Id
+}
+
+async function ensureHomelabEdge(socketPath: string): Promise<void> {
+  const allNetworks = await dockerRequest<DockerNetwork[]>(socketPath, 'GET', '/networks')
+  const existing = allNetworks.find(n => n.Name === HOMELAB_EDGE)
+  let networkId: string
+
+  if (existing) {
+    networkId = existing.Id
+  } else {
+    try {
+      networkId = await createNetwork(socketPath, HOMELAB_EDGE, {
+        'proxyos.managed': 'true',
+        'proxyos.purpose': 'shared-edge',
+      })
+      console.log(`[discovery] created well-known network ${HOMELAB_EDGE} (${networkId.slice(0, 12)})`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`[discovery] failed to create ${HOMELAB_EDGE}: ${msg}`)
+      return
+    }
+  }
+
+  const db = getDb()
+  await db
+    .update(discoveredNetworks)
+    .set({ isProxyosManaged: true, isWellKnown: true, wellKnownPurpose: 'shared-edge' })
+    .where(eq(discoveredNetworks.id, networkId))
 }
 
 function networksAlreadyJoined(networks: DockerNetwork[], selfId: string): DockerNetwork[] {
@@ -117,6 +159,7 @@ async function upsertNetworkRecords(
         lastSeenAt: now,
         excludedByUser: isExcluded,
         joinedAt: status === 'joined' ? now : null,
+        ...(WELL_KNOWN_NAMES.has(net.Name) ? { isWellKnown: true, isProxyosManaged: true, wellKnownPurpose: 'shared-edge' } : {}),
       })
       .onConflictDoUpdate({
         target: discoveredNetworks.id,
@@ -126,6 +169,7 @@ async function upsertNetworkRecords(
           status,
           lastSeenAt: now,
           excludedByUser: isExcluded,
+          ...(WELL_KNOWN_NAMES.has(net.Name) ? { isWellKnown: true, isProxyosManaged: true, wellKnownPurpose: 'shared-edge' } : {}),
         },
       })
   }
@@ -178,6 +222,10 @@ class NetworkDiscoveryService {
       this.running = false
       return
     }
+
+    await ensureHomelabEdge(config.socketPath).catch(e =>
+      console.warn(`[discovery] homelab-edge setup failed: ${e instanceof Error ? e.message : e}`),
+    )
 
     await this.syncOnce().catch(e =>
       console.error(`[discovery] initial sync failed: ${e instanceof Error ? e.message : e}`),

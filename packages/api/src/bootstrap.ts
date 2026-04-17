@@ -11,6 +11,7 @@ import { startDdnsUpdater } from './automation/ddns-updater'
 import { startScheduledChangesWorker } from './automation/scheduled-changes'
 import { startHealthScorer } from './automation/health-scorer'
 import { networkDiscoveryService } from './automation/network-join'
+import { resolveStaticUpstreams } from './automation/static-upstreams'
 
 export async function bootstrapProxyOs(baseConfigPath: string): Promise<BootstrapResult> {
   void loadAdapters().catch(err => console.error('[connect] Failed to load adapters:', err))
@@ -53,13 +54,16 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
     },
     getRoutes: async () => {
       const rows = await db.select().from(routesTable)
-      return rows.map<Route>((row) => ({
+      const routes = await Promise.all(rows.map(async (row) => {
+        const rawUpstreams = JSON.parse(row.upstreams) as Route['upstreams']
+        const upstreams = await resolveStaticUpstreams(rawUpstreams).catch(() => rawUpstreams)
+        return ({
         id: row.id,
         name: row.name,
         domain: row.domain,
         enabled: row.enabled,
         upstreamType: row.upstreamType as Route['upstreamType'],
-        upstreams: JSON.parse(row.upstreams) as Route['upstreams'],
+        upstreams,
         tlsMode: row.tlsMode as Route['tlsMode'],
         tlsDnsProviderId: row.tlsDnsProviderId,
         ssoEnabled: row.ssoEnabled,
@@ -73,7 +77,9 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
         http3Enabled: row.http3Enabled,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        }) as Route
       }))
+      return routes
     },
   })
 }

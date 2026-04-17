@@ -5,6 +5,16 @@ import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, Toggle } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
 
+const HOMELAB_EDGE_COMPOSE = `services:
+  my-app:
+    image: my-app:latest
+    networks:
+      - homelab-edge
+
+networks:
+  homelab-edge:
+    external: true`
+
 function statusTone(status: string): 'green' | 'amber' | 'red' | 'neutral' {
   if (status === 'joined') return 'green'
   if (status === 'available') return 'amber'
@@ -29,13 +39,22 @@ export default function NetworksPage() {
   const rescanMut = trpc.networks.rescanNow.useMutation({ onSuccess: () => networks.refetch() })
 
   const [scanning, setScanning] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   async function handleRescan() {
     setScanning(true)
     try { await rescanMut.mutateAsync() } finally { setScanning(false) }
   }
 
+  function copySnippet() {
+    navigator.clipboard.writeText(HOMELAB_EDGE_COMPOSE).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   const socketAvailable = socketStatus.data?.available ?? false
+  const homelabEdge = networks.data?.find(n => n.name === 'homelab-edge')
 
   return (
     <>
@@ -56,6 +75,44 @@ export default function NetworksPage() {
           title="Docker network discovery"
           desc="ProxyOS automatically joins Docker networks containing running containers so upstreams are reachable by container name."
         />
+
+        <Card header={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>homelab-edge</span>
+            <Badge tone="blue">well-known</Badge>
+            {homelabEdge && <Badge tone={statusTone(homelabEdge.status)}>{statusLabel(homelabEdge.status)}</Badge>}
+          </div>
+        }>
+          <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+              A shared bridge network ProxyOS creates automatically. Attach your containers to it so they're reachable by name — no per-route network config needed.
+              {homelabEdge && (
+                <span style={{ marginLeft: 8, color: 'var(--text3)' }}>
+                  {homelabEdge.containerCount} container{homelabEdge.containerCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Add to your compose file</span>
+                <Button variant="ghost" size="sm" onClick={copySnippet}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </Button>
+              </div>
+              <pre style={{
+                margin: 0,
+                padding: '10px 12px',
+                background: 'var(--surface3)',
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--text)',
+                overflowX: 'auto',
+                whiteSpace: 'pre',
+              }}>{HOMELAB_EDGE_COMPOSE}</pre>
+            </div>
+          </div>
+        </Card>
 
         {socketStatus.data && !socketAvailable && (
           <div style={{
@@ -123,7 +180,7 @@ export default function NetworksPage() {
                 </tr>
               </thead>
               <tbody>
-                {networks.data.map(net => (
+                {networks.data.filter(n => n.name !== 'homelab-edge').map(net => (
                   <tr key={net.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
                       {net.name}

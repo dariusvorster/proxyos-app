@@ -879,4 +879,27 @@ export function ensureSchema(db: Database.Database): void {
     occurred_at INTEGER NOT NULL
   )`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_network_sync_events_network ON network_sync_events(network_id, occurred_at DESC)`)
+
+  // Phase 6b — homelab-edge columns + static upstreams
+  const V6B_ALTERS = [
+    `ALTER TABLE discovered_networks ADD COLUMN is_proxyos_managed INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE discovered_networks ADD COLUMN is_well_known INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE discovered_networks ADD COLUMN well_known_purpose TEXT`,
+  ]
+  for (const stmt of V6B_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
+  db.exec(`CREATE TABLE IF NOT EXISTS static_upstreams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    host TEXT NOT NULL,
+    default_port INTEGER,
+    default_scheme TEXT NOT NULL DEFAULT 'http',
+    description TEXT,
+    tls_skip_verify INTEGER NOT NULL DEFAULT 0,
+    health_check_path TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_static_upstreams_name ON static_upstreams(name)`)
 }
