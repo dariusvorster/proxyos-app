@@ -21,12 +21,31 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [lbMsg, setLbMsg] = useState('')
   const updateRoute = trpc.routes.update.useMutation()
 
+  const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
+  const [geoCountries, setGeoCountries] = useState('')
+  const [geoAction, setGeoAction] = useState<'block' | 'challenge'>('block')
+  const [geoMsg, setGeoMsg] = useState('')
+  const geoipConfig = trpc.security.getGeoIPConfig.useQuery({ routeId: id })
+  const setGeoIPConfig = trpc.security.setGeoIPConfig.useMutation({
+    onSuccess: () => { setGeoMsg('Saved'); geoipConfig.refetch() },
+    onError: (e) => setGeoMsg(`Error: ${e.message}`),
+  })
+
   useEffect(() => {
     if (route) {
       setLbPolicy(route.lbPolicy ?? 'round_robin')
       setUpstreams(route.upstreams.map((u) => ({ address: u.address, weight: u.weight ?? 1 })))
     }
   }, [route])
+
+  useEffect(() => {
+    const cfg = geoipConfig.data?.config
+    if (cfg) {
+      setGeoMode(cfg.mode)
+      setGeoCountries(cfg.countries.join(', '))
+      setGeoAction(cfg.action)
+    }
+  }, [geoipConfig.data])
 
   return (
     <>
@@ -219,6 +238,68 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                 style={{ fontSize: 11 }}
               >{updateRoute.isPending ? 'Saving…' : 'Save'}</Button>
             </div>
+          </Card>
+        )}
+
+        {/* GeoIP blocking */}
+        {route && (
+          <Card header={<span>Geo-blocking</span>}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', flexShrink: 0 }}>Mode</div>
+              <Select value={geoMode} onChange={(e) => setGeoMode(e.target.value as 'allowlist' | 'blocklist')} style={{ width: 130, fontSize: 12 }}>
+                <option value="blocklist">Blocklist</option>
+                <option value="allowlist">Allowlist</option>
+              </Select>
+              <div style={{ fontSize: 11, color: 'var(--text2)', flexShrink: 0 }}>Action</div>
+              <Select value={geoAction} onChange={(e) => setGeoAction(e.target.value as 'block' | 'challenge')} style={{ width: 120, fontSize: 12 }}>
+                <option value="block">Block (403)</option>
+                <option value="challenge">Challenge</option>
+              </Select>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>
+                Countries <span style={{ color: 'var(--text-dim)' }}>(ISO 3166-1 alpha-2, comma-separated)</span>
+              </div>
+              <Input
+                value={geoCountries}
+                onChange={(e) => setGeoCountries(e.target.value)}
+                placeholder="CN, RU, KP"
+                style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <Button variant="ghost" style={{ fontSize: 11 }}
+                onClick={() => {
+                  const preset = geoipConfig.data?.highRiskPreset ?? ['CN', 'RU', 'KP', 'IR', 'BY', 'SY', 'CU', 'VE']
+                  setGeoCountries(preset.join(', '))
+                }}>
+                Use high-risk preset
+              </Button>
+              {geoCountries && (
+                <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                  onClick={() => {
+                    setGeoIPConfig.mutate({ routeId: id, config: null })
+                    setGeoCountries('')
+                    setGeoMsg('')
+                  }}
+                  disabled={setGeoIPConfig.isPending}>
+                  Clear rule
+                </Button>
+              )}
+            </div>
+            {geoMsg && (
+              <p style={{ fontSize: 11, color: geoMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', margin: '0 0 8px' }}>{geoMsg}</p>
+            )}
+            <Button
+              variant="primary"
+              disabled={setGeoIPConfig.isPending || !geoCountries.trim()}
+              onClick={() => {
+                const countries = geoCountries.split(',').map((s) => s.trim().toUpperCase()).filter((s) => s.length === 2)
+                if (countries.length === 0) { setGeoMsg('Error: enter valid 2-letter country codes'); return }
+                setGeoIPConfig.mutate({ routeId: id, config: { mode: geoMode, countries, action: geoAction } })
+              }}
+              style={{ fontSize: 11 }}
+            >{setGeoIPConfig.isPending ? 'Saving…' : 'Save'}</Button>
           </Card>
         )}
 
