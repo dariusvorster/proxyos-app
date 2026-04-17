@@ -30,6 +30,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   })
   const [versionMsg, setVersionMsg] = useState('')
 
+  const [stagingUpstreams, setStagingUpstreams] = useState('')
+  const [trafficSplitPct, setTrafficSplitPct] = useState(10)
+  const [blueGreenMsg, setBlueGreenMsg] = useState('')
+  const [mirrorUpstream, setMirrorUpstream] = useState('')
+  const [mirrorSampleRate, setMirrorSampleRate] = useState(100)
+  const [mirrorMsg, setMirrorMsg] = useState('')
+
   const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
   const [geoCountries, setGeoCountries] = useState('')
   const [geoAction, setGeoAction] = useState<'block' | 'challenge'>('block')
@@ -45,6 +52,10 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     if (route) {
       setLbPolicy(route.lbPolicy ?? 'round_robin')
       setUpstreams(route.upstreams.map((u) => ({ address: u.address, weight: u.weight ?? 1 })))
+      setStagingUpstreams(route.stagingUpstreams?.map(u => u.address).join(', ') ?? '')
+      setTrafficSplitPct(route.trafficSplitPct ?? 10)
+      setMirrorUpstream(route.mirrorUpstream ?? '')
+      setMirrorSampleRate(route.mirrorSampleRate ?? 100)
     }
   }, [route])
 
@@ -360,6 +371,145 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               )
             })()}
+          </Card>
+        )}
+
+        {/* Blue-green deployment */}
+        {route && (
+          <Card header={<span>Blue-green deployment</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Send a percentage of traffic to staging upstreams. Set to 0 to disable.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Staging upstreams (comma-separated)</div>
+                  <Input
+                    value={stagingUpstreams}
+                    onChange={e => setStagingUpstreams(e.target.value)}
+                    placeholder="host:port, host2:port"
+                    style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Traffic to staging (%)</div>
+                  <Input
+                    type="number"
+                    value={trafficSplitPct}
+                    onChange={e => setTrafficSplitPct(Number(e.target.value))}
+                    style={{ width: 80, fontSize: 12 }}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  onClick={() => {
+                    const parsed = stagingUpstreams
+                      ? stagingUpstreams.split(',').map(s => ({ address: s.trim() })).filter(u => u.address)
+                      : null
+                    updateRoute.mutate(
+                      { id, patch: { stagingUpstreams: parsed, trafficSplitPct: parsed ? trafficSplitPct : null } },
+                      {
+                        onSuccess: () => { setBlueGreenMsg('Saved'); routes.refetch() },
+                        onError: e => setBlueGreenMsg(`Error: ${e.message}`),
+                      }
+                    )
+                  }}
+                  disabled={updateRoute.isPending}>
+                  {updateRoute.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                {stagingUpstreams && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    onClick={() => {
+                      updateRoute.mutate(
+                        { id, patch: { stagingUpstreams: null, trafficSplitPct: null } },
+                        {
+                          onSuccess: () => { setStagingUpstreams(''); setBlueGreenMsg('Cleared'); routes.refetch() },
+                          onError: e => setBlueGreenMsg(`Error: ${e.message}`),
+                        }
+                      )
+                    }}>
+                    Clear
+                  </Button>
+                )}
+                {blueGreenMsg && <span style={{ fontSize: 11, color: blueGreenMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{blueGreenMsg}</span>}
+              </div>
+              {route.stagingUpstreams && route.stagingUpstreams.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
+                  Active: {route.trafficSplitPct}% → {route.stagingUpstreams.map(u => u.address).join(', ')}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Mirror / shadow traffic */}
+        {route && (
+          <Card header={<span>Shadow traffic (mirror)</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Mirror a sample of requests to a secondary upstream without affecting live traffic.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Mirror upstream</div>
+                  <Input
+                    value={mirrorUpstream}
+                    onChange={e => setMirrorUpstream(e.target.value)}
+                    placeholder="host:port"
+                    style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Sample rate (%)</div>
+                  <Input
+                    type="number"
+                    value={mirrorSampleRate}
+                    onChange={e => setMirrorSampleRate(Number(e.target.value))}
+                    style={{ width: 80, fontSize: 12 }}
+                    min={1}
+                    max={100}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  onClick={() => {
+                    updateRoute.mutate(
+                      { id, patch: { mirrorUpstream: mirrorUpstream || null, mirrorSampleRate: mirrorUpstream ? mirrorSampleRate : null } },
+                      {
+                        onSuccess: () => { setMirrorMsg('Saved'); routes.refetch() },
+                        onError: e => setMirrorMsg(`Error: ${e.message}`),
+                      }
+                    )
+                  }}
+                  disabled={updateRoute.isPending}>
+                  {updateRoute.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                {route.mirrorUpstream && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    onClick={() => {
+                      updateRoute.mutate(
+                        { id, patch: { mirrorUpstream: null, mirrorSampleRate: null } },
+                        {
+                          onSuccess: () => { setMirrorUpstream(''); setMirrorMsg('Cleared'); routes.refetch() },
+                          onError: e => setMirrorMsg(`Error: ${e.message}`),
+                        }
+                      )
+                    }}>
+                    Clear
+                  </Button>
+                )}
+                {mirrorMsg && <span style={{ fontSize: 11, color: mirrorMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mirrorMsg}</span>}
+              </div>
+              {route.mirrorUpstream && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
+                  Active: {route.mirrorSampleRate ?? 100}% of traffic → {route.mirrorUpstream}
+                </div>
+              )}
+            </div>
           </Card>
         )}
 

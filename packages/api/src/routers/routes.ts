@@ -72,6 +72,10 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     tunnelProviderId: row.tunnelProviderId ?? null,
     oauthProxyProviderId: row.oauthProxyProviderId ?? null,
     oauthProxyAllowlist: row.oauthProxyAllowlist ? JSON.parse(row.oauthProxyAllowlist) as string[] : null,
+    stagingUpstreams: row.stagingUpstreams ? JSON.parse(row.stagingUpstreams) as Route['stagingUpstreams'] : null,
+    trafficSplitPct: row.trafficSplitPct ?? null,
+    mirrorUpstream: row.mirrorUpstream ?? null,
+    mirrorSampleRate: row.mirrorSampleRate ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -407,6 +411,10 @@ export const routesRouter = router({
           tunnelProviderId: z.string().nullable().optional(),
           oauthProxyProviderId: z.string().nullable().optional(),
           oauthProxyAllowlist: z.array(z.string()).nullable().optional(),
+          stagingUpstreams: z.array(z.object({ address: z.string(), weight: z.number().optional() })).nullable().optional(),
+          trafficSplitPct: z.number().int().min(0).max(100).nullable().optional(),
+          mirrorUpstream: z.string().nullable().optional(),
+          mirrorSampleRate: z.number().int().min(0).max(100).nullable().optional(),
         }),
       }),
     )
@@ -439,6 +447,10 @@ export const routesRouter = router({
       if (p.tunnelProviderId !== undefined) update.tunnelProviderId = p.tunnelProviderId
       if (p.oauthProxyProviderId !== undefined) update.oauthProxyProviderId = p.oauthProxyProviderId
       if (p.oauthProxyAllowlist !== undefined) update.oauthProxyAllowlist = p.oauthProxyAllowlist ? JSON.stringify(p.oauthProxyAllowlist) : null
+      if (p.stagingUpstreams !== undefined) update.stagingUpstreams = p.stagingUpstreams ? JSON.stringify(p.stagingUpstreams) : null
+      if (p.trafficSplitPct !== undefined) update.trafficSplitPct = p.trafficSplitPct
+      if (p.mirrorUpstream !== undefined) update.mirrorUpstream = p.mirrorUpstream
+      if (p.mirrorSampleRate !== undefined) update.mirrorSampleRate = p.mirrorSampleRate
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 

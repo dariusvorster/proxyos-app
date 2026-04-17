@@ -45,6 +45,10 @@ import { ddnsRouter } from './routers/ddns'
 import { tunnelProvidersRouter } from './routers/tunnelProviders'
 import { oauthProvidersRouter } from './routers/oauthProviders'
 import { wafRouter } from './routers/waf'
+import { secretsProvidersRouter } from './routers/secretsProviders'
+import { scheduledChangesRouter } from './routers/scheduledChanges'
+import { trafficReplayRouter } from './routers/trafficReplay'
+import { healthScoresRouter } from './routers/healthScores'
 
 const PKG_VERSION = '0.2.0'
 
@@ -96,6 +100,10 @@ export const appRouter = router({
   tunnelProviders: tunnelProvidersRouter,
   oauthProviders: oauthProvidersRouter,
   waf: wafRouter,
+  secretsProviders: secretsProvidersRouter,
+  scheduledChanges: scheduledChangesRouter,
+  trafficReplay: trafficReplayRouter,
+  healthScores: healthScoresRouter,
 })
 
 export type AppRouter = typeof appRouter

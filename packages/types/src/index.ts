@@ -146,6 +146,52 @@ export interface Route extends RouteInput {
   oauthProxyProviderId?: string | null
   oauthProxyAllowlist?: string[] | null
   tags?: string[]
+  // §3.14 Blue-green
+  stagingUpstreams?: UpstreamConfig[] | null
+  trafficSplitPct?: number | null  // 0-100, % sent to staging
+  // §3.15 Mirror / shadow
+  mirrorUpstream?: string | null
+  mirrorSampleRate?: number | null // 0-100
   createdAt: Date
   updatedAt: Date
+}
+
+// §3.16 Scheduled changes
+export type ScheduledChangeAction = 'enable' | 'disable' | 'update_upstream' | 'rollback'
+
+export interface ScheduledChange {
+  id: string
+  routeId: string
+  action: ScheduledChangeAction
+  payload: Record<string, unknown> | null
+  scheduledAt: Date
+  executedAt: Date | null
+  status: 'pending' | 'done' | 'failed' | 'cancelled'
+  error: string | null
+  createdAt: Date
+}
+
+// §3.18 Composite health score
+export interface RouteHealthScore {
+  routeId: string
+  score: number          // 0-100
+  uptimePct: number
+  p95Ms: number | null
+  errorRatePct: number
+  sloCompliant: boolean
+  calculatedAt: Date
+}
+
+// §3.13 Secrets providers
+export type SecretsProviderType = 'lockboxos' | 'vault' | 'env'
+
+export interface SecretsProvider {
+  id: string
+  name: string
+  type: SecretsProviderType
+  config: Record<string, string>
+  enabled: boolean
+  lastTestedAt: Date | null
+  testStatus: 'ok' | 'error' | 'unknown'
+  createdAt: Date
 }

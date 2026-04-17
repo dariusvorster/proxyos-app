@@ -742,4 +742,65 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V2P2_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+
+  // Phase 3 new tables
+  db.exec(`CREATE TABLE IF NOT EXISTS secrets_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    config TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_tested_at INTEGER,
+    test_status TEXT NOT NULL DEFAULT 'unknown',
+    created_at INTEGER NOT NULL
+  )`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS scheduled_changes (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    payload TEXT,
+    scheduled_at INTEGER NOT NULL,
+    executed_at INTEGER,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_changes_route_id ON scheduled_changes(route_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_scheduled_changes_scheduled_at ON scheduled_changes(scheduled_at, status)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS traffic_replay_logs (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    query TEXT,
+    headers TEXT,
+    body TEXT,
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    recorded_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_traffic_replay_logs_route_id ON traffic_replay_logs(route_id, recorded_at)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS route_health_scores (
+    route_id TEXT PRIMARY KEY REFERENCES routes(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL DEFAULT 100,
+    uptime_pct INTEGER NOT NULL DEFAULT 100,
+    p95_ms INTEGER,
+    error_rate_pct INTEGER NOT NULL DEFAULT 0,
+    slo_compliant INTEGER NOT NULL DEFAULT 1,
+    calculated_at INTEGER NOT NULL
+  )`)
+
+  // Phase 3 route column additions
+  const V3P3_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN staging_upstreams TEXT`,
+    `ALTER TABLE routes ADD COLUMN traffic_split_pct INTEGER`,
+    `ALTER TABLE routes ADD COLUMN mirror_upstream TEXT`,
+    `ALTER TABLE routes ADD COLUMN mirror_sample_rate INTEGER`,
+  ]
+  for (const stmt of V3P3_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

@@ -78,15 +78,40 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
     handlers.push({ handler: 'encode', encodings: { gzip: {}, zstd: {} } })
   }
 
+  // §3.15 Mirror / shadow traffic
+  if (route.mirrorUpstream) {
+    const sampleRate = route.mirrorSampleRate ?? 100
+    handlers.push({
+      handler: 'copy',
+      upstreams: [{ dial: stripScheme(route.mirrorUpstream) }],
+      ...(sampleRate < 100 ? { sample_rate: sampleRate / 100 } : {}),
+    })
+  }
+
+  // §3.14 Blue-green: merge staging upstreams with weight-based split
   const policy = route.lbPolicy ?? 'round_robin'
+  const blueGreenUpstreams =
+    route.stagingUpstreams && route.stagingUpstreams.length > 0 && route.trafficSplitPct != null
+      ? [
+          ...route.upstreams.map(u => ({
+            dial: stripScheme(u.address),
+            weight: Math.round((100 - route.trafficSplitPct!) * (u.weight ?? 1)),
+          })),
+          ...route.stagingUpstreams.map(u => ({
+            dial: stripScheme(u.address),
+            weight: Math.round(route.trafficSplitPct! * (u.weight ?? 1)),
+          })),
+        ]
+      : route.upstreams.map(u => ({
+          dial: stripScheme(u.address),
+          ...(u.weight !== undefined && u.weight !== 1 ? { weight: u.weight } : {}),
+        }))
+
   handlers.push({
     handler: 'reverse_proxy',
-    upstreams: route.upstreams.map((u) => ({
-      dial: stripScheme(u.address),
-      ...(u.weight !== undefined && u.weight !== 1 ? { weight: u.weight } : {}),
-    })),
-    ...(route.upstreams.length > 1
-      ? { load_balancing: { selection_policy: { policy } } }
+    upstreams: blueGreenUpstreams,
+    ...(blueGreenUpstreams.length > 1
+      ? { load_balancing: { selection_policy: { policy: blueGreenUpstreams.some(u => 'weight' in u) ? 'weighted_round_robin' : policy } } }
       : {}),
     ...(route.healthCheckEnabled
       ? {

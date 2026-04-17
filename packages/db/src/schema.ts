@@ -46,6 +46,14 @@ export const routes = sqliteTable('routes', {
   oauthProxyProviderId: text('oauth_proxy_provider_id'),
   oauthProxyAllowlist: text('oauth_proxy_allowlist'),
 
+  // §3.14 Blue-green
+  stagingUpstreams: text('staging_upstreams'),
+  trafficSplitPct: integer('traffic_split_pct'),
+
+  // §3.15 Mirror
+  mirrorUpstream: text('mirror_upstream'),
+  mirrorSampleRate: integer('mirror_sample_rate'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -828,3 +836,60 @@ export type DdnsRecordRow = typeof ddnsRecords.$inferSelect
 export type TunnelProviderRow = typeof tunnelProviders.$inferSelect
 export type WafEventRow = typeof wafEvents.$inferSelect
 export type OAuthProviderRow = typeof oauthProviders.$inferSelect
+
+// Phase 3 tables
+
+// §3.13 Secrets providers
+export const secretsProviders = sqliteTable('secrets_providers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'lockboxos' | 'vault' | 'env'
+  config: text('config').notNull(), // JSON
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  lastTestedAt: integer('last_tested_at', { mode: 'timestamp' }),
+  testStatus: text('test_status').notNull().default('unknown'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.16 Scheduled changes
+export const scheduledChanges = sqliteTable('scheduled_changes', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  action: text('action').notNull(), // 'enable' | 'disable' | 'update_upstream' | 'rollback'
+  payload: text('payload'), // JSON
+  scheduledAt: integer('scheduled_at', { mode: 'timestamp' }).notNull(),
+  executedAt: integer('executed_at', { mode: 'timestamp' }),
+  status: text('status').notNull().default('pending'), // 'pending' | 'done' | 'failed' | 'cancelled'
+  error: text('error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.17 Traffic replay
+export const trafficReplayLogs = sqliteTable('traffic_replay_logs', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  method: text('method').notNull(),
+  path: text('path').notNull(),
+  query: text('query'),
+  headers: text('headers'), // JSON
+  body: text('body'),
+  statusCode: integer('status_code'),
+  responseTimeMs: integer('response_time_ms'),
+  recordedAt: integer('recorded_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §3.18 Composite health scores
+export const routeHealthScores = sqliteTable('route_health_scores', {
+  routeId: text('route_id').primaryKey().references(() => routes.id, { onDelete: 'cascade' }),
+  score: integer('score').notNull().default(100),
+  uptimePct: integer('uptime_pct').notNull().default(100),
+  p95Ms: integer('p95_ms'),
+  errorRatePct: integer('error_rate_pct').notNull().default(0),
+  sloCompliant: integer('slo_compliant', { mode: 'boolean' }).notNull().default(true),
+  calculatedAt: integer('calculated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type SecretsProviderRow = typeof secretsProviders.$inferSelect
+export type ScheduledChangeRow = typeof scheduledChanges.$inferSelect
+export type TrafficReplayLogRow = typeof trafficReplayLogs.$inferSelect
+export type RouteHealthScoreRow = typeof routeHealthScores.$inferSelect
