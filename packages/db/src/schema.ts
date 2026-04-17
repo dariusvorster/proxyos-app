@@ -73,6 +73,7 @@ export const routes = sqliteTable('routes', {
   hstsEnabled: integer('hsts_enabled', { mode: 'boolean' }).notNull().default(false),
   hstsSubdomains: integer('hsts_subdomains', { mode: 'boolean' }).notNull().default(false),
   trustUpstreamHeaders: integer('trust_upstream_headers', { mode: 'boolean' }).notNull().default(false),
+  skipTlsVerify: integer('skip_tls_verify', { mode: 'boolean' }).notNull().default(false),
 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

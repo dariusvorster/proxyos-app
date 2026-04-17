@@ -68,6 +68,9 @@ export function buildCaddyRoute(route, opts = {}) {
                 },
             }
             : {}),
+        ...(route.skipTlsVerify
+            ? { transport: { protocol: 'http', tls: { insecure_skip_verify: true } } }
+            : {}),
     });
     const match = [{ host: [route.domain] }];
     if (route.ipAllowlist && route.ipAllowlist.length > 0) {

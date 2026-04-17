@@ -94,6 +94,8 @@ export default function ExposePage() {
   const [monitoringConnectionId, setMonitoringConnectionId] = useState('')
   const [monitorInterval, setMonitorInterval] = useState('60s')
 
+  const [skipTlsVerify, setSkipTlsVerify] = useState(false)
+
   // Custom config
   const [customJson, setCustomJson] = useState('')
   const [customJsonError, setCustomJsonError] = useState('')
@@ -452,11 +454,18 @@ export default function ExposePage() {
                 <Field label="Health check path"><Input value={healthPath} onChange={(e) => setHealthPath(e.target.value)} /></Field>
               </div>
             )}
+            <ToggleRow label="Skip upstream TLS verification" checked={skipTlsVerify} onChange={setSkipTlsVerify} />
+            {skipTlsVerify && (
+              <div style={{ paddingLeft: 20, fontSize: 11, color: 'var(--amber)', lineHeight: 1.5 }}>
+                Upstream TLS certificate will not be verified. Use for self-signed certs (e.g. Proxmox, IPMI).
+              </div>
+            )}
 
             <div style={{ marginTop: 16, borderTop: '0.5px solid var(--border)', paddingTop: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Custom Caddy config</div>
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.5 }}>
-                Paste a JSON array of Caddy handlers to inject before the reverse proxy. These are applied as-is — use Caddy&apos;s handler format.
+                JSON array of Caddy handlers injected before the reverse proxy. Use Caddy&apos;s JSON format — not nginx syntax.
+                Example: rewrite upstream redirects (proxy_redirect equivalent):
               </div>
               <textarea
                 value={customJson}
@@ -466,7 +475,7 @@ export default function ExposePage() {
                   try { const v = JSON.parse(e.target.value); if (!Array.isArray(v)) throw new Error('Must be a JSON array'); setCustomJsonError('') }
                   catch (err) { setCustomJsonError((err as Error).message) }
                 }}
-                placeholder={`[\n  { "handler": "headers", "response": { "set": { "X-Frame-Options": ["DENY"] } } }\n]`}
+                placeholder={`[\n  {\n    "handler": "headers",\n    "response": {\n      "replace": {\n        "Location": [{"search": "https://192.168.1.10:8006/", "replace": "https://pve.example.com/"}]\n      }\n    }\n  }\n]`}
                 style={{
                   width: '100%', minHeight: 120, fontFamily: 'var(--font-mono)', fontSize: 11,
                   background: 'var(--surface-2)', color: 'var(--text-primary)',

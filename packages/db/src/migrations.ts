@@ -854,4 +854,5 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V5_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN skip_tls_verify INTEGER NOT NULL DEFAULT 0`) } catch { /* column already exists */ }
 }

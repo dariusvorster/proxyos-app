@@ -89,6 +89,7 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     hstsEnabled: Boolean(row.hstsEnabled),
     hstsSubdomains: Boolean(row.hstsSubdomains),
     trustUpstreamHeaders: Boolean(row.trustUpstreamHeaders),
+    skipTlsVerify: Boolean(row.skipTlsVerify),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -435,6 +436,7 @@ export const routesRouter = router({
           hstsEnabled: z.boolean().optional(),
           hstsSubdomains: z.boolean().optional(),
           trustUpstreamHeaders: z.boolean().optional(),
+          skipTlsVerify: z.boolean().optional(),
         }),
       }),
     )
@@ -476,6 +478,7 @@ export const routesRouter = router({
       if (p.mxwatchDomain !== undefined) update.mxwatchDomain = p.mxwatchDomain
       if (p.forceSSL !== undefined) update.forceSSL = p.forceSSL
       if (p.hstsEnabled !== undefined) update.hstsEnabled = p.hstsEnabled
+      if (p.skipTlsVerify !== undefined) update.skipTlsVerify = p.skipTlsVerify
       if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
       if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
 

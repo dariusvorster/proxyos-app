@@ -146,6 +146,9 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
           },
         }
       : {}),
+    ...(route.skipTlsVerify
+      ? { transport: { protocol: 'http', tls: { insecure_skip_verify: true } } }
+      : {}),
   })
 
   const match: CaddyMatcher[] = [{ host: [route.domain] }]

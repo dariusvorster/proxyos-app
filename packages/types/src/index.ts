@@ -122,6 +122,7 @@ export interface RouteInput {
   websocketEnabled?: boolean
   http2Enabled?: boolean
   http3Enabled?: boolean
+  skipTlsVerify?: boolean
 }
 
 export type WafMode = 'off' | 'detection' | 'blocking'
