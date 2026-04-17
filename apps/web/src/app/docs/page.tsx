@@ -170,7 +170,7 @@ export default function DocsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 32, alignItems: 'start' }}>
 
           {/* TOC sidebar */}
-          <nav style={{ position: 'sticky', top: 0, maxHeight: 'calc(100vh - 60px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4, paddingBottom: 16 }}>
+          <nav style={{ position: 'sticky', top: 'var(--topbar-h)', maxHeight: 'calc(100vh - var(--topbar-h))', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4, paddingBottom: 16 }}>
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
