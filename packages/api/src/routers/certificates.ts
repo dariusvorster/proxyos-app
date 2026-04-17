@@ -1,9 +1,29 @@
 import { TRPCError } from '@trpc/server'
 import { and, count, eq, gte, isNull } from 'drizzle-orm'
+import { access } from 'fs/promises'
 import { z } from 'zod'
 import { certIssuanceLog, certificates, nanoid, routes } from '@proxyos/db'
 import type { Certificate, CertSource, CertStatus } from '@proxyos/types'
 import { publicProcedure, router } from '../trpc'
+
+const CADDY_STORAGE_ROOT = '/data/caddy/caddy/certificates'
+const CA_DIRS = [
+  'acme-v02.api.letsencrypt.org-directory',
+  'acme-staging-v02.api.letsencrypt.org-directory',
+  'zerossl',
+]
+
+async function caddyHasCert(domain: string): Promise<boolean> {
+  for (const ca of CA_DIRS) {
+    try {
+      await access(`${CADDY_STORAGE_ROOT}/${ca}/${domain}/${domain}.crt`)
+      return true
+    } catch {
+      // not found in this CA dir, try next
+    }
+  }
+  return false
+}
 
 function rowToCert(row: typeof certificates.$inferSelect): Certificate {
   return {
@@ -132,22 +152,24 @@ async function syncFromRoutes(db: import('@proxyos/db').Db): Promise<void> {
     if (r.tlsMode === 'off') continue
     const prior = byDomain.get(r.domain)
     const source = sourceFromTlsMode(r.tlsMode)
+    const hasActiveCert = await caddyHasCert(r.domain)
     if (!prior) {
       await db.insert(certificates).values({
         id: nanoid(),
         domain: r.domain,
         source,
-        status: 'provisioning',
+        status: hasActiveCert ? 'active' : 'provisioning',
         autoRenew: true,
         routeId: r.id,
         createdAt: now,
         updatedAt: now,
       })
-    } else if (prior.routeId !== r.id || prior.source !== source) {
-      await db
-        .update(certificates)
-        .set({ routeId: r.id, source, updatedAt: now })
-        .where(eq(certificates.id, prior.id))
+    } else {
+      const updates: Record<string, unknown> = { updatedAt: now }
+      if (prior.routeId !== r.id) updates.routeId = r.id
+      if (prior.source !== source) updates.source = source
+      if (hasActiveCert && prior.status === 'provisioning') updates.status = 'active'
+      await db.update(certificates).set(updates).where(eq(certificates.id, prior.id))
     }
   }
 
