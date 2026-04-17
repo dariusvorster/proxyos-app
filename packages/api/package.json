@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proxyos/alerts": "workspace:*",
     "@proxyos/billing": "workspace:*",
     "@proxyos/caddy": "workspace:*",
     "@proxyos/connect": "workspace:*",

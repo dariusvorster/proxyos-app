@@ -8,6 +8,7 @@ import {
   trafficMetrics,
 } from '@proxyos/db'
 import type { AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
+import { sendAlertNotifications } from './notify.js'
 
 const DEFAULT_COOLDOWN_MINUTES = 15
 
@@ -69,6 +70,9 @@ export async function evaluateOnce(): Promise<EvalResult> {
       await db.update(alertRules).set({ lastFiredAt: now }).where(eq(alertRules.id, rule.id))
       fired++
       console.log(`[proxyos] alert fired: ${rule.name} — ${fire.message}`)
+      void sendAlertNotifications({ ruleName: rule.name, message: fire.message, detail: fire.detail }).catch((err) => {
+        console.warn('[proxyos] alert notification failed:', err)
+      })
     }
   }
 

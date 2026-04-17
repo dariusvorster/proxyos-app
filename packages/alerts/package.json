@@ -13,9 +13,11 @@
   "dependencies": {
     "@proxyos/db": "workspace:*",
     "@proxyos/types": "workspace:*",
-    "drizzle-orm": "^0.36.4"
+    "drizzle-orm": "^0.36.4",
+    "nodemailer": "^6.9.16"
   },
   "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
     "typescript": "^5.6.3"
   }
 }

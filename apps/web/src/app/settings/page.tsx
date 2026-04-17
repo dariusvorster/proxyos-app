@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Badge, Button, Card, Checkbox, Input, Select, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -123,48 +123,95 @@ function GeneralSection() {
 }
 
 function AlertsSection() {
-  const [smtp, setSmtp] = useState({ host: '', port: '587', user: '', pass: '', from: '' })
+  const [smtp, setSmtp] = useState({ host: '', port: '587', secure: false, user: '', pass: '', from: '', to: '' })
   const [webhook, setWebhook] = useState('')
-  const [certDays, setCertDays] = useState('14')
-  const [errorPct, setErrorPct] = useState('5')
+  const [smtpMsg, setSmtpMsg] = useState('')
+  const [webhookMsg, setWebhookMsg] = useState('')
+
+  const config = trpc.alerts.getNotifyConfig.useQuery()
+  const saveSmtp = trpc.alerts.setSmtpConfig.useMutation()
+  const saveWebhook = trpc.alerts.setWebhookConfig.useMutation()
+  const testSmtp = trpc.alerts.testSmtp.useMutation()
+  const testWebhookMut = trpc.alerts.testWebhook.useMutation()
+
+  // Populate fields when config loads
+  useEffect(() => {
+    if (config.data?.smtp) {
+      const s = config.data.smtp
+      setSmtp({ host: s.host, port: String(s.port), secure: s.secure, user: s.user, pass: s.pass, from: s.from, to: s.to })
+    }
+    if (config.data?.webhookUrl) setWebhook(config.data.webhookUrl)
+  }, [config.data])
+
   return (
     <>
       <SectionCard title="Email (SMTP)" desc="SMTP config for alert emails.">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
           <Field label="Host"><Input value={smtp.host} onChange={(e) => setSmtp({ ...smtp, host: e.target.value })} placeholder="smtp.example.com" /></Field>
-          <Field label="Port"><Input value={smtp.port} onChange={(e) => setSmtp({ ...smtp, port: e.target.value })} /></Field>
+          <Field label="Port"><Input type="number" value={smtp.port} onChange={(e) => setSmtp({ ...smtp, port: e.target.value })} /></Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Field label="User"><Input value={smtp.user} onChange={(e) => setSmtp({ ...smtp, user: e.target.value })} /></Field>
           <Field label="Password"><Input type="password" value={smtp.pass} onChange={(e) => setSmtp({ ...smtp, pass: e.target.value })} /></Field>
         </div>
         <Field label="From address"><Input value={smtp.from} onChange={(e) => setSmtp({ ...smtp, from: e.target.value })} placeholder="alerts@example.com" /></Field>
+        <Field label="To address(es)"><Input value={smtp.to} onChange={(e) => setSmtp({ ...smtp, to: e.target.value })} placeholder="you@example.com, team@example.com" /></Field>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Toggle checked={smtp.secure} onChange={(v) => setSmtp({ ...smtp, secure: v })} />
+          <span style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--font-sans)' }}>Use TLS (port 465)</span>
+        </div>
+        {smtpMsg && <p style={{ fontSize: 11, color: smtpMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: 'var(--font-sans)', margin: 0 }}>{smtpMsg}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="primary" disabled>Save</Button>
-          <Button disabled>Send test email</Button>
+          <Button
+            variant="primary"
+            disabled={saveSmtp.isPending}
+            onClick={() => {
+              saveSmtp.mutate(
+                { host: smtp.host, port: Number(smtp.port), secure: smtp.secure, user: smtp.user, pass: smtp.pass, from: smtp.from, to: smtp.to },
+                { onSuccess: () => setSmtpMsg('Saved'), onError: (e) => setSmtpMsg(`Error: ${e.message}`) },
+              )
+            }}
+          >Save</Button>
+          <Button
+            disabled={testSmtp.isPending || !smtp.host || !smtp.to}
+            onClick={() => {
+              testSmtp.mutate(
+                { host: smtp.host, port: Number(smtp.port), secure: smtp.secure, user: smtp.user, pass: smtp.pass, from: smtp.from, to: smtp.to },
+                { onSuccess: () => setSmtpMsg('Test email sent'), onError: (e) => setSmtpMsg(`Error: ${e.message}`) },
+              )
+            }}
+          >Send test email</Button>
         </div>
       </SectionCard>
 
       <SectionCard title="Webhook" desc="Send alert payloads to any HTTP endpoint.">
         <Field label="URL"><Input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder="https://hooks.example.com/alert" /></Field>
-        <Field label="Events">
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Checkbox checked onChange={() => {}} label="upstream_down" />
-            <Checkbox checked onChange={() => {}} label="error_rate_spike" />
-            <Checkbox checked onChange={() => {}} label="cert_expiring" />
-            <Checkbox checked={false} onChange={() => {}} label="traffic_spike" />
-          </div>
-        </Field>
+        {webhookMsg && <p style={{ fontSize: 11, color: webhookMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: 'var(--font-sans)', margin: 0 }}>{webhookMsg}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="primary" disabled>Save</Button>
-          <Button disabled>Send test</Button>
+          <Button
+            variant="primary"
+            disabled={saveWebhook.isPending}
+            onClick={() => {
+              saveWebhook.mutate(
+                { url: webhook },
+                { onSuccess: () => setWebhookMsg('Saved'), onError: (e) => setWebhookMsg(`Error: ${e.message}`) },
+              )
+            }}
+          >Save</Button>
+          <Button
+            disabled={testWebhookMut.isPending || !webhook}
+            onClick={() => {
+              testWebhookMut.mutate(
+                { url: webhook },
+                { onSuccess: () => setWebhookMsg('Test sent'), onError: (e) => setWebhookMsg(`Error: ${e.message}`) },
+              )
+            }}
+          >Send test</Button>
         </div>
       </SectionCard>
 
       <SectionCard title="Thresholds" desc="Defaults applied to new alert rules.">
-        <Field label="Cert expiry warning (days)"><Input type="number" value={certDays} onChange={(e) => setCertDays(e.target.value)} /></Field>
-        <Field label="Error rate warning (%)"><Input type="number" value={errorPct} onChange={(e) => setErrorPct(e.target.value)} /></Field>
-        <Button variant="primary" disabled>Save</Button>
+        <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--font-sans)' }}>Configure per-rule thresholds when creating or editing alert rules.</div>
         <div style={{ marginTop: 8 }}>
           <Link href="/alerts" style={{ fontSize: 11, color: 'var(--pu-400)' }}>→ Manage alert rules</Link>
         </div>

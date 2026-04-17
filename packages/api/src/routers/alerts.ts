@@ -1,7 +1,9 @@
 import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { alertEvents, alertRules, auditLog, nanoid } from '@proxyos/db'
+import { alertEvents, alertRules, auditLog, nanoid, systemSettings } from '@proxyos/db'
 import type { AlertEvent, AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
+import { sendTestEmail, sendTestWebhook } from '@proxyos/alerts'
+import type { SmtpConfig } from '@proxyos/alerts'
 import { publicProcedure, router } from '../trpc'
 
 const alertTypes = ['error_rate_spike', 'latency_spike', 'cert_expiring', 'traffic_spike'] as const
@@ -142,5 +144,91 @@ export const alertsRouter = router({
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(alertEvents).orderBy(desc(alertEvents.firedAt)).limit(input.limit)
       return rows.map(rowToEvent)
+    }),
+
+  // ── Notification config ─────────────────────────────────────────────────────
+
+  getNotifyConfig: publicProcedure.query(async ({ ctx }) => {
+    const [smtpRow, webhookRow] = await Promise.all([
+      ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_smtp')).get(),
+      ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_webhook')).get(),
+    ])
+    let smtp: (SmtpConfig & { pass: string }) | null = null
+    if (smtpRow?.value) {
+      try {
+        const raw = JSON.parse(smtpRow.value) as SmtpConfig
+        smtp = { ...raw, pass: raw.pass ? '•••' : '' }
+      } catch { /* ignore */ }
+    }
+    return { smtp, webhookUrl: webhookRow?.value ?? null }
+  }),
+
+  setSmtpConfig: publicProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().int().min(1).max(65535).default(587),
+      secure: z.boolean().default(false),
+      user: z.string(),
+      pass: z.string(),
+      from: z.string(),
+      to: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // If pass is the redaction sentinel, keep existing password
+      let pass = input.pass
+      if (pass === '•••') {
+        const existing = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_smtp')).get()
+        if (existing?.value) {
+          try { pass = (JSON.parse(existing.value) as SmtpConfig).pass } catch { pass = '' }
+        }
+      }
+      const value = JSON.stringify({ ...input, pass })
+      const now = new Date()
+      await ctx.db.insert(systemSettings).values({ key: 'alert_smtp', value, updatedAt: now })
+        .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: now } })
+      return { ok: true }
+    }),
+
+  setWebhookConfig: publicProcedure
+    .input(z.object({ url: z.string().url().or(z.literal('')) }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date()
+      if (!input.url) {
+        await ctx.db.delete(systemSettings).where(eq(systemSettings.key, 'alert_webhook'))
+      } else {
+        await ctx.db.insert(systemSettings).values({ key: 'alert_webhook', value: input.url, updatedAt: now })
+          .onConflictDoUpdate({ target: systemSettings.key, set: { value: input.url, updatedAt: now } })
+      }
+      return { ok: true }
+    }),
+
+  testSmtp: publicProcedure
+    .input(z.object({
+      host: z.string().min(1),
+      port: z.number().int().min(1).max(65535),
+      secure: z.boolean(),
+      user: z.string(),
+      pass: z.string(),
+      from: z.string(),
+      to: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Resolve redacted pass from stored config
+      let pass = input.pass
+      if (pass === '•••') {
+        const existing = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_smtp')).get()
+        if (existing?.value) {
+          try { pass = (JSON.parse(existing.value) as SmtpConfig).pass } catch { pass = '' }
+        }
+      }
+      await sendTestEmail({ ...input, pass })
+      return { ok: true }
+    }),
+
+  testWebhook: publicProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      await sendTestWebhook(input.url)
+      return { ok: true }
     }),
 })

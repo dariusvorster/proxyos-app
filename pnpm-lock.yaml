@@ -127,7 +127,13 @@ importers:
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@types/better-sqlite3@7.6.13)(@types/react@18.3.28)(better-sqlite3@11.10.0)(react@19.2.5)
+      nodemailer:
+        specifier: ^6.9.16
+        version: 6.10.1
     devDependencies:
+      '@types/nodemailer':
+        specifier: ^6.4.17
+        version: 6.4.23
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -150,6 +156,9 @@ importers:
 
   packages/api:
     dependencies:
+      '@proxyos/alerts':
+        specifier: workspace:*
+        version: link:../alerts
       '@proxyos/billing':
         specifier: workspace:*
         version: link:../billing
@@ -815,6 +824,9 @@ packages:
   '@types/node@22.19.17':
     resolution: {integrity: sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==}
 
+  '@types/nodemailer@6.4.23':
+    resolution: {integrity: sha512-aFV3/NsYFLSx9mbb5gtirBSXJnAlrusoKNuPbxsASWc7vrKLmIrTQRpdcxNcSFL3VW2A2XpeLEavwb2qMi6nlQ==}
+
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
 
@@ -1077,6 +1089,10 @@ packages:
   node-abi@3.89.0:
     resolution: {integrity: sha512-6u9UwL0HlAl21+agMN3YAMXcKByMqwGx+pq+P76vii5f7hTPtKDp08/H9py6DY+cfDw7kQNTGEj/rly3IgbNQA==}
     engines: {node: '>=10'}
+
+  nodemailer@6.10.1:
+    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
+    engines: {node: '>=6.0.0'}
 
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
@@ -1528,6 +1544,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/nodemailer@6.4.23':
+    dependencies:
+      '@types/node': 22.19.17
+
   '@types/prop-types@15.7.15': {}
 
   '@types/react-dom@18.3.7(@types/react@18.3.28)':
@@ -1729,6 +1749,8 @@ snapshots:
   node-abi@3.89.0:
     dependencies:
       semver: 7.7.4
+
+  nodemailer@6.10.1: {}
 
   once@1.4.0:
     dependencies:
