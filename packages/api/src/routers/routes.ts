@@ -2,8 +2,9 @@ import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
-import { dnsProviders, nanoid, routes, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { dnsProviders, nanoid, routes, routeSecurity, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
+import { parseGeoIPConfig } from '../security/geoip'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 
@@ -78,9 +79,11 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
     const row = await ctx.db.select().from(dnsProviders).where(eq(dnsProviders.id, route.tlsDnsProviderId)).get()
     if (row) dnsProvider = rowToDnsProvider(row)
   }
+  const secRow = await ctx.db.select().from(routeSecurity).where(eq(routeSecurity.routeId, route.id)).get()
+  const geoipConfig = parseGeoIPConfig(secRow?.geoipConfig)
   const tlsPolicy = buildTlsPolicy(route, dnsProvider)
   if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-  await ctx.caddy.updateRoute(route.id, buildCaddyRoute(route, { ssoProvider, dnsProvider }))
+  await ctx.caddy.updateRoute(route.id, buildCaddyRoute(route, { ssoProvider, dnsProvider, geoipConfig }))
 }
 
 function rowToDnsProvider(row: typeof dnsProviders.$inferSelect): DnsProvider {

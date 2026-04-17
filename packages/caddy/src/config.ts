@@ -1,13 +1,35 @@
 import type { DnsProvider, Route, SSOProvider } from '@proxyos/types'
 import type { CaddyHandler, CaddyMatcher, CaddyRoute } from './types'
 
+export interface GeoIPConfig {
+  mode: 'allowlist' | 'blocklist'
+  countries: string[]
+  action: 'block' | 'challenge'
+}
+
 export interface BuildOptions {
   ssoProvider?: SSOProvider | null
   dnsProvider?: DnsProvider | null
+  geoipConfig?: GeoIPConfig | null
 }
 
 export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRoute {
   const handlers: CaddyHandler[] = []
+
+  if (opts.geoipConfig && opts.geoipConfig.countries.length > 0) {
+    const { mode, countries } = opts.geoipConfig
+    const geoMatch = mode === 'blocklist'
+      ? [{ geoip: { countries } }]
+      : [{ not: [{ geoip: { countries } }] }]
+    handlers.push({
+      handler: 'subroute',
+      routes: [{
+        match: geoMatch,
+        handle: [{ handler: 'static_response', status_code: 403, body: mode === 'blocklist' ? 'Access denied by geographic restriction.' : 'Access restricted to specific regions.' }],
+        terminal: true,
+      }],
+    })
+  }
 
   if (route.ssoEnabled && opts.ssoProvider) {
     handlers.push({
