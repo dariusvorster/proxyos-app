@@ -197,6 +197,34 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
   )
 }
 
+function ChainNodes({ routeId }: { routeId: string }) {
+  const chain = trpc.chain.getForRoute.useQuery({ routeId }, { refetchInterval: 30_000 })
+  if (!chain.data || chain.data.nodes.length === 0) return <span style={{ fontSize: 11, color: 'var(--text3)' }}>No chain configured</span>
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto', padding: '6px 0' }}>
+      {chain.data.nodes.map((node, i) => {
+        const statusColor = node.status === 'ok' ? 'var(--green)' : node.status === 'warning' ? 'var(--amber)' : 'var(--red)'
+        return (
+          <div key={node.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            {i > 0 && <div style={{ height: 1, width: 20, minWidth: 16, background: 'var(--border2)', marginTop: -18, flexShrink: 0 }} />}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 56, padding: '0 2px' }}>
+              <div style={{ position: 'relative' }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--surf2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 600, color: 'var(--text2)' }}>
+                  {(node.label ?? '?')[0]?.toUpperCase()}
+                </div>
+                <div style={{ position: 'absolute', top: -2, right: -2, width: 6, height: 6, borderRadius: '50%', background: statusColor, border: '1px solid var(--surf)' }} />
+              </div>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', textAlign: 'center', whiteSpace: 'nowrap', maxWidth: 52, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {node.label}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
@@ -343,6 +371,9 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="WebSocket" v={<Toggle checked={!!route.websocketEnabled} onChange={() => {}} disabled />} />
         <Row k="HTTP/3" v={<Toggle checked={!!route.http3Enabled} onChange={() => {}} disabled />} />
         <Row k="Health path" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.healthCheckPath ?? '/'}</span>} />
+      </Section>
+      <Section title="Service chain">
+        <ChainNodes routeId={route.id} />
       </Section>
       <Section title="Traffic (24h)">
         <Sparkline values={(summary.data?.buckets ?? []).map((b) => b.requests)} width={380} height={60} />

@@ -142,7 +142,7 @@ export default function CertificatesPage() {
                 const tone = days == null ? 'amber' : days < 8 ? 'red' : days < 30 ? 'amber' : 'green'
                 const pct = days == null ? 100 : Math.max(0, Math.min(100, (days / 90) * 100))
                 return (
-                  <tr key={c.id} style={tone === 'red' ? { background: 'rgba(226,75,74,0.04)' } : undefined}>
+                  <tr key={c.id} style={tone === 'red' ? { background: 'var(--red-dim)' } : tone === 'amber' ? { background: 'var(--amber-dim)' } : undefined}>
                     <td style={{ ...td, fontWeight: 500 }}>{c.domain}</td>
                     <td style={{ ...td, color: 'var(--text-secondary)' }}>{issuerLabel(c.source)}</td>
                     <td style={td}><Badge tone={c.source === 'internal' ? 'amber' : c.source === 'custom' ? 'neutral' : 'green'}>{c.source}</Badge></td>

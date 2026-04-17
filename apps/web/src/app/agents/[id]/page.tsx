@@ -1,10 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { use, type ReactNode } from 'react'
+import { use, useState, type CSSProperties, type ReactNode } from 'react'
 import { Badge, Button, Card, Dot, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+
+type Tab = 'routes' | 'metrics' | 'health' | 'certificates' | 'logs' | 'settings'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'routes', label: 'Routes' },
+  { id: 'metrics', label: 'Metrics' },
+  { id: 'health', label: 'Health' },
+  { id: 'certificates', label: 'Certificates' },
+  { id: 'logs', label: 'Logs' },
+  { id: 'settings', label: 'Settings' },
+]
 
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -34,6 +45,20 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   )
 
   const a = agent.data
+  const [tab, setTab] = useState<Tab>('routes')
+
+  const tabStyle = (active: boolean): CSSProperties => ({
+    padding: '10px 16px',
+    fontSize: 13,
+    fontFamily: 'var(--font-sans)',
+    fontWeight: active ? 500 : 400,
+    color: active ? 'var(--text)' : 'var(--text2)',
+    background: 'transparent',
+    border: 'none',
+    borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+    cursor: 'pointer',
+    marginBottom: -1,
+  })
 
   return (
     <>
@@ -52,79 +77,138 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
           </Button>
         </div>
       } />
+
+      {/* Tab bar */}
+      <div style={{ borderBottom: '1px solid var(--border)', display: 'flex', gap: 0, background: 'var(--surf)', padding: '0 24px' }}>
+        {TABS.map((t) => (
+          <button key={t.id} style={tabStyle(tab === t.id)} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <PageContent>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {/* Status card */}
-          <Card header={<span>Status</span>}>
-            <div style={{ display: 'grid', gap: 8, fontSize: 12 }}>
-              {[
-                ['Status', <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Dot tone={a.status === 'online' ? 'green' : a.status === 'error' ? 'red' : 'neutral'} />
-                  {a.status}
-                </span>],
-                ['Site', a.siteTag ?? '—'],
-                ['Description', a.description ?? '—'],
-                ['Caddy version', health.data?.caddyVersion ?? '—'],
-                ['Last seen', a.lastSeen ? new Date(a.lastSeen).toLocaleString() : 'never'],
-                ['Token expires', new Date(a.tokenExpiresAt).toLocaleDateString()],
-                ['Routes', a.routeCount],
-                ['Certs', a.certCount],
-              ].map(([k, v]) => (
-                <div key={String(k)} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
-                  <span style={{ color: 'var(--text-dim)' }}>{k}</span>
-                  <span style={{ color: 'var(--text-primary)' }}>{v as ReactNode}</span>
-                </div>
-              ))}
+        {tab === 'routes' && (
+          <Card header={<span>Routes on this agent</span>}>
+            <div style={{ fontSize: 12, color: 'var(--text2)', padding: '8px 0' }}>
+              This agent manages <strong>{a.routeCount}</strong> route{a.routeCount !== 1 ? 's' : ''}.
             </div>
           </Card>
+        )}
 
-          {/* Health summary */}
-          <Card header={<span>Health summary</span>}>
-            {!health.data
-              ? <div style={{ fontSize: 12, color: 'var(--text-ghost)' }}>No health data yet</div>
+        {tab === 'metrics' && (
+          <Card header={<span>Route metrics (last 60 min)</span>}>
+            {!metrics.data || metrics.data.length === 0
+              ? <div style={{ fontSize: 12, color: 'var(--text3)', padding: '16px 0' }}>No metrics collected yet. Metrics arrive every 30s after the agent connects.</div>
               : (
-                <div style={{ display: 'grid', gap: 8, fontSize: 12 }}>
-                  {[
-                    ['Caddy version', health.data.caddyVersion ?? '—'],
-                    ['Active routes', health.data.routeCount],
-                    ['Certificates', health.data.certCount],
-                    ['Last seen', health.data.lastSeen ? new Date(health.data.lastSeen).toLocaleString() : 'never'],
-                  ].map(([k, v]) => (
-                    <div key={String(k)} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
-                      <span style={{ color: 'var(--text-dim)' }}>{k}</span>
-                      <span style={{ color: 'var(--text-primary)' }}>{String(v)}</span>
-                    </div>
-                  ))}
-                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr>{['Route ID', 'Bucket', 'Requests', 'Errors', 'p95 ms', 'Bytes in', 'Bytes out'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {metrics.data.map((m, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                        <td style={td}><code style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>{m.routeId.slice(0, 8)}</code></td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>{new Date(m.bucket * 1000).toLocaleTimeString()}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{m.reqCount}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{m.errorCount}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{m.p95Ms ?? '—'}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{m.bytesIn.toLocaleString()}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{m.bytesOut.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
           </Card>
-        </div>
+        )}
 
-        {/* Metrics */}
-        <Card header={<span>Route metrics (last 60 min)</span>} style={{ marginTop: 16 }}>
-          {!metrics.data || metrics.data.length === 0
-            ? <div style={{ fontSize: 12, color: 'var(--text-ghost)' }}>No metrics collected yet. Metrics arrive every 30s after the agent connects.</div>
-            : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                <thead>
-                  <tr>{['Route ID', 'Bucket', 'Requests', 'Errors', 'p95 ms', 'Bytes in', 'Bytes out'].map(h => <th key={h} style={th}>{h}</th>)}</tr>
-                </thead>
-                <tbody>
-                  {metrics.data.map((m, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={td}><code style={{ fontSize: 10 }}>{m.routeId.slice(0, 8)}</code></td>
-                      <td style={td}>{new Date(m.bucket * 1000).toLocaleTimeString()}</td>
-                      <td style={td}>{m.reqCount}</td>
-                      <td style={td}>{m.errorCount}</td>
-                      <td style={td}>{m.p95Ms ?? '—'}</td>
-                      <td style={td}>{m.bytesIn.toLocaleString()}</td>
-                      <td style={td}>{m.bytesOut.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-        </Card>
+        {tab === 'health' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card header={<span>Agent status</span>}>
+              <div style={{ display: 'grid', gap: 8, fontSize: 12 }}>
+                {([
+                  ['Status', <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Dot tone={a.status === 'online' ? 'green' : a.status === 'error' ? 'red' : 'neutral'} />
+                    {a.status}
+                  </span>],
+                  ['Site', a.siteTag ?? '—'],
+                  ['Last seen', a.lastSeen ? new Date(a.lastSeen).toLocaleString() : 'never'],
+                  ['Token expires', new Date(a.tokenExpiresAt).toLocaleDateString()],
+                ] as [string, ReactNode][]).map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                    <span style={{ color: 'var(--text2)' }}>{k}</span>
+                    <span>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card header={<span>Caddy health</span>}>
+              {!health.data
+                ? <div style={{ fontSize: 12, color: 'var(--text3)' }}>No health data yet</div>
+                : (
+                  <div style={{ display: 'grid', gap: 8, fontSize: 12 }}>
+                    {([
+                      ['Caddy version', health.data.caddyVersion ?? '—'],
+                      ['Active routes', String(health.data.routeCount)],
+                      ['Certificates', String(health.data.certCount)],
+                      ['Last seen', health.data.lastSeen ? new Date(health.data.lastSeen).toLocaleString() : 'never'],
+                    ] as [string, string][]).map(([k, v]) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                        <span style={{ color: 'var(--text2)' }}>{k}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </Card>
+          </div>
+        )}
+
+        {tab === 'certificates' && (
+          <Card header={<span>Certificates — {a.certCount} total</span>}>
+            <div style={{ fontSize: 12, color: 'var(--text2)', padding: '8px 0' }}>
+              Per-certificate detail requires agent reporting. <Link href="/certificates" style={{ color: 'var(--accent)' }}>View all certificates →</Link>
+            </div>
+          </Card>
+        )}
+
+        {tab === 'logs' && (
+          <Card header={<span>Agent logs</span>}>
+            <div style={{ fontSize: 12, color: 'var(--text2)', padding: '8px 0' }}>
+              Live log streaming from <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{a.name}</code> is not yet available.
+            </div>
+          </Card>
+        )}
+
+        {tab === 'settings' && (
+          <Card header={<span>Agent settings</span>}>
+            <div style={{ display: 'grid', gap: 10, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                <span style={{ color: 'var(--text2)' }}>Name</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{a.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                <span style={{ color: 'var(--text2)' }}>Description</span>
+                <span>{a.description ?? '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                <span style={{ color: 'var(--text2)' }}>Site tag</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{a.siteTag ?? '—'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <Button variant="ghost" style={{ color: 'var(--amber)' }}
+                  onClick={() => { if (confirm('Revoke this agent token?')) revokeMut.mutate({ id }) }}>
+                  Revoke token
+                </Button>
+                <Button variant="ghost" style={{ color: 'var(--red)' }}
+                  onClick={() => { if (confirm('Delete this agent permanently?')) deleteMut.mutate({ id }) }}>
+                  Delete agent
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
       </PageContent>
     </>
   )

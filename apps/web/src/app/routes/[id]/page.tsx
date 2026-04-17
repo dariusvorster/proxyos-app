@@ -86,42 +86,58 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             }
             style={{ marginBottom: 8 }}
           >
-            <div style={{ display: 'flex', gap: 0, alignItems: 'center', flexWrap: 'wrap' }}>
-              {chain.data.nodes.map((node, i) => (
-                <div key={node.id} style={{ display: 'flex', alignItems: 'center' }}>
-                  {i > 0 && <span style={{ color: 'var(--text-ghost)', margin: '0 6px', fontSize: 12 }}>→</span>}
-                  <div style={{
-                    padding: '6px 10px', borderRadius: 6, fontSize: 11,
-                    background: 'var(--surface-2)',
-                    border: `1px solid ${node.status === 'ok' ? 'var(--border)' : node.status === 'warning' ? 'color-mix(in srgb, var(--amber) 30%, transparent)' : 'color-mix(in srgb, var(--red) 30%, transparent)'}`,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                      <Dot tone={node.status === 'ok' ? 'green' : node.status === 'warning' ? 'amber' : 'red'} />
-                      <span style={{ fontWeight: 600 }}>{node.label}</span>
-                      {node.provider && (
-                        <span style={{ fontSize: 9, color: 'var(--text-ghost)', textTransform: 'uppercase' }}>
-                          {node.provider}
-                        </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto', padding: '10px 0' }}>
+              {chain.data.nodes.map((node, i) => {
+                const statusColor = node.status === 'ok' ? 'var(--green)' : node.status === 'warning' ? 'var(--amber)' : 'var(--red)'
+                return (
+                  <div key={node.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                    {i > 0 && (
+                      <div style={{
+                        height: 1,
+                        flex: 1,
+                        minWidth: 16,
+                        width: 24,
+                        background: 'var(--border2)',
+                        marginTop: -18,
+                        flexShrink: 0,
+                      }} />
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 64, padding: '0 4px' }}>
+                      <div style={{ position: 'relative' }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--surf2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 9, fontWeight: 600, color: 'var(--text2)',
+                          fontFamily: 'var(--font-sans)',
+                          border: '1px solid var(--border)',
+                        }}>
+                          {(node.label ?? '?')[0]?.toUpperCase()}
+                        </div>
+                        <div style={{
+                          position: 'absolute', top: -2, right: -2,
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: statusColor,
+                          border: '1px solid var(--surf)',
+                        }} />
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', textAlign: 'center', whiteSpace: 'nowrap', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {node.label}
+                      </span>
+                      {node.warning && (
+                        <span style={{ fontSize: 9, color: 'var(--amber)', textAlign: 'center' }}>⚠</span>
+                      )}
+                      {node.nodeType === 'dns' && (node.status === 'error' || node.status === 'warning') && (
+                        <Button variant="primary" style={{ fontSize: 9, padding: '1px 6px' }}
+                          onClick={() => fixDns.mutate({ routeId: id })}
+                          disabled={fixDns.isPending}>
+                          {fixDns.isPending ? '…' : 'Fix'}
+                        </Button>
                       )}
                     </div>
-                    {node.detail && (
-                      <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                        {node.detail}
-                      </div>
-                    )}
-                    {node.warning && (
-                      <div style={{ fontSize: 10, color: 'var(--amber)', marginTop: 2 }}>⚠ {node.warning}</div>
-                    )}
-                    {node.nodeType === 'dns' && (node.status === 'error' || node.status === 'warning') && (
-                      <Button variant="primary" style={{ fontSize: 10, padding: '2px 8px', marginTop: 4 }}
-                        onClick={() => fixDns.mutate({ routeId: id })}
-                        disabled={fixDns.isPending}>
-                        {fixDns.isPending ? 'Fixing…' : 'Fix DNS'}
-                      </Button>
-                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Debug results */}

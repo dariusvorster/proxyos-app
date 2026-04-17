@@ -39,10 +39,11 @@ export default function SettingsPage() {
                 style={{
                   textAlign: 'left',
                   padding: '8px 12px',
-                  background: active === s.id ? 'rgba(124,111,240,0.15)' : 'transparent',
-                  color: active === s.id ? 'var(--text-primary)' : 'var(--text-dim)',
+                  background: active === s.id ? 'var(--accent-dim)' : 'transparent',
+                  color: active === s.id ? 'var(--accent-dark)' : 'var(--text2)',
                   border: 0,
-                  borderRadius: 6,
+                  borderLeft: active === s.id ? '2px solid var(--accent)' : '2px solid transparent',
+                  borderRadius: 0,
                   fontSize: 12,
                   fontFamily: 'inherit',
                   cursor: 'pointer',
@@ -327,22 +328,40 @@ function ExportSection() {
   )
 }
 
+function DangerCard({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--red-dim)',
+      border: '1px solid var(--red-border)',
+      borderRadius: 'var(--radius)',
+      padding: '16px 18px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)', fontFamily: 'var(--font-sans)' }}>{title}</div>
+      {desc && <div style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--font-sans)' }}>{desc}</div>}
+      {children}
+    </div>
+  )
+}
+
 function DangerSection() {
   const [confirm, setConfirm] = useState('')
   return (
     <>
-      <SectionCard title="Reset Caddy config" desc="Rebuilds Caddy's running config from the ProxyOS database. Useful if Caddy has drifted.">
+      <DangerCard title="Reset Caddy config" desc="Rebuilds Caddy's running config from the ProxyOS database. Useful if Caddy has drifted.">
         <Button variant="danger" disabled>Reset Caddy config</Button>
-      </SectionCard>
-      <SectionCard title="Wipe all routes" desc="Deletes every route + its Caddy entry. Cannot be undone.">
+      </DangerCard>
+      <DangerCard title="Wipe all routes" desc="Deletes every route + its Caddy entry. Cannot be undone.">
         <Field label="Type DELETE to confirm">
-          <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" />
+          <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="DELETE" style={{ fontFamily: 'var(--font-mono)' }} />
         </Field>
         <Button variant="danger" disabled={confirm !== 'DELETE'}>Wipe routes</Button>
-      </SectionCard>
-      <SectionCard title="Factory reset" desc="Wipes routes, SSO, DNS, alerts, audit, Caddy state. Container restart required.">
+      </DangerCard>
+      <DangerCard title="Factory reset" desc="Wipes routes, SSO, DNS, alerts, audit, Caddy state. Container restart required.">
         <Button variant="danger" disabled>Factory reset</Button>
-      </SectionCard>
+      </DangerCard>
     </>
   )
 }

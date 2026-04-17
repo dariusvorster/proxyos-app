@@ -19,17 +19,39 @@ export default function AgentsPage() {
         </Link>
       } />
       <PageContent>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-          {[
-            { label: 'Total agents', value: total },
-            { label: 'Online', value: online },
-            { label: 'Offline', value: total - online },
-          ].map(c => (
-            <Card key={c.label}>
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.label}</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{c.value}</div>
-            </Card>
-          ))}
+        {/* Federation health banner */}
+        <div style={{
+          background: 'var(--surf)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '16px 20px',
+          display: 'flex',
+          gap: 32,
+          alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Agents online</div>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 28, color: 'var(--text)' }}>{online}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 28, color: 'var(--text3)' }}> / {total}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Total routes</div>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 28, color: 'var(--text)' }}>
+              {list.data?.reduce((sum, a) => sum + (a.routeCount ?? 0), 0) ?? 0}
+            </span>
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {total - online > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--amber-dim)', border: '1px solid var(--amber-border)', borderRadius: 'var(--radius-sm)', padding: '3px 8px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--amber)' }}>
+                {total - online} offline
+              </span>
+            )}
+            {total > 0 && total === online && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--green-dim)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius-sm)', padding: '3px 8px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--green)' }}>
+                All online
+              </span>
+            )}
+          </div>
         </div>
 
         <Card header={<span>Agent fleet</span>}>

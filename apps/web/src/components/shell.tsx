@@ -363,8 +363,10 @@ export function Topbar({
   actions?: ReactNode
   banner?: ReactNode
 }) {
+  const [syncTime, setSyncTime] = useState('')
   useEffect(() => {
-    if (typeof document !== 'undefined') document.title = `ProxyOS v3.1 — ${title}`
+    if (typeof document !== 'undefined') document.title = `ProxyOS — ${title}`
+    setSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
   }, [title])
   return (
     <>
@@ -384,11 +386,19 @@ export function Topbar({
       >
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 13 }}>
-          <span style={{ color: 'var(--text2)' }}>ProxyOS</span>
+          <span style={{ color: 'var(--text2)' }}>Dashboard</span>
           <span style={{ color: 'var(--text3)' }}>/</span>
           <span style={{ fontWeight: 500, color: 'var(--text)' }}>{title}</span>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>{actions}</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {syncTime && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>{syncTime}</span>
+            </div>
+          )}
+          {actions}
+        </div>
       </header>
       {banner}
     </>
