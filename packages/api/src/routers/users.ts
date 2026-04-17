@@ -228,8 +228,8 @@ export const usersRouter = router({
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       const secret = generateTotpSecret()
       const uri = buildOtpAuthUri(secret, u.email)
-      const qrDataUrl = await QRCode.toDataURL(uri, { width: 200, margin: 2 })
-      return { secret, uri, qrDataUrl }
+      const qrSvg = await QRCode.toString(uri, { type: 'svg', width: 200, margin: 2 })
+      return { secret, uri, qrSvg }
     }),
 
   verifyAndEnableTotp: protectedProcedure

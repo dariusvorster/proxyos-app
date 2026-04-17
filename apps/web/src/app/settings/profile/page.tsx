@@ -12,7 +12,7 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
   const [step, setStep] = useState<'idle' | 'setup'>('idle')
   const [secret, setSecret] = useState('')
   const [uri, setUri] = useState('')
-  const [qrDataUrl, setQrDataUrl] = useState('')
+  const [qrSvg, setQrSvg] = useState('')
   const [code, setCode] = useState('')
   const [setupError, setSetupError] = useState<string | null>(null)
   const [showDisable, setShowDisable] = useState(false)
@@ -30,7 +30,7 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
       const res = await setupTotp.mutateAsync({ userId })
       setSecret(res.secret)
       setUri(res.uri)
-      setQrDataUrl(res.qrDataUrl)
+      setQrSvg(res.qrSvg)
       setCode('')
       setStep('setup')
     } catch (err: unknown) {
@@ -120,10 +120,10 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
           Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.), or enter the secret key manually.
         </div>
-        {qrDataUrl && (
+        {qrSvg && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
             <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--border)', display: 'inline-block', lineHeight: 0 }}>
-              <img src={qrDataUrl} alt="TOTP QR code" width={176} height={176} />
+              <img src={`data:image/svg+xml;base64,${btoa(qrSvg)}`} alt="TOTP QR code" width={200} height={200} />
             </div>
           </div>
         )}
