@@ -197,7 +197,13 @@ class NetworkDiscoveryService {
     async syncOnce() {
         const config = await loadConfig(this.defaultSocketPath);
         if (!config.enabled || !this.selfContainerId) return;
-        const allNetworks = await dockerRequest(config.socketPath, 'GET', '/networks');
+        const summaries = await dockerRequest(config.socketPath, 'GET', '/networks');
+        const inspectResults = await Promise.allSettled(
+            summaries.map(s => dockerRequest(config.socketPath, 'GET', `/networks/${s.Id}`)),
+        );
+        const allNetworks = inspectResults.map((r, i) =>
+            r.status === 'fulfilled' ? r.value : (console.warn(`[discovery] inspect failed for ${summaries[i].Name}: ${r.reason}`), summaries[i]),
+        );
         const relevant = filterRelevant(allNetworks, config.excluded);
         const currentlyJoined = networksAlreadyJoined(allNetworks, this.selfContainerId);
         const desiredIds = new Set(relevant.map(n => n.Id));

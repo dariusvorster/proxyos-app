@@ -248,7 +248,19 @@ class NetworkDiscoveryService {
     const config = await loadConfig(this.defaultSocketPath)
     if (!config.enabled || !this.selfContainerId) return
 
-    const allNetworks = await dockerRequest<DockerNetwork[]>(config.socketPath, 'GET', '/networks')
+    // GET /networks returns summaries only — Containers field is empty on list.
+    // Must inspect each network individually to get real container membership.
+    const summaries = await dockerRequest<DockerNetwork[]>(config.socketPath, 'GET', '/networks')
+    const inspectResults = await Promise.allSettled(
+      summaries.map(s => dockerRequest<DockerNetwork>(config.socketPath, 'GET', `/networks/${s.Id}`)),
+    )
+    const allNetworks: DockerNetwork[] = inspectResults.map((r, i) => {
+      if (r.status === 'fulfilled') return r.value
+      const summary = summaries[i]!
+      console.warn(`[discovery] inspect failed for ${summary.Name}: ${(r as PromiseRejectedResult).reason}`)
+      return summary
+    })
+
     const relevant = filterRelevant(allNetworks, config.excluded)
     const currentlyJoined = networksAlreadyJoined(allNetworks, this.selfContainerId)
 
