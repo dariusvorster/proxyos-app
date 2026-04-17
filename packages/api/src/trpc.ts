@@ -16,6 +16,7 @@ export interface Context {
   session: Session | null
   tokenScopes: string[] | null
   resHeaders: Headers
+  clientIp: string
 }
 
 export async function createContext({ req, resHeaders }: { req: Request; resHeaders: Headers }): Promise<Context> {
@@ -30,7 +31,12 @@ export async function createContext({ req, resHeaders }: { req: Request; resHead
     if (resolved) tokenScopes = resolved.scopes
   }
 
-  return { db, caddy: new CaddyClient(), session, tokenScopes, resHeaders }
+  const clientIp =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+
+  return { db, caddy: new CaddyClient(), session, tokenScopes, resHeaders, clientIp }
 }
 
 const t = initTRPC.context<Context>().create({ transformer: superjson })

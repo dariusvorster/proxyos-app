@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { hash as bcryptHash, compare as bcryptCompare } from 'bcryptjs'
 import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
@@ -7,6 +8,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from '../
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
 import { encrypt, decrypt } from '../crypto'
+import { recordFailure, isBlocked, clearLimit } from '../rateLimiter'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, message: string, detail?: Record<string, unknown>, userId?: string) {
@@ -15,8 +17,23 @@ function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, mes
 
 const ROLES = ['admin', 'operator', 'viewer'] as const
 
-function hashPassword(pw: string): string {
+/** Legacy SHA-256 hash — used only for migration detection */
+function sha256Hash(pw: string): string {
   return createHash('sha256').update(pw).digest('hex')
+}
+
+/** Returns true if the stored hash is a legacy SHA-256 hex string (not bcrypt) */
+function isLegacyHash(hash: string): boolean {
+  return /^[a-f0-9]{64}$/.test(hash)
+}
+
+async function hashPassword(pw: string): Promise<string> {
+  return bcryptHash(pw, 12)
+}
+
+async function verifyPassword(pw: string, stored: string): Promise<boolean> {
+  if (isLegacyHash(stored)) return sha256Hash(pw) === stored
+  return bcryptCompare(pw, stored)
 }
 
 // ─── Dashboard SSO config ─────────────────────────────────────────────────────
@@ -37,10 +54,33 @@ export const usersRouter = router({
   login: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string(), totpCode: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
+      // Rate limit: 5 failures per email, 20 per IP within 15 minutes
+      const emailKey = `email:${input.email}`
+      const ipKey = `ip:${ctx.clientIp}`
+      const emailBlock = isBlocked(emailKey)
+      const ipBlock = isBlocked(ipKey)
+      if (!emailBlock.allowed || !ipBlock.allowed) {
+        const secs = Math.max(emailBlock.retryAfterSeconds ?? 0, ipBlock.retryAfterSeconds ?? 0)
+        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: `Too many failed attempts. Try again in ${Math.ceil(secs / 60)} minute(s).` })
+      }
+
       const u = await ctx.db.select().from(users).where(eq(users.email, input.email)).get()
-      if (!u || !u.passwordHash || u.passwordHash !== hashPassword(input.password)) {
-        void syslog(ctx.db, 'warn', 'auth', `Failed login attempt`, { email: input.email })
+      const passwordOk = u?.passwordHash ? await verifyPassword(input.password, u.passwordHash) : false
+      if (!u || !passwordOk) {
+        recordFailure(emailKey, 5)
+        recordFailure(ipKey, 20)
+        void syslog(ctx.db, 'warn', 'auth', `Failed login attempt`, { email: input.email, ip: ctx.clientIp })
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' })
+      }
+
+      // Clear rate limit counters on success
+      clearLimit(emailKey)
+      clearLimit(ipKey)
+
+      // Transparently upgrade legacy SHA-256 hashes to bcrypt on successful login
+      if (u.passwordHash && isLegacyHash(u.passwordHash)) {
+        const upgraded = await hashPassword(input.password)
+        void ctx.db.update(users).set({ passwordHash: upgraded }).where(eq(users.id, u.id)).catch(() => {})
       }
       // TOTP check
       if (u.totpEnabled && u.totpSecret) {
@@ -72,7 +112,7 @@ export const usersRouter = router({
       const all = await ctx.db.select({ id: users.id }).from(users).all()
       const role: typeof ROLES[number] = all.length === 0 ? 'admin' : 'viewer'
       const id = nanoid()
-      await ctx.db.insert(users).values({ id, email: input.email, passwordHash: hashPassword(input.password), displayName: input.displayName ?? null, role, createdAt: new Date() })
+      await ctx.db.insert(users).values({ id, email: input.email, passwordHash: await hashPassword(input.password), displayName: input.displayName ?? null, role, createdAt: new Date() })
       void syslog(ctx.db, 'info', 'auth', `New user registered`, { email: input.email, role }, id)
       return { id, email: input.email, role, displayName: input.displayName ?? null, avatarColor: null, avatarUrl: null }
     }),
@@ -106,10 +146,10 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
-      if (!u.passwordHash || u.passwordHash !== hashPassword(input.currentPassword)) {
+      if (!u.passwordHash || !(await verifyPassword(input.currentPassword, u.passwordHash))) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' })
       }
-      await ctx.db.update(users).set({ passwordHash: hashPassword(input.newPassword) }).where(eq(users.id, input.id))
+      await ctx.db.update(users).set({ passwordHash: await hashPassword(input.newPassword) }).where(eq(users.id, input.id))
       return { ok: true }
     }),
 
@@ -139,7 +179,7 @@ export const usersRouter = router({
       await ctx.db.insert(users).values({
         id,
         email: input.email,
-        passwordHash: input.password ? hashPassword(input.password) : null,
+        passwordHash: input.password ? await hashPassword(input.password) : null,
         role: input.role,
         createdAt: now,
       })
@@ -190,7 +230,7 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
-      if (!u.passwordHash || u.passwordHash !== hashPassword(input.password)) {
+      if (!u.passwordHash || !(await verifyPassword(input.password, u.passwordHash))) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Incorrect password' })
       }
       if (!u.totpSecret || !verifyTotp(decrypt(u.totpSecret), input.code)) {
