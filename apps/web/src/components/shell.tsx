@@ -181,20 +181,20 @@ function Sidebar() {
             <img
               src={session.avatarUrl}
               alt="Avatar"
-              style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+              style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
             />
           ) : (
             <span
               style={{
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 borderRadius: '50%',
                 background: avatarBg,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontFamily: 'var(--font-sans)',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
                 color: 'var(--accent-dark)',
               }}
