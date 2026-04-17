@@ -272,7 +272,7 @@ function RoutePanel({ route }: { route: Route }) {
           {upstreams.length > 1 && (
             <label style={{ display: 'grid', gap: 4, marginTop: 4 }}>
               <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Load balancing</span>
-              <Select value={lbPolicy} onChange={(e) => setLbPolicy(e.target.value)}>
+              <Select value={lbPolicy} onChange={(e) => setLbPolicy(e.target.value as typeof lbPolicy)}>
                 <option value="round_robin">Round Robin</option>
                 <option value="least_conn">Least Connections</option>
                 <option value="ip_hash">IP Hash</option>
