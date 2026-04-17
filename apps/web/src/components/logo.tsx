@@ -32,7 +32,7 @@ export function Wordmark() {
           padding: '1px 5px',
         }}
       >
-        v3
+        v3.1
       </span>
     </div>
   )
