@@ -8,7 +8,7 @@ import {
   trafficMetrics,
 } from '@proxyos/db'
 import type { AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
-import { sendAlertNotifications } from './notify.js'
+import { sendAlertNotifications } from './notify'
 
 const DEFAULT_COOLDOWN_MINUTES = 15
 
