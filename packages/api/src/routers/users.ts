@@ -5,6 +5,7 @@ import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
 import { publicProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
+import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function syslog(db: any, level: 'info' | 'warn' | 'error', category: string, message: string, detail?: Record<string, unknown>, userId?: string) {
@@ -52,8 +53,15 @@ export const usersRouter = router({
       }
       await ctx.db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, u.id))
       void syslog(ctx.db, 'info', 'auth', `User signed in`, { email: u.email }, u.id)
+      const token = signToken({ userId: u.id, role: u.role })
+      ctx.resHeaders.append('Set-Cookie', makeTokenCookie(token))
       return { requiresTotp: false as const, id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null }
     }),
+
+  logout: publicProcedure.mutation(({ ctx }) => {
+    ctx.resHeaders.append('Set-Cookie', clearTokenCookie())
+    return { ok: true }
+  }),
 
   register: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string().min(8), displayName: z.string().min(1).optional() }))

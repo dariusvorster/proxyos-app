@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { LogoMark, Wordmark } from './logo'
 import { useTheme } from './theme'
 import { getSession, clearSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
+import { trpc } from '~/lib/trpc'
 
 type NavItem = { href: string; label: string; icon?: string }
 type NavSection = { label?: string; items: NavItem[] }
@@ -112,9 +113,11 @@ function Sidebar() {
     setSession_(getSession())
   }, [])
 
+  const logoutMut = trpc.users.logout.useMutation()
+
   function logout() {
     clearSession()
-    router.push('/login')
+    logoutMut.mutate(undefined, { onSettled: () => router.push('/login') })
   }
 
   const avatarInitial = session
