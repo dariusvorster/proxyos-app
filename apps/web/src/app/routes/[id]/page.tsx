@@ -25,6 +25,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [geoCountries, setGeoCountries] = useState('')
   const [geoAction, setGeoAction] = useState<'block' | 'challenge'>('block')
   const [geoMsg, setGeoMsg] = useState('')
+  const [geoTestCode, setGeoTestCode] = useState('')
   const geoipConfig = trpc.security.getGeoIPConfig.useQuery({ routeId: id })
   const setGeoIPConfig = trpc.security.setGeoIPConfig.useMutation({
     onSuccess: () => { setGeoMsg('Saved'); geoipConfig.refetch() },
@@ -300,6 +301,40 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               }}
               style={{ fontSize: 11 }}
             >{setGeoIPConfig.isPending ? 'Saving…' : 'Save'}</Button>
+
+            {/* Rule tester */}
+            {geoCountries.trim() && (() => {
+              const countries = geoCountries.split(',').map((s) => s.trim().toUpperCase()).filter((s) => s.length === 2)
+              const code = geoTestCode.trim().toUpperCase()
+              const inList = countries.includes(code)
+              const wouldBlock = geoMode === 'blocklist' ? inList : !inList
+              return (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>Test rule</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Input
+                      value={geoTestCode}
+                      onChange={(e) => setGeoTestCode(e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 2))}
+                      placeholder="XX"
+                      style={{ width: 64, fontSize: 13, fontFamily: 'var(--font-mono)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.1em' }}
+                    />
+                    {code.length === 2 && (
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: wouldBlock ? 'var(--red)' : 'var(--green)',
+                        fontFamily: 'var(--font-sans)',
+                      }}>
+                        {wouldBlock ? `✕ ${code} would be ${geoAction === 'block' ? 'blocked (403)' : 'challenged'}` : `✓ ${code} would be allowed`}
+                      </span>
+                    )}
+                    {code.length === 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>enter a 2-letter country code to simulate</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </Card>
         )}
 
