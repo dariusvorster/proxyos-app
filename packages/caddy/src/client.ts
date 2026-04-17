@@ -69,12 +69,12 @@ export class CaddyClient {
 
   async upsertTlsPolicy(policy: unknown): Promise<void> {
     const policiesUrl = `${this.baseUrl}/config/apps/tls/automation/policies`
+    const policySubjects: string[] = (policy as { subjects?: string[] }).subjects ?? []
 
     const getRes = await fetch(policiesUrl, { headers: this.adminHeaders })
     const getText = await getRes.text()
 
-    // Any non-ok response (404, 500 "invalid traversal path", etc.) or null body
-    // means the tls app or automation path doesn't exist yet — initialize it via PUT.
+    // TLS app or automation path doesn't exist yet — initialize with just this policy.
     if (!getRes.ok || getText === 'null') {
       const initRes = await this.fetchJson(`${this.baseUrl}/config/apps/tls`, {
         method: 'PUT',
@@ -86,9 +86,26 @@ export class CaddyClient {
       return
     }
 
-    // policies array exists — append
-    const res = await this.fetchJson(policiesUrl, { method: 'POST', body: policy })
-    if (!res.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${res.status} ${await res.text()}`)
+    let existing: Array<{ subjects?: string[] }>
+    try {
+      existing = JSON.parse(getText) as Array<{ subjects?: string[] }>
+    } catch {
+      existing = []
+    }
+
+    // Find an existing policy whose subjects overlap with ours and replace it in-place.
+    // This prevents duplicate policies for the same domain which Caddy 2.11+ rejects.
+    const idx = existing.findIndex(p =>
+      (p.subjects ?? []).some(s => policySubjects.includes(s))
+    )
+
+    if (idx !== -1) {
+      const replaceRes = await this.fetchJson(`${policiesUrl}/${idx}`, { method: 'PUT', body: policy })
+      if (!replaceRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${replaceRes.status} ${await replaceRes.text()}`)
+    } else {
+      const appendRes = await this.fetchJson(policiesUrl, { method: 'POST', body: policy })
+      if (!appendRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${appendRes.status} ${await appendRes.text()}`)
+    }
   }
 
   async addRoute(route: CaddyRoute): Promise<void> {

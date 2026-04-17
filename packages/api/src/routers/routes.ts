@@ -76,6 +76,15 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     trafficSplitPct: row.trafficSplitPct ?? null,
     mirrorUpstream: row.mirrorUpstream ?? null,
     mirrorSampleRate: row.mirrorSampleRate ?? null,
+    accessosGroups: (row as Record<string, unknown>).accessosGroups
+      ? JSON.parse((row as Record<string, unknown>).accessosGroups as string) as string[]
+      : null,
+    accessosProviderId: ((row as Record<string, unknown>).accessosProviderId as string) ?? null,
+    mxwatchDomain: ((row as Record<string, unknown>).mxwatchDomain as string) ?? null,
+    maintenanceMode: Boolean((row as Record<string, unknown>).maintenanceMode),
+    maintenanceSavedUpstreams: (row as Record<string, unknown>).maintenanceSavedUpstreams
+      ? JSON.parse((row as Record<string, unknown>).maintenanceSavedUpstreams as string) as Route['maintenanceSavedUpstreams']
+      : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -415,6 +424,9 @@ export const routesRouter = router({
           trafficSplitPct: z.number().int().min(0).max(100).nullable().optional(),
           mirrorUpstream: z.string().nullable().optional(),
           mirrorSampleRate: z.number().int().min(0).max(100).nullable().optional(),
+          accessosGroups: z.array(z.string()).nullable().optional(),
+          accessosProviderId: z.string().nullable().optional(),
+          mxwatchDomain: z.string().nullable().optional(),
         }),
       }),
     )
@@ -451,6 +463,9 @@ export const routesRouter = router({
       if (p.trafficSplitPct !== undefined) update.trafficSplitPct = p.trafficSplitPct
       if (p.mirrorUpstream !== undefined) update.mirrorUpstream = p.mirrorUpstream
       if (p.mirrorSampleRate !== undefined) update.mirrorSampleRate = p.mirrorSampleRate
+      if (p.accessosGroups !== undefined) update.accessosGroups = p.accessosGroups ? JSON.stringify(p.accessosGroups) : null
+      if (p.accessosProviderId !== undefined) update.accessosProviderId = p.accessosProviderId
+      if (p.mxwatchDomain !== undefined) update.mxwatchDomain = p.mxwatchDomain
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 

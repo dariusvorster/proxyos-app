@@ -803,4 +803,27 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V3P3_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+
+  // Phase 4 — OS family integrations
+  db.exec(`CREATE TABLE IF NOT EXISTS mxwatch_cache (
+    domain TEXT PRIMARY KEY,
+    deliverability_score INTEGER,
+    rbl_listed INTEGER NOT NULL DEFAULT 0,
+    rbl_details TEXT,
+    dkim_pass INTEGER,
+    spf_pass INTEGER,
+    dmarc_pass INTEGER,
+    checked_at INTEGER NOT NULL
+  )`)
+
+  const V4_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN accessos_groups TEXT`,
+    `ALTER TABLE routes ADD COLUMN accessos_provider_id TEXT`,
+    `ALTER TABLE routes ADD COLUMN mxwatch_domain TEXT`,
+    `ALTER TABLE routes ADD COLUMN maintenance_mode INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE routes ADD COLUMN maintenance_saved_upstreams TEXT`,
+  ]
+  for (const stmt of V4_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
 }

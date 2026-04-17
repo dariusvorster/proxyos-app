@@ -37,6 +37,30 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [mirrorSampleRate, setMirrorSampleRate] = useState(100)
   const [mirrorMsg, setMirrorMsg] = useState('')
 
+  const [accessosGroups, setAccessosGroups] = useState('')
+  const [accessosMsg, setAccessosMsg] = useState('')
+  const accessosConfig = trpc.accessos.getConfig.useQuery({ routeId: id })
+  const accessosProviders = trpc.accessos.listProviders.useQuery()
+  const [accessosProviderId, setAccessosProviderId] = useState('')
+
+  const mxwatchData = trpc.mxwatch.getForRoute.useQuery({ routeId: id })
+  const [mxwatchDomain, setMxwatchDomain] = useState('')
+  const [mxwatchMsg, setMxwatchMsg] = useState('')
+  const setMxwatchDomainMut = trpc.mxwatch.setDomain.useMutation({
+    onSuccess: () => { setMxwatchMsg('Saved'); mxwatchData.refetch() },
+    onError: e => setMxwatchMsg(`Error: ${e.message}`),
+  })
+
+  const patchosStatus = trpc.patchos.getStatus.useQuery({ routeId: id })
+  const setMaintenanceMut = trpc.patchos.setMaintenance.useMutation({
+    onSuccess: () => { patchosStatus.refetch(); routes.refetch() },
+  })
+  const restoreMut = trpc.patchos.restore.useMutation({
+    onSuccess: () => { patchosStatus.refetch(); routes.refetch() },
+  })
+  const [maintenanceUrl, setMaintenanceUrl] = useState('')
+  const [maintenanceMsg, setMaintenanceMsg] = useState('')
+
   const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
   const [geoCountries, setGeoCountries] = useState('')
   const [geoAction, setGeoAction] = useState<'block' | 'challenge'>('block')
@@ -56,8 +80,16 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
       setTrafficSplitPct(route.trafficSplitPct ?? 10)
       setMirrorUpstream(route.mirrorUpstream ?? '')
       setMirrorSampleRate(route.mirrorSampleRate ?? 100)
+      setMxwatchDomain(route.mxwatchDomain ?? '')
     }
   }, [route])
+
+  useEffect(() => {
+    if (accessosConfig.data) {
+      setAccessosGroups(accessosConfig.data.groups?.join(', ') ?? '')
+      setAccessosProviderId(accessosConfig.data.providerId ?? '')
+    }
+  }, [accessosConfig.data])
 
   useEffect(() => {
     const cfg = geoipConfig.data?.config
@@ -507,6 +539,180 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               {route.mirrorUpstream && (
                 <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
                   Active: {route.mirrorSampleRate ?? 100}% of traffic → {route.mirrorUpstream}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* AccessOS group ACLs */}
+        {route && (
+          <Card header={<span>AccessOS — group-based access control</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Gate this route by AccessOS group membership. Users must be in all listed groups after OIDC login.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Required groups (comma-separated)</div>
+                  <Input
+                    value={accessosGroups}
+                    onChange={e => setAccessosGroups(e.target.value)}
+                    placeholder="developers, admins"
+                    style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>OIDC provider (AccessOS)</div>
+                  <Select value={accessosProviderId} onChange={e => setAccessosProviderId(e.target.value)} style={{ width: '100%', fontSize: 12 }}>
+                    <option value="">None</option>
+                    {accessosProviders.data?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </Select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  onClick={() => {
+                    const groups = accessosGroups.split(',').map(s => s.trim()).filter(Boolean)
+                    updateRoute.mutate(
+                      { id, patch: { accessosGroups: groups.length ? groups : null, accessosProviderId: accessosProviderId || null } },
+                      {
+                        onSuccess: () => { setAccessosMsg('Saved'); routes.refetch(); accessosConfig.refetch() },
+                        onError: e => setAccessosMsg(`Error: ${e.message}`),
+                      }
+                    )
+                  }}
+                  disabled={updateRoute.isPending}>
+                  {updateRoute.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                {(accessosGroups || accessosProviderId) && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    onClick={() => {
+                      updateRoute.mutate(
+                        { id, patch: { accessosGroups: null, accessosProviderId: null } },
+                        {
+                          onSuccess: () => { setAccessosGroups(''); setAccessosProviderId(''); setAccessosMsg('Cleared'); routes.refetch() },
+                          onError: e => setAccessosMsg(`Error: ${e.message}`),
+                        }
+                      )
+                    }}>
+                    Clear
+                  </Button>
+                )}
+                {accessosMsg && <span style={{ fontSize: 11, color: accessosMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{accessosMsg}</span>}
+              </div>
+              {route.accessosGroups && route.accessosGroups.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
+                  Active: requires groups [{route.accessosGroups.join(', ')}]
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* MxWatch mail deliverability */}
+        {route && (
+          <Card header={<span>MxWatch — mail deliverability</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Associate this route with a mail domain to show MxWatch deliverability data inline.
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Mail domain</div>
+                  <Input
+                    value={mxwatchDomain}
+                    onChange={e => setMxwatchDomain(e.target.value)}
+                    placeholder="mail.example.com"
+                    style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  onClick={() => setMxwatchDomainMut.mutate({ routeId: id, domain: mxwatchDomain || null })}
+                  disabled={setMxwatchDomainMut.isPending}>
+                  Save
+                </Button>
+                {route.mxwatchDomain && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    onClick={() => setMxwatchDomainMut.mutate({ routeId: id, domain: null })}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+              {mxwatchMsg && <span style={{ fontSize: 11, color: mxwatchMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mxwatchMsg}</span>}
+              {mxwatchData.data?.deliverability && (() => {
+                const d = mxwatchData.data!.deliverability!
+                return (
+                  <div style={{ background: 'var(--surface2)', borderRadius: 4, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: (d.score ?? 0) >= 80 ? 'var(--green)' : (d.score ?? 0) >= 50 ? 'var(--amber)' : 'var(--red)' }}>
+                        {d.score ?? '—'}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>Score</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <Badge tone={d.rblListed ? 'red' : 'green'}>{d.rblListed ? 'RBL listed' : 'RBL clean'}</Badge>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <Badge tone={d.dkimPass ? 'green' : d.dkimPass === false ? 'red' : 'neutral'}>DKIM {d.dkimPass ? '✓' : d.dkimPass === false ? '✗' : '?'}</Badge>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <Badge tone={d.spfPass ? 'green' : d.spfPass === false ? 'red' : 'neutral'}>SPF {d.spfPass ? '✓' : d.spfPass === false ? '✗' : '?'}</Badge>
+                    </div>
+                  </div>
+                )
+              })()}
+              {route.mxwatchDomain && !mxwatchData.data?.deliverability && (
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Awaiting MxWatch data for {route.mxwatchDomain}.</div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* PatchOS maintenance mode */}
+        {route && (
+          <Card header={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>PatchOS — maintenance mode</span>
+              {patchosStatus.data?.maintenanceMode && <Badge tone="amber">ACTIVE</Badge>}
+            </div>
+          }>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Switch this route to a maintenance page during service updates. PatchOS can toggle this automatically via the API.
+              </div>
+              {patchosStatus.data?.maintenanceMode ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Button variant="primary" style={{ fontSize: 11 }}
+                    onClick={() => restoreMut.mutate({ routeId: id }, {
+                      onSuccess: () => setMaintenanceMsg('Route restored'),
+                      onError: e => setMaintenanceMsg(`Error: ${e.message}`),
+                    })}
+                    disabled={restoreMut.isPending}>
+                    {restoreMut.isPending ? 'Restoring…' : 'Restore route'}
+                  </Button>
+                  {maintenanceMsg && <span style={{ fontSize: 11, color: maintenanceMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{maintenanceMsg}</span>}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Maintenance page URL</div>
+                    <Input
+                      value={maintenanceUrl}
+                      onChange={e => setMaintenanceUrl(e.target.value)}
+                      placeholder="http://maintenance.internal:8080"
+                      style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                    />
+                  </div>
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--amber)' }}
+                    onClick={() => setMaintenanceMut.mutate({ routeId: id, maintenanceUrl }, {
+                      onSuccess: () => setMaintenanceMsg('Maintenance mode active'),
+                      onError: e => setMaintenanceMsg(`Error: ${e.message}`),
+                    })}
+                    disabled={!maintenanceUrl || setMaintenanceMut.isPending}>
+                    {setMaintenanceMut.isPending ? 'Setting…' : 'Set maintenance'}
+                  </Button>
+                  {maintenanceMsg && <span style={{ fontSize: 11, color: maintenanceMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{maintenanceMsg}</span>}
                 </div>
               )}
             </div>

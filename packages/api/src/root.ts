@@ -49,6 +49,12 @@ import { secretsProvidersRouter } from './routers/secretsProviders'
 import { scheduledChangesRouter } from './routers/scheduledChanges'
 import { trafficReplayRouter } from './routers/trafficReplay'
 import { healthScoresRouter } from './routers/healthScores'
+import { infraosRouter } from './routers/infraos'
+import { lockboxosRouter } from './routers/lockboxos'
+import { backupConfigRouter } from './routers/backupConfig'
+import { patchosRouter } from './routers/patchos'
+import { accessosRouter } from './routers/accessos'
+import { mxwatchRouter } from './routers/mxwatch'
 
 const PKG_VERSION = '0.2.0'
 
@@ -104,6 +110,12 @@ export const appRouter = router({
   scheduledChanges: scheduledChangesRouter,
   trafficReplay: trafficReplayRouter,
   healthScores: healthScoresRouter,
+  infraos: infraosRouter,
+  lockboxos: lockboxosRouter,
+  backupConfig: backupConfigRouter,
+  patchos: patchosRouter,
+  accessos: accessosRouter,
+  mxwatch: mxwatchRouter,
 })
 
 export type AppRouter = typeof appRouter

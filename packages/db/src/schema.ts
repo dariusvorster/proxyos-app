@@ -54,6 +54,17 @@ export const routes = sqliteTable('routes', {
   mirrorUpstream: text('mirror_upstream'),
   mirrorSampleRate: integer('mirror_sample_rate'),
 
+  // §4.4 AccessOS
+  accessosGroups: text('accessos_groups'),
+  accessosProviderId: text('accessos_provider_id'),
+
+  // §4.5 MxWatch
+  mxwatchDomain: text('mxwatch_domain'),
+
+  // §4.6 PatchOS maintenance
+  maintenanceMode: integer('maintenance_mode', { mode: 'boolean' }).notNull().default(false),
+  maintenanceSavedUpstreams: text('maintenance_saved_upstreams'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
@@ -893,3 +904,19 @@ export type SecretsProviderRow = typeof secretsProviders.$inferSelect
 export type ScheduledChangeRow = typeof scheduledChanges.$inferSelect
 export type TrafficReplayLogRow = typeof trafficReplayLogs.$inferSelect
 export type RouteHealthScoreRow = typeof routeHealthScores.$inferSelect
+
+// Phase 4 — OS family integrations
+
+// §4.5 MxWatch deliverability cache
+export const mxwatchCache = sqliteTable('mxwatch_cache', {
+  domain: text('domain').primaryKey(),
+  deliverabilityScore: integer('deliverability_score'),
+  rblListed: integer('rbl_listed', { mode: 'boolean' }).notNull().default(false),
+  rblDetails: text('rbl_details'), // JSON string[]
+  dkimPass: integer('dkim_pass', { mode: 'boolean' }),
+  spfPass: integer('spf_pass', { mode: 'boolean' }),
+  dmarcPass: integer('dmarc_pass', { mode: 'boolean' }),
+  checkedAt: integer('checked_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type MxwatchCacheRow = typeof mxwatchCache.$inferSelect

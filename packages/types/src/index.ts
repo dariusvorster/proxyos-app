@@ -152,6 +152,14 @@ export interface Route extends RouteInput {
   // §3.15 Mirror / shadow
   mirrorUpstream?: string | null
   mirrorSampleRate?: number | null // 0-100
+  // §4.4 AccessOS group ACLs
+  accessosGroups?: string[] | null
+  accessosProviderId?: string | null
+  // §4.5 MxWatch mail route
+  mxwatchDomain?: string | null
+  // §4.6 PatchOS maintenance mode
+  maintenanceMode?: boolean
+  maintenanceSavedUpstreams?: UpstreamConfig[] | null
   createdAt: Date
   updatedAt: Date
 }
