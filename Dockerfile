@@ -31,7 +31,7 @@ RUN set -eux; \
 
 # ── runner ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
-RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++
+RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++ logrotate
 
 COPY --from=caddy-builder /usr/local/bin/caddy /usr/local/bin/caddy
 
@@ -75,6 +75,9 @@ COPY caddy/base-config.json /etc/caddy/base-config.json
 
 # s6-overlay service definitions
 COPY docker/s6-overlay/ /etc/s6-overlay/
+
+# Log rotation config
+COPY docker/logrotate/proxyos /etc/logrotate.d/proxyos
 RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up -o -name finish \
     | xargs chmod +x
 

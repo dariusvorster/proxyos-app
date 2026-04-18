@@ -1,0 +1,3 @@
+#!/command/with-contenv sh
+# Called by s6 after the Node process exits. Nothing extra needed.
+exit 0

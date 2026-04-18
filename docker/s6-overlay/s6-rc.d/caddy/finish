@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+# Called by s6 after Caddy exits. Caddy already received SIGTERM and drained.
+# Flush remaining logs via the admin API if it's still up.
+wget -q -O- --post-data='{}' http://localhost:2019/stop >/dev/null 2>&1 || true
+exit 0

@@ -1,4 +1,19 @@
 #!/command/with-contenv sh
+
+# Validate required environment variables before starting anything
+MISSING=""
+for VAR in PROXYOS_SECRET PROXYOS_URL; do
+  eval "VAL=\$$VAR"
+  if [ -z "$VAL" ]; then
+    MISSING="$MISSING $VAR"
+  fi
+done
+if [ -n "$MISSING" ]; then
+  echo "ERROR: required environment variables not set:$MISSING" >&2
+  echo "Set them in your docker-compose.yml or --env-file and restart." >&2
+  exit 1
+fi
+
 mkdir -p /data/proxyos /data/caddy /config/caddy
 
 # Wait for Caddy admin API before starting ProxyOS

@@ -1,0 +1,6 @@
+#!/command/with-contenv sh
+# Run logrotate once at startup, then every 24h.
+while true; do
+  logrotate /etc/logrotate.d/proxyos 2>&1 | grep -v "^$" || true
+  sleep 86400
+done
