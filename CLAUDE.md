@@ -44,6 +44,24 @@ Auth bugs that users report must be fixed through new code, not by reinterpretin
 
 ---
 
+### 🔐 Auth Cookie Handling (CRITICAL — DO NOT MODIFY)
+
+The following three files implement a workaround for a Next.js 15 standalone build bug where tRPC v11's `resHeaders` argument is not reliably plumbed through to procedure context. At the source level the destructuring looks correct, but the compiled standalone output produces `Cannot read properties of undefined (reading 'append')` crashes on any procedure that calls `ctx.resHeaders.append()`.
+
+**The workaround is a three-file pattern. Do not change any of these files without explicit user approval.**
+
+1. **`packages/api/src/routers/users.ts`** — The `login` and `logout` procedures each return a `__setCookie: string` field in their response body, alongside normal response data. Inside each procedure there's ALSO a best-effort `ctx.resHeaders.append()` call guarded by `typeof ctx.resHeaders.append === 'function'` — this works in dev, no-ops in standalone. Do NOT remove the `__setCookie` field. Do NOT remove the defensive guard. Do NOT add `next/headers` imports to this file (it breaks the build — `packages/api` is not allowed to depend on `next`).
+
+2. **`packages/api/src/trpc.ts`** — `createContext` accepts `opts: { req: Request; resHeaders?: Headers }` (NOT destructured parameters) and initializes `const resHeaders = opts.resHeaders ?? new Headers()` as a fallback. This prevents runtime crashes when Next.js standalone fails to pass `resHeaders`. Do NOT revert this to destructured `{ req, resHeaders }`. Do NOT remove the fallback Headers() construction. Do NOT remove the `[trpc] createContext called WITHOUT resHeaders` warning log.
+
+3. **`apps/web/src/app/api/trpc/[trpc]/route.ts`** — Wraps `fetchRequestHandler` and intercepts the tRPC response. For each item in the response body, it drills into `result.data.json.__setCookie`, appends any found cookie strings as real `Set-Cookie` headers on a new Response, and removes the `__setCookie` field from the body before returning to the client. Do NOT simplify this handler. Do NOT "refactor" the response interception into middleware. Do NOT switch the handler to edge runtime — it MUST stay on `nodejs` runtime.
+
+**If a future Next.js or tRPC version fixes the underlying bug**, the workaround can be removed — but only after a user confirms with curl testing that `ctx.resHeaders.append('Set-Cookie', ...)` directly in a login procedure sets a real `Set-Cookie` header in the production container. Until then, the three-file pattern stays.
+
+Reference commit: `1c9bf69` — `fix(auth): work around Next.js standalone tRPC resHeaders bug`
+
+---
+
 ## 📝 Change Discipline
 
 Every change you make MUST follow this process:
