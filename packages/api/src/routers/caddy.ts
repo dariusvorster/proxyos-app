@@ -1,8 +1,8 @@
 import { TRPCError } from '@trpc/server'
 import { resolve } from 'path'
 import { readFile } from 'fs/promises'
-import { buildCaddyRoute, buildTlsPolicy, type CaddyRoute } from '@proxyos/caddy'
-import { dnsProviders, routes, ssoProviders } from '@proxyos/db'
+import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, type CaddyRoute } from '@proxyos/caddy'
+import { dnsProviders, routes, routeSecurity, ssoProviders } from '@proxyos/db'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 
@@ -57,6 +57,8 @@ export const caddyRouter = router({
     const routeRows = await ctx.db.select().from(routes)
     const ssoRows = await ctx.db.select().from(ssoProviders)
     const dnsRows = await ctx.db.select().from(dnsProviders)
+    const secRows = await ctx.db.select().from(routeSecurity)
+    const secMap = new Map(secRows.map(r => [r.routeId, r]))
     const ssoMap = new Map<string, SSOProvider>(ssoRows.map((r) => [r.id, {
       id: r.id, name: r.name, type: r.type as SSOProviderType,
       forwardAuthUrl: r.forwardAuthUrl,
@@ -75,9 +77,13 @@ export const caddyRouter = router({
     const enabled = routeRows.filter((r) => r.enabled)
     const caddyRoutes: CaddyRoute[] = enabled.map((row) => {
       const route: Route = rowToRoute(row)
+      const sec = secMap.get(row.id)
       return buildCaddyRoute(route, {
         ssoProvider: route.ssoProviderId ? ssoMap.get(route.ssoProviderId) ?? null : null,
         dnsProvider: route.tlsDnsProviderId ? dnsMap.get(route.tlsDnsProviderId) ?? null : null,
+        geoipConfig: sec?.geoipConfig ? JSON.parse(sec.geoipConfig) : null,
+        mtlsConfig: sec?.mtlsConfig ? JSON.parse(sec.mtlsConfig) : null,
+        botChallengeConfig: sec?.botChallengeConfig ? JSON.parse(sec.botChallengeConfig) : null,
       })
     })
     await ctx.caddy.replaceRoutes('main', caddyRoutes)
@@ -86,6 +92,11 @@ export const caddyRouter = router({
       const route = rowToRoute(row)
       const tls = buildTlsPolicy(route, route.tlsDnsProviderId ? dnsMap.get(route.tlsDnsProviderId) ?? null : null)
       if (tls) await ctx.caddy.upsertTlsPolicy(tls)
+      const sec = secMap.get(row.id)
+      const mtlsConfig = sec?.mtlsConfig ? JSON.parse(sec.mtlsConfig) : null
+      if (mtlsConfig) {
+        await ctx.caddy.upsertTlsConnectionPolicy(route.domain, buildTlsConnectionPolicy(route.domain, mtlsConfig))
+      }
     }
 
     return { success: true, routes: caddyRoutes.length }

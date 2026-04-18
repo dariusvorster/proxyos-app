@@ -47,6 +47,19 @@ const Fail2banRuleSchema = z.object({
 })
 
 export const securityRouter = router({
+  // ── Bot challenge public config (siteKey only — never return secretKey) ───
+
+  getBotChallengePublicConfig: publicProcedure
+    .input(z.object({ host: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const route = await ctx.db.select().from(routes).where(eq(routes.domain, input.host)).get()
+      if (!route) return { config: null }
+      const row = await ctx.db.select().from(routeSecurity).where(eq(routeSecurity.routeId, route.id)).get()
+      const cfg = row?.botChallengeConfig ? JSON.parse(row.botChallengeConfig) as { provider: string; siteKey: string } : null
+      if (!cfg) return { config: null }
+      return { config: { provider: cfg.provider, siteKey: cfg.siteKey } }
+    }),
+
   // ── GeoIP ─────────────────────────────────────────────────────────────────
 
   getGeoIPConfig: publicProcedure

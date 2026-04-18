@@ -111,6 +111,48 @@ export class CaddyClient {
     if (!putRes.ok) throw new Error(`Caddy upsertTlsPolicy failed: ${putRes.status} ${await putRes.text()}`)
   }
 
+  async upsertTlsConnectionPolicy(domain: string, policy: unknown): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/${this.serverName}/tls_connection_policies`
+    const getRes = await this.doRequest(url, 'GET')
+    const getText = await getRes.text()
+
+    let existing: Array<{ match?: { sni?: string[] } }>
+    if (!getRes.ok || getText === 'null' || getText === '') {
+      existing = []
+    } else {
+      try {
+        const parsed = JSON.parse(getText)
+        existing = Array.isArray(parsed) ? parsed : []
+      } catch {
+        existing = []
+      }
+    }
+
+    const catchAll = existing.find(p => !p.match)
+    const withMatch = existing.filter(p => p.match && !(p.match.sni ?? []).includes(domain))
+    const updated = [...withMatch, policy, ...(catchAll ? [catchAll] : [])]
+
+    const putRes = await this.doRequest(url, 'PATCH', updated)
+    if (!putRes.ok) throw new Error(`Caddy upsertTlsConnectionPolicy failed: ${putRes.status} ${await putRes.text()}`)
+  }
+
+  async removeTlsConnectionPolicy(domain: string): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/${this.serverName}/tls_connection_policies`
+    const getRes = await this.doRequest(url, 'GET')
+    const getText = await getRes.text()
+    if (!getRes.ok || getText === 'null' || getText === '') return
+    let existing: Array<{ match?: { sni?: string[] } }>
+    try {
+      const parsed = JSON.parse(getText)
+      existing = Array.isArray(parsed) ? parsed : []
+    } catch {
+      return
+    }
+    const updated = existing.filter(p => !(p.match?.sni ?? []).includes(domain))
+    const res = await this.doRequest(url, 'PATCH', updated)
+    if (!res.ok && res.status !== 404) throw new Error(`Caddy removeTlsConnectionPolicy failed: ${res.status} ${await res.text()}`)
+  }
+
   async addRoute(route: CaddyRoute): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/${this.serverName}/routes`
     const res = await this.doRequest(url, 'POST', route)

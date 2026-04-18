@@ -7,10 +7,24 @@ export interface GeoIPConfig {
   action: 'block' | 'challenge'
 }
 
+export interface MTLSConfig {
+  caCert: string
+  requireClientCert: boolean
+}
+
+export interface BotChallengeConfig {
+  provider: 'turnstile' | 'hcaptcha'
+  siteKey: string
+  secretKey: string
+  skipPaths?: string[]
+}
+
 export interface BuildOptions {
   ssoProvider?: SSOProvider | null
   dnsProvider?: DnsProvider | null
   geoipConfig?: GeoIPConfig | null
+  mtlsConfig?: MTLSConfig | null
+  botChallengeConfig?: BotChallengeConfig | null
 }
 
 export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRoute {
@@ -29,6 +43,27 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
         terminal: true,
       }],
     })
+  }
+
+  if (opts.botChallengeConfig) {
+    const { skipPaths } = opts.botChallengeConfig
+    const verifyUri = (process.env.PROXYOS_INTERNAL_URL ?? 'http://localhost:3000') + '/api/bot-challenge/verify'
+    const forwardAuthHandler: CaddyHandler = {
+      handler: 'forward_auth',
+      uri: verifyUri,
+      copy_headers: ['X-Bot-Verified'],
+    }
+    if (skipPaths && skipPaths.length > 0) {
+      handlers.push({
+        handler: 'subroute',
+        routes: [{
+          match: [{ not: [{ path: skipPaths }] }],
+          handle: [forwardAuthHandler],
+        }],
+      })
+    } else {
+      handlers.push(forwardAuthHandler)
+    }
   }
 
   if (route.ssoEnabled && opts.ssoProvider) {
@@ -337,6 +372,19 @@ export function buildHoldingPageHtml(): string {
 </div>
 </body>
 </html>`
+}
+
+export function buildTlsConnectionPolicy(domain: string, mtlsConfig: MTLSConfig): Record<string, unknown> {
+  return {
+    match: { sni: [domain] },
+    client_authentication: {
+      ca: {
+        provider: 'inline',
+        trusted_certs_pem: [mtlsConfig.caCert],
+      },
+      mode: mtlsConfig.requireClientCert ? 'require_and_verify' : 'verify_if_given',
+    },
+  }
 }
 
 function stripScheme(address: string): string {
