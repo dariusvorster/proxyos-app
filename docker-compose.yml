@@ -25,6 +25,7 @@ services:
       - proxyos-data:/data/proxyos
       - caddy-data:/data/caddy
       - caddy-config:/config/caddy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
