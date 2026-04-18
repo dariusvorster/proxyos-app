@@ -16,7 +16,7 @@ If you genuinely believe one of these files needs to change, STOP and ask the us
 
 ```
 apps/web/next.config.mjs
-packages/caddy/src/build-route.ts          ← handler builder — locked after Bug #1/#4 fix
+packages/caddy/src/config.ts               ← route/handler builder — locked after Bug #1/#4 fix (dockee01)
 packages/caddy/src/resolve-upstream.ts     ← static upstream resolver (Bug #2 fix)
 packages/caddy/src/regenerate-routes.ts    ← routes array regeneration (Bug #6 fix)
 packages/db/src/migrations/*.sql           ← all existing migrations — add new migrations, never edit past ones
