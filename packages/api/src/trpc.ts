@@ -74,6 +74,9 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, session: ctx.session } })
 })
 
+/** Any authenticated user — explicit read-gate for endpoints that were previously public */
+export const viewerProcedure = protectedProcedure
+
 /** API token with a required scope — used by machine-to-machine integrations (e.g. InfraOS) */
 export function tokenScopeProcedure(scope: string) {
   return t.procedure.use(({ ctx, next }) => {

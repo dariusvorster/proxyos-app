@@ -7,7 +7,8 @@ import { resolveStaticUpstreams } from '../automation/static-upstreams.js'
 import { buildLogEntry } from './systemLog'
 import { parseGeoIPConfig } from '../security/geoip'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, protectedProcedure, router } from '../trpc'
+import { resolveEffectiveRole, canMutate } from '../rbac.js'
 import { insertRouteVersion } from './routeVersions'
 
 const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
@@ -164,7 +165,10 @@ export const routesRouter = router({
       return rows.map(rowToRoute)
     }),
 
-  create: operatorProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+    const _role = await resolveEffectiveRole(ctx.session.userId, {})
+    if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
+
     if (input.domain.startsWith('*.') && input.tlsMode === 'auto') {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Wildcard domains require tlsMode=dns or tlsMode=internal — HTTP-01 cannot validate wildcards' })
     }
@@ -282,7 +286,10 @@ export const routesRouter = router({
     return route
   }),
 
-  expose: operatorProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
+  expose: protectedProcedure.input(exposeInput).mutation(async ({ ctx, input }) => {
+    const _role = await resolveEffectiveRole(ctx.session.userId, {})
+    if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
+
     if (input.domain.startsWith('*.') && input.tlsMode === 'auto') {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Wildcard domains require tlsMode=dns or tlsMode=internal — HTTP-01 cannot validate wildcards' })
     }
@@ -420,7 +427,7 @@ export const routesRouter = router({
       return rowToRoute(row)
     }),
 
-  update: operatorProcedure
+  update: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -466,6 +473,8 @@ export const routesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const update: Record<string, unknown> = { updatedAt: new Date() }
       const p = input.patch
@@ -545,11 +554,13 @@ export const routesRouter = router({
       return route
     }),
 
-  toggle: operatorProcedure
+  toggle: protectedProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
       await ctx.db.update(routes).set({ enabled: input.enabled, updatedAt: new Date() }).where(eq(routes.id, input.id))
       if (input.enabled) {
         const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
@@ -593,11 +604,13 @@ export const routesRouter = router({
       return { results }
     }),
 
-  delete: operatorProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       await ctx.caddy.removeRoute(input.id)
       await ctx.db.delete(routes).where(eq(routes.id, input.id))
@@ -623,11 +636,13 @@ export const routesRouter = router({
       return { success: true }
     }),
 
-  archive: operatorProcedure
+  archive: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
       await ctx.caddy.removeRoute(input.id)
@@ -646,11 +661,13 @@ export const routesRouter = router({
       return { success: true }
     }),
 
-  unarchive: operatorProcedure
+  unarchive: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
       await ctx.db.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
@@ -727,11 +744,14 @@ export const routesRouter = router({
       return { success: true, count: input.ids.length }
     }),
 
-  createLocal: operatorProcedure
+  createLocal: protectedProcedure
     .input(createInput.extend({
       scope: z.enum(['exclusive', 'local_only']).default('local_only'),
     }))
     .mutation(async ({ ctx, input }) => {
+      const _role = await resolveEffectiveRole(ctx.session.userId, {})
+      if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
+
       const centralConflict = await ctx.db
         .select()
         .from(routes)
