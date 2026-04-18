@@ -1,4 +1,4 @@
-import { getDb, agents, certificates, connections, routes, trafficMetrics } from '@proxyos/db'
+import { getDb, agents, certificates, connections, routes, trafficMetrics, nanoid } from '@proxyos/db'
 import { eq, gte, and } from 'drizzle-orm'
 import { resolveApiKey } from '@proxyos/api/apikeys'
 
@@ -124,6 +124,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug?: 
   const { slug = [] } = await params
   const db = getDb()
   const path = '/' + slug.join('/')
+
+  if (path === '/routes') {
+    const result = await auth(req, db, 'routes')
+    if (result instanceof Response) return result
+    let body: Record<string, unknown>
+    try { body = await req.json() as Record<string, unknown> } catch { return err('Invalid JSON body', 400) }
+    if (!body.domain || !body.upstreams) return err('domain and upstreams are required', 400)
+    const id = nanoid()
+    const now = new Date()
+    await db.insert(routes).values({
+      id,
+      name: (body.name as string | undefined) ?? String(body.domain),
+      domain: String(body.domain),
+      enabled: true,
+      upstreamType: (body.upstreamType as string | undefined) ?? 'http',
+      upstreams: JSON.stringify(body.upstreams),
+      lbPolicy: (body.lbPolicy as string | undefined) ?? 'round_robin',
+      tlsMode: (body.tlsMode as string | undefined) ?? 'auto',
+      createdAt: now,
+      updatedAt: now,
+    })
+    return json({ id, domain: body.domain, enabled: true }, 201)
+  }
+
+  if (path.match(/^\/routes\/[^/]+\/expose$/)) {
+    const result = await auth(req, db, 'routes')
+    if (result instanceof Response) return result
+    const id = slug[1]!
+    await db.update(routes).set({ enabled: true, updatedAt: new Date() }).where(eq(routes.id, id))
+    return json({ ok: true })
+  }
 
   if (path.match(/^\/routes\/[^/]+\/disable$/)) {
     const result = await auth(req, db, 'routes')
