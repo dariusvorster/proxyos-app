@@ -106,11 +106,16 @@ export default function TracingPage() {
         </Card>
 
         <Card header={<span>Grafana dashboard</span>} style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            A pre-built Grafana dashboard is bundled with ProxyOS. Import it via Grafana → Dashboards → Import.
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            A pre-built Grafana dashboard is bundled with ProxyOS. Download it and import via Grafana → Dashboards → Import → Upload JSON file.
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', background: 'var(--surface-2)', padding: '8px 10px', borderRadius: 4 }}>
-            packages/api/src/observability/grafana-dashboard.json
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <a href="/api/grafana-dashboard" download="proxyos-grafana-dashboard.json">
+              <Button size="sm" variant="primary">Download dashboard JSON</Button>
+            </a>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+            Configure the <code style={{ fontFamily: 'var(--font-mono)' }}>DS_PROMETHEUS</code> data source to point at your ProxyOS <code style={{ fontFamily: 'var(--font-mono)' }}>/api/metrics</code> endpoint after import.
           </div>
         </Card>
       </PageContent>

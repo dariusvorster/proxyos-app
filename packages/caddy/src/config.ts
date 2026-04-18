@@ -19,6 +19,12 @@ export interface BotChallengeConfig {
   skipPaths?: string[]
 }
 
+export interface TraceConfig {
+  enabled: boolean
+  headerName: string
+  generateIfMissing: boolean
+}
+
 export interface BuildOptions {
   ssoProvider?: SSOProvider | null
   dnsProvider?: DnsProvider | null
@@ -26,6 +32,7 @@ export interface BuildOptions {
   mtlsConfig?: MTLSConfig | null
   botChallengeConfig?: BotChallengeConfig | null
   routeRules?: RouteRule[]
+  traceConfig?: TraceConfig | null
 }
 
 export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRoute {
@@ -65,6 +72,17 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
     } else {
       handlers.push(forwardAuthHandler)
     }
+  }
+
+  // §10.3 Request tracing — inject X-Request-ID (or configured header) using Caddy's per-request UUID
+  if (opts.traceConfig?.enabled) {
+    const headerName = opts.traceConfig.headerName || 'X-Request-ID'
+    const setObj: Record<string, string[]> = {}
+    setObj[headerName] = ['{http.request.uuid}']
+    handlers.push({
+      handler: 'headers',
+      request: { set: setObj },
+    })
   }
 
   if (route.ssoEnabled && opts.ssoProvider) {

@@ -67,6 +67,39 @@ function AddCertModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   )
 }
 
+function CertHealthButton({ domain }: { domain: string }) {
+  const check = trpc.observability.getCertHealthScore.useQuery({ domain }, { enabled: false })
+  const [open, setOpen] = useState(false)
+  function run() { setOpen(true); check.refetch() }
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={run} disabled={check.isFetching} style={{ fontSize: 10 }}>
+        {check.isFetching ? '…' : 'Health'}
+      </Button>
+      {open && check.data && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setOpen(false)}>
+          <div style={{ background: 'var(--surf)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, width: 480, maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{domain} — cert health</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: check.data.score >= 80 ? 'var(--green)' : check.data.score >= 50 ? 'var(--amber)' : 'var(--red)', marginBottom: 16 }}>{check.data.score}/100</div>
+            {check.data.checks.map(c => (
+              <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderTop: '1px solid var(--border)', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text)' }}>{c.name}</div>
+                  {!c.passed && c.fix && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{c.fix}</div>}
+                </div>
+                <div style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: c.passed ? 'var(--green)' : 'var(--red)' }}>
+                  {c.passed ? `+${c.points}` : `0/${c.points}`}
+                </div>
+              </div>
+            ))}
+            <Button style={{ marginTop: 16, width: '100%' }} onClick={() => setOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function CertificatesPage() {
   const list = trpc.certificates.list.useQuery(undefined, { refetchInterval: 10_000 })
   const firstDomain = list.data?.[0]?.domain ?? 'main'
@@ -133,6 +166,7 @@ export default function CertificatesPage() {
                 <th style={{ ...th, width: '14%' }}>Expires</th>
                 <th style={{ ...th, width: '16%' }}>Validity</th>
                 <th style={{ ...th, width: '8%' }}>Renew</th>
+                <th style={th}></th>
               </tr>
             </thead>
             <tbody>
@@ -157,6 +191,7 @@ export default function CertificatesPage() {
                       </div>
                     </td>
                     <td style={td}>{c.autoRenew ? <Badge tone="green">ON</Badge> : <Badge tone="neutral">OFF</Badge>}</td>
+                    <td style={td}><CertHealthButton domain={c.domain} /></td>
                   </tr>
                 )
               })}

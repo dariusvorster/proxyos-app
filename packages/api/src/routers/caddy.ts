@@ -2,7 +2,8 @@ import { TRPCError } from '@trpc/server'
 import { resolve } from 'path'
 import { readFile } from 'fs/promises'
 import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, type CaddyRoute } from '@proxyos/caddy'
-import { dnsProviders, routes, routeRules, routeSecurity, ssoProviders } from '@proxyos/db'
+import { dnsProviders, routes, routeRules, routeSecurity, ssoProviders, systemSettings } from '@proxyos/db'
+import { eq } from 'drizzle-orm'
 import type { DnsProvider, DnsProviderType, Route, RouteRule, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 
@@ -54,11 +55,14 @@ export const caddyRouter = router({
       await ctx.caddy.loadConfig(JSON.parse(raw))
     }
 
-    const routeRows = await ctx.db.select().from(routes)
-    const ssoRows = await ctx.db.select().from(ssoProviders)
-    const dnsRows = await ctx.db.select().from(dnsProviders)
-    const secRows = await ctx.db.select().from(routeSecurity)
-    const ruleRows = await ctx.db.select().from(routeRules)
+    const [routeRows, ssoRows, dnsRows, secRows, ruleRows, traceCfgRow] = await Promise.all([
+      ctx.db.select().from(routes),
+      ctx.db.select().from(ssoProviders),
+      ctx.db.select().from(dnsProviders),
+      ctx.db.select().from(routeSecurity),
+      ctx.db.select().from(routeRules),
+      ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'trace_config')).get(),
+    ])
     const secMap = new Map(secRows.map(r => [r.routeId, r]))
     const rulesMap = new Map<string, RouteRule[]>()
     for (const r of ruleRows) {
@@ -100,6 +104,7 @@ export const caddyRouter = router({
         mtlsConfig: sec?.mtlsConfig ? JSON.parse(sec.mtlsConfig) : null,
         botChallengeConfig: sec?.botChallengeConfig ? JSON.parse(sec.botChallengeConfig) : null,
         routeRules: rulesMap.get(row.id) ?? [],
+        traceConfig: traceCfgRow?.value ? JSON.parse(traceCfgRow.value) : null,
       })
     })
     await ctx.caddy.replaceRoutes('main', caddyRoutes)
