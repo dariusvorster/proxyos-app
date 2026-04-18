@@ -7,11 +7,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @proxyos/web build
 
-# ── runner ───────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
-RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++ go
-
-# Install Caddy with layer4 module via xcaddy (requires Caddy >= 2.11.1 for caddy-l4 v0.1.0)
+# ── caddy-builder ─────────────────────────────────────────────────────
+FROM golang:1.23-alpine AS caddy-builder
+RUN apk add --no-cache git ca-certificates wget
 ARG CADDY_VERSION=2.11.2
 ARG XCADDY_VERSION=0.4.4
 RUN set -eux; \
@@ -30,6 +28,12 @@ RUN set -eux; \
       --with github.com/corazawaf/coraza-caddy/v2 \
       --output /usr/local/bin/caddy; \
     chmod +x /usr/local/bin/caddy
+
+# ── runner ───────────────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+RUN apk add --no-cache ca-certificates wget curl xz libc6-compat python3 make g++
+
+COPY --from=caddy-builder /usr/local/bin/caddy /usr/local/bin/caddy
 
 # Install s6-overlay v3
 ARG S6_VERSION=3.2.0.2
