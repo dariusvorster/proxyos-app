@@ -363,6 +363,33 @@ On first start with an empty database:
 
 ---
 
+## Releasing
+
+Images are built and published automatically via GitHub Actions when a version tag is pushed:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The release workflow (`release.yml`) does the following on every `v*` tag:
+
+- Builds a multi-arch image (`linux/amd64` + `linux/arm64`) and pushes to `ghcr.io`
+- Tags the image as `v1.2.3`, `1.2`, and `latest`
+- Attaches a Software Bill of Materials (SBOM) and max-mode provenance attestation to the image manifest
+- Signs the image digest with [cosign](https://github.com/sigstore/cosign) via GitHub OIDC (keyless — no long-lived signing key)
+
+To verify an image signature locally:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp="https://github.com/dariusvorster/proxyos" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  ghcr.io/dariusvorster/proxyos:latest
+```
+
+---
+
 ## Upgrading
 
 Schema migrations run automatically on startup. No manual steps.
