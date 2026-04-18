@@ -21,6 +21,18 @@ const JWTConfigSchema = z.object({
   skipPaths: z.array(z.string()).default([]),
 })
 
+const MTLSConfigSchema = z.object({
+  caCert: z.string().min(1),
+  requireClientCert: z.boolean().default(true),
+})
+
+const BotChallengeConfigSchema = z.object({
+  provider: z.enum(['turnstile', 'hcaptcha']),
+  siteKey: z.string().min(1),
+  secretKey: z.string().min(1),
+  skipPaths: z.array(z.string()).default([]),
+})
+
 const Fail2banRuleSchema = z.object({
   name: z.string().min(1),
   filter: z.object({
@@ -82,6 +94,54 @@ export const securityRouter = router({
       }).onConflictDoUpdate({
         target: routeSecurity.routeId,
         set: { jwtConfig: input.config ? JSON.stringify(input.config) : null, updatedAt: now },
+      })
+      return { ok: true }
+    }),
+
+  // ── mTLS ──────────────────────────────────────────────────────────────────
+
+  getMTLSConfig: publicProcedure
+    .input(z.object({ routeId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routeSecurity).where(eq(routeSecurity.routeId, input.routeId)).get()
+      return { config: row?.mtlsConfig ? JSON.parse(row.mtlsConfig) : null }
+    }),
+
+  setMTLSConfig: operatorProcedure
+    .input(z.object({ routeId: z.string(), config: MTLSConfigSchema.nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date()
+      await ctx.db.insert(routeSecurity).values({
+        routeId: input.routeId,
+        mtlsConfig: input.config ? JSON.stringify(input.config) : null,
+        updatedAt: now,
+      }).onConflictDoUpdate({
+        target: routeSecurity.routeId,
+        set: { mtlsConfig: input.config ? JSON.stringify(input.config) : null, updatedAt: now },
+      })
+      return { ok: true }
+    }),
+
+  // ── Bot challenge ──────────────────────────────────────────────────────────
+
+  getBotChallengeConfig: publicProcedure
+    .input(z.object({ routeId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routeSecurity).where(eq(routeSecurity.routeId, input.routeId)).get()
+      return { config: row?.botChallengeConfig ? JSON.parse(row.botChallengeConfig) : null }
+    }),
+
+  setBotChallengeConfig: operatorProcedure
+    .input(z.object({ routeId: z.string(), config: BotChallengeConfigSchema.nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date()
+      await ctx.db.insert(routeSecurity).values({
+        routeId: input.routeId,
+        botChallengeConfig: input.config ? JSON.stringify(input.config) : null,
+        updatedAt: now,
+      }).onConflictDoUpdate({
+        target: routeSecurity.routeId,
+        set: { botChallengeConfig: input.config ? JSON.stringify(input.config) : null, updatedAt: now },
       })
       return { ok: true }
     }),

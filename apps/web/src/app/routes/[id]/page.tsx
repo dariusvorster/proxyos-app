@@ -74,6 +74,26 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [geoMsg, setGeoMsg] = useState('')
   const [geoTestCode, setGeoTestCode] = useState('')
   const geoipConfig = trpc.security.getGeoIPConfig.useQuery({ routeId: id })
+
+  const [mtlsCaCert, setMtlsCaCert] = useState('')
+  const [mtlsRequire, setMtlsRequire] = useState(true)
+  const [mtlsMsg, setMtlsMsg] = useState('')
+  const mtlsConfig = trpc.security.getMTLSConfig.useQuery({ routeId: id })
+  const setMTLSConfig = trpc.security.setMTLSConfig.useMutation({
+    onSuccess: () => { setMtlsMsg('Saved'); mtlsConfig.refetch() },
+    onError: (e) => setMtlsMsg(`Error: ${e.message}`),
+  })
+
+  const [botProvider, setBotProvider] = useState<'turnstile' | 'hcaptcha'>('turnstile')
+  const [botSiteKey, setBotSiteKey] = useState('')
+  const [botSecretKey, setBotSecretKey] = useState('')
+  const [botSkipPaths, setBotSkipPaths] = useState('')
+  const [botMsg, setBotMsg] = useState('')
+  const botChallengeConfig = trpc.security.getBotChallengeConfig.useQuery({ routeId: id })
+  const setBotChallengeConfig = trpc.security.setBotChallengeConfig.useMutation({
+    onSuccess: () => { setBotMsg('Saved'); botChallengeConfig.refetch() },
+    onError: (e) => setBotMsg(`Error: ${e.message}`),
+  })
   const setGeoIPConfig = trpc.security.setGeoIPConfig.useMutation({
     onSuccess: () => { setGeoMsg('Saved'); geoipConfig.refetch() },
     onError: (e) => setGeoMsg(`Error: ${e.message}`),
@@ -111,6 +131,24 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
       setGeoAction(cfg.action)
     }
   }, [geoipConfig.data])
+
+  useEffect(() => {
+    const cfg = mtlsConfig.data?.config
+    if (cfg) {
+      setMtlsCaCert(cfg.caCert ?? '')
+      setMtlsRequire(cfg.requireClientCert ?? true)
+    }
+  }, [mtlsConfig.data])
+
+  useEffect(() => {
+    const cfg = botChallengeConfig.data?.config
+    if (cfg) {
+      setBotProvider(cfg.provider ?? 'turnstile')
+      setBotSiteKey(cfg.siteKey ?? '')
+      setBotSecretKey(cfg.secretKey ?? '')
+      setBotSkipPaths(cfg.skipPaths?.join(', ') ?? '')
+    }
+  }, [botChallengeConfig.data])
 
   return (
     <>
@@ -415,6 +453,114 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               )
             })()}
+          </Card>
+        )}
+
+        {/* mTLS — mutual TLS client authentication */}
+        {route && (
+          <Card header={<span>mTLS — client certificate authentication</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Require clients to present a valid certificate signed by your CA. Config is stored and applied on next Caddy reload.
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>CA certificate (PEM)</div>
+                <textarea
+                  value={mtlsCaCert}
+                  onChange={e => setMtlsCaCert(e.target.value)}
+                  placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+                  rows={5}
+                  style={{ width: '100%', fontSize: 11, fontFamily: 'var(--font-mono)', background: 'var(--surf2)', border: '1px solid var(--border)', borderRadius: 4, padding: '6px 8px', color: 'var(--text)', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Require client certificate</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Block connections without a valid client cert</div>
+                </div>
+                <button
+                  onClick={() => setMtlsRequire(!mtlsRequire)}
+                  style={{ flexShrink: 0, width: 42, height: 24, borderRadius: 12, border: 'none', background: mtlsRequire ? 'var(--accent)' : 'var(--border)', cursor: 'pointer', position: 'relative', transition: 'background 0.15s' }}
+                >
+                  <span style={{ position: 'absolute', top: 3, left: mtlsRequire ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  disabled={setMTLSConfig.isPending || !mtlsCaCert.trim()}
+                  onClick={() => setMTLSConfig.mutate({ routeId: id, config: { caCert: mtlsCaCert.trim(), requireClientCert: mtlsRequire } })}>
+                  {setMTLSConfig.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                {mtlsConfig.data?.config && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    disabled={setMTLSConfig.isPending}
+                    onClick={() => { setMTLSConfig.mutate({ routeId: id, config: null }); setMtlsCaCert('') }}>
+                    Clear
+                  </Button>
+                )}
+                {mtlsMsg && <span style={{ fontSize: 11, color: mtlsMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{mtlsMsg}</span>}
+              </div>
+              {mtlsConfig.data?.config && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
+                  Active — {mtlsConfig.data.config.requireClientCert ? 'strict (cert required)' : 'permissive (cert optional)'}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Bot challenge */}
+        {route && (
+          <Card header={<span>Bot challenge (Turnstile / hCaptcha)</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
+                Challenge suspected bots before allowing access. Requires a Cloudflare Turnstile or hCaptcha account.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Provider</div>
+                  <Select value={botProvider} onChange={e => setBotProvider(e.target.value as 'turnstile' | 'hcaptcha')} style={{ width: '100%', fontSize: 12 }}>
+                    <option value="turnstile">Cloudflare Turnstile</option>
+                    <option value="hcaptcha">hCaptcha</option>
+                  </Select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Site key</div>
+                  <Input value={botSiteKey} onChange={e => setBotSiteKey(e.target.value)} placeholder="0x4AAAAAAA…" style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Secret key</div>
+                  <Input type="password" value={botSecretKey} onChange={e => setBotSecretKey(e.target.value)} placeholder="Secret key" style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Skip paths (comma-separated)</div>
+                  <Input value={botSkipPaths} onChange={e => setBotSkipPaths(e.target.value)} placeholder="/api/, /health" style={{ width: '100%', fontSize: 12, fontFamily: 'var(--font-mono)' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Button variant="primary" style={{ fontSize: 11 }}
+                  disabled={setBotChallengeConfig.isPending || !botSiteKey.trim() || !botSecretKey.trim()}
+                  onClick={() => {
+                    const skipPaths = botSkipPaths.split(',').map(s => s.trim()).filter(Boolean)
+                    setBotChallengeConfig.mutate({ routeId: id, config: { provider: botProvider, siteKey: botSiteKey.trim(), secretKey: botSecretKey.trim(), skipPaths } })
+                  }}>
+                  {setBotChallengeConfig.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                {botChallengeConfig.data?.config && (
+                  <Button variant="ghost" style={{ fontSize: 11, color: 'var(--red)' }}
+                    disabled={setBotChallengeConfig.isPending}
+                    onClick={() => { setBotChallengeConfig.mutate({ routeId: id, config: null }); setBotSiteKey(''); setBotSecretKey(''); setBotSkipPaths('') }}>
+                    Clear
+                  </Button>
+                )}
+                {botMsg && <span style={{ fontSize: 11, color: botMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{botMsg}</span>}
+              </div>
+              {botChallengeConfig.data?.config && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', padding: '6px 8px', borderRadius: 4 }}>
+                  Active: {botChallengeConfig.data.config.provider} · {botChallengeConfig.data.config.skipPaths?.length ?? 0} paths excluded
+                </div>
+              )}
+            </div>
           </Card>
         )}
 
