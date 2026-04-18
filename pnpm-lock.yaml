@@ -81,6 +81,9 @@ importers:
       '@trpc/server':
         specifier: ^11.0.0
         version: 11.16.0(typescript@5.9.3)
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@types/better-sqlite3@7.6.13)(@types/react@18.3.28)(better-sqlite3@11.10.0)(react@19.2.5)
@@ -103,6 +106,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.28
@@ -171,6 +177,9 @@ importers:
       '@proxyos/db':
         specifier: workspace:*
         version: link:../db
+      '@proxyos/federation':
+        specifier: workspace:*
+        version: link:../federation
       '@proxyos/importers':
         specifier: workspace:*
         version: link:../importers
@@ -259,7 +268,26 @@ importers:
         version: 5.9.3
 
   packages/federation:
+    dependencies:
+      '@proxyos/db':
+        specifier: workspace:*
+        version: link:../db
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(@types/better-sqlite3@7.6.13)(@types/react@18.3.28)(better-sqlite3@11.10.0)(react@19.2.5)
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
