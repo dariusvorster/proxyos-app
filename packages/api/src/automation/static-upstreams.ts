@@ -39,7 +39,7 @@ export async function resolveStaticUpstreams(upstreams: UpstreamConfig[]): Promi
       ? `${resolvedScheme}://${entry.host}:${resolvedPort}`
       : `${resolvedScheme}://${entry.host}`
 
-    return { ...u, address: resolvedAddress }
+    return { ...u, address: resolvedAddress, skipVerify: entry.tlsSkipVerify || undefined }
   })
 }
 

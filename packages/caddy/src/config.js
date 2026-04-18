@@ -37,6 +37,8 @@ export function buildCaddyRoute(route, opts = {}) {
     if (route.compressionEnabled) {
         handlers.push({ handler: 'encode', encodings: { gzip: {}, zstd: {} } });
     }
+    const httpsUpstream = route.upstreams.some(u => u.address.startsWith('https://'));
+    const upstreamSkipVerify = route.upstreams.some(u => u.skipVerify);
     handlers.push({
         handler: 'reverse_proxy',
         upstreams: route.upstreams.map((u) => ({ dial: stripScheme(u.address) })),
@@ -68,8 +70,8 @@ export function buildCaddyRoute(route, opts = {}) {
                 },
             }
             : {}),
-        ...(route.skipTlsVerify
-            ? { transport: { protocol: 'http', tls: { insecure_skip_verify: true } } }
+        ...((httpsUpstream || route.skipTlsVerify)
+            ? { transport: { protocol: 'http', tls: { insecure_skip_verify: upstreamSkipVerify || Boolean(route.skipTlsVerify) } } }
             : {}),
     });
     const match = [{ host: [route.domain] }];
@@ -177,8 +179,9 @@ export function buildHoldingPageHtml() {
 </html>`;
 }
 function stripScheme(address) {
+    const isHttps = address.startsWith('https://');
     const stripped = address.replace(/^https?:\/\//, '');
-    return stripped.includes(':') ? stripped : `${stripped}:80`;
+    return stripped.includes(':') ? stripped : `${stripped}:${isHttps ? '443' : '80'}`;
 }
 export function buildErrorRoute(host) {
     const handlers = [];

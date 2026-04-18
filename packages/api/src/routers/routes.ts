@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { buildCaddyRoute, buildTlsPolicy } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { resolveStaticUpstreams } from '../automation/static-upstreams.js'
 import { buildLogEntry } from './systemLog'
 import { parseGeoIPConfig } from '../security/geoip'
 import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
@@ -108,9 +109,11 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
   }
   const secRow = await ctx.db.select().from(routeSecurity).where(eq(routeSecurity.routeId, route.id)).get()
   const geoipConfig = parseGeoIPConfig(secRow?.geoipConfig)
-  const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+  const resolvedUpstreams = await resolveStaticUpstreams(route.upstreams).catch(() => route.upstreams)
+  const resolvedRoute = resolvedUpstreams !== route.upstreams ? { ...route, upstreams: resolvedUpstreams } : route
+  const tlsPolicy = buildTlsPolicy(resolvedRoute, dnsProvider)
   if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-  await ctx.caddy.updateRoute(route.id, buildCaddyRoute(route, { ssoProvider, dnsProvider, geoipConfig }))
+  await ctx.caddy.updateRoute(route.id, buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig }))
 }
 
 function rowToDnsProvider(row: typeof dnsProviders.$inferSelect): DnsProvider {

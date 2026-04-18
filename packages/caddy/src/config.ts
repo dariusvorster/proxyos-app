@@ -115,6 +115,10 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
           ...(u.weight !== undefined && u.weight !== 1 ? { weight: u.weight } : {}),
         }))
 
+  const allUpstreamsFlat = [...route.upstreams, ...(route.stagingUpstreams ?? [])]
+  const httpsUpstream = allUpstreamsFlat.some(u => u.address.startsWith('https://'))
+  const upstreamSkipVerify = allUpstreamsFlat.some(u => u.skipVerify)
+
   handlers.push({
     handler: 'reverse_proxy',
     upstreams: blueGreenUpstreams,
@@ -146,8 +150,8 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
           },
         }
       : {}),
-    ...(route.skipTlsVerify
-      ? { transport: { protocol: 'http', tls: { insecure_skip_verify: true } } }
+    ...((httpsUpstream || route.skipTlsVerify)
+      ? { transport: { protocol: 'http', tls: { insecure_skip_verify: upstreamSkipVerify || Boolean(route.skipTlsVerify) } } }
       : {}),
   })
 
@@ -305,8 +309,9 @@ export function buildHoldingPageHtml(): string {
 }
 
 function stripScheme(address: string): string {
+  const isHttps = address.startsWith('https://')
   const stripped = address.replace(/^https?:\/\//, '')
-  return stripped.includes(':') ? stripped : `${stripped}:80`
+  return stripped.includes(':') ? stripped : `${stripped}:${isHttps ? '443' : '80'}`
 }
 
 export function buildErrorRoute(host: {

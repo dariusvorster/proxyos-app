@@ -9,6 +9,7 @@ export type LbPolicy = 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'fi
 export interface UpstreamConfig {
   address: string
   weight?: number  // 1–100, used with round_robin
+  skipVerify?: boolean  // propagated from static upstream records
 }
 
 export interface RateLimitConfig {
