@@ -20,6 +20,10 @@ packages/caddy/src/build-route.ts          ← handler builder — locked after 
 packages/caddy/src/resolve-upstream.ts     ← static upstream resolver (Bug #2 fix)
 packages/caddy/src/regenerate-routes.ts    ← routes array regeneration (Bug #6 fix)
 packages/db/src/migrations/*.sql           ← all existing migrations — add new migrations, never edit past ones
+packages/api/src/routers/users.ts                  ← login/logout __setCookie mechanism (see Auth Cookie Handling below)
+packages/api/src/trpc.ts                           ← createContext with resHeaders fallback (see Auth Cookie Handling below)
+apps/web/src/app/api/trpc/[trpc]/route.ts          ← tRPC response interceptor for Set-Cookie injection
+docker-compose.yml                                 ← /var/run/docker.sock mount required for network discovery
 ```
 
 *(Adjust these paths to match actual repo structure when you first populate this file.)*
@@ -151,6 +155,12 @@ For all of these: STOP. Report the finding. Wait for user direction.
 2026-04-18  Initial version — after Phase 1 ProxyOS bug fixes
             Locked: next.config.mjs, build-route.ts, resolve-upstream.ts,
                     regenerate-routes.ts, all existing migrations
+
+2026-04-18  Added Auth Cookie Handling lock (commit 1c9bf69)
+            Locked: packages/api/src/routers/users.ts (login __setCookie),
+                    packages/api/src/trpc.ts (resHeaders fallback),
+                    apps/web/src/app/api/trpc/[trpc]/route.ts (interceptor),
+                    docker-compose.yml (docker.sock mount)
 ```
 
 When you update this file (with user approval), append a version row.
