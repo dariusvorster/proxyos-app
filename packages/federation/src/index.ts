@@ -1,2 +1,5 @@
 export * from './messages'
 export * from './constants'
+export * from './protocol'
+export { FederationServer, startFederationServer, getFederationServer } from './server'
+export { computeConfigForNode } from './config-builder'

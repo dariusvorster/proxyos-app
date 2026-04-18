@@ -61,6 +61,7 @@ import { upstreamsRouter } from './routers/upstreams';
 import { containersRouter } from './routers/containers';
 import { organizationsRouter } from './routers/organizations.js';
 import { sitesRouter } from './routers/sites.js';
+import { nodesRouter } from './routers/nodes.js';
 
 const PKG_VERSION = '0.2.0';
 export const appRouter = router({
@@ -127,4 +128,5 @@ export const appRouter = router({
     containers: containersRouter,
     organizations: organizationsRouter,
     sites: sitesRouter,
+    nodes: nodesRouter,
 });

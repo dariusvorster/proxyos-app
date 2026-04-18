@@ -1053,3 +1053,45 @@ export type OrganizationRow = typeof organizations.$inferSelect
 export type SiteRow = typeof sites.$inferSelect
 export type OrgMembershipRow = typeof orgMemberships.$inferSelect
 export type SiteMembershipRow = typeof siteMemberships.$inferSelect
+
+// Phase B — Federation nodes
+
+export const federationNodes = sqliteTable('federation_nodes', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  siteId: text('site_id').notNull(),
+  name: text('name').notNull(),
+  hostname: text('hostname'),
+  osInfo: text('os_info'),
+  agentVersion: text('agent_version'),
+  status: text('status', { enum: ['pending', 'connected', 'offline', 'revoked'] }).notNull().default('pending'),
+  configVersionApplied: integer('config_version_applied').default(0),
+  enrolledAt: integer('enrolled_at', { mode: 'timestamp' }),
+  lastHeartbeatAt: integer('last_heartbeat_at', { mode: 'timestamp' }),
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const nodeEnrollmentTokens = sqliteTable('node_enrollment_tokens', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  siteId: text('site_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  createdByUserId: text('created_by_user_id'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  usedAt: integer('used_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const nodeAuthKeys = sqliteTable('node_auth_keys', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  nodeId: text('node_id').notNull(),
+  keyHash: text('key_hash').notNull(),
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type FederationNodeRow = typeof federationNodes.$inferSelect
+export type NodeEnrollmentTokenRow = typeof nodeEnrollmentTokens.$inferSelect
+export type NodeAuthKeyRow = typeof nodeAuthKeys.$inferSelect

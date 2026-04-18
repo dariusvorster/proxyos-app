@@ -61,6 +61,7 @@ import { upstreamsRouter } from './routers/upstreams'
 import { containersRouter } from './routers/containers'
 import { organizationsRouter } from './routers/organizations'
 import { sitesRouter } from './routers/sites'
+import { nodesRouter } from './routers/nodes'
 
 const PKG_VERSION = '0.2.0'
 
@@ -128,6 +129,7 @@ export const appRouter = router({
   containers: containersRouter,
   organizations: organizationsRouter,
   sites: sitesRouter,
+  nodes: nodesRouter,
 })
 
 export type AppRouter = typeof appRouter

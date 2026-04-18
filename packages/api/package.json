@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@proxyos/alerts": "workspace:*",
+    "@proxyos/federation": "workspace:*",
     "@proxyos/billing": "workspace:*",
     "@proxyos/caddy": "workspace:*",
     "@proxyos/connect": "workspace:*",

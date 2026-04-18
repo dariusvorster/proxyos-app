@@ -978,4 +978,42 @@ export function ensureSchema(db: Database.Database): void {
     VALUES ('site_local', 'tenant_default', 'org_default', 'Local', 'local', 'This machine', ${Date.now()})`)
   db.exec(`UPDATE routes SET tenant_id = 'tenant_default', site_id = 'site_local', origin = 'local', scope = 'exclusive'
     WHERE tenant_id IS NULL`)
+
+  // Phase B — Federation nodes
+  db.exec(`CREATE TABLE IF NOT EXISTS federation_nodes (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    hostname TEXT,
+    os_info TEXT,
+    agent_version TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    config_version_applied INTEGER DEFAULT 0,
+    enrolled_at INTEGER,
+    last_heartbeat_at INTEGER,
+    revoked_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE TABLE IF NOT EXISTS node_enrollment_tokens (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    created_by_user_id TEXT,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE TABLE IF NOT EXISTS node_auth_keys (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    key_hash TEXT NOT NULL,
+    revoked_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_federation_nodes_site ON federation_nodes(site_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_node_tokens_site ON node_enrollment_tokens(site_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_node_keys_node ON node_auth_keys(node_id)`)
 }

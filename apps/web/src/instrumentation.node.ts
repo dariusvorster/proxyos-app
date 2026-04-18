@@ -52,10 +52,23 @@ void (async () => {
     console.warn('[proxyos] alert evaluator failed to start:', err)
   }
 
-  try {
-    const { startFederationServer } = await import('./server/federation/ws-server')
-    startFederationServer()
-  } catch (err) {
-    console.warn('[proxyos] federation server failed to start:', err)
+  const mode = (process.env.PROXYOS_MODE ?? 'standalone').toLowerCase()
+  const modes = new Set(mode.split('+').map((m) => m.trim()))
+
+  if (!process.env.PROXYOS_MODE && process.env.PROXYOS_CENTRAL_URL && process.env.PROXYOS_AGENT_TOKEN) {
+    console.warn('[proxyos] PROXYOS_MODE not set but CENTRAL_URL+TOKEN present — assuming node mode')
+    modes.add('node')
+  }
+
+  console.log(`[proxyos] starting in mode: ${[...modes].join('+')}`)
+
+  if (modes.has('central') || modes.has('standalone')) {
+    try {
+      const { startFederationServer } = await import('@proxyos/federation/server')
+      await startFederationServer(Number(process.env.PROXYOS_FEDERATION_PORT ?? 7890))
+      console.log('[proxyos] federation server started')
+    } catch (err) {
+      console.warn('[proxyos] federation server failed to start:', err)
+    }
   }
 })()
