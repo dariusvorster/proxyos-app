@@ -2,8 +2,8 @@ import { TRPCError } from '@trpc/server'
 import { resolve } from 'path'
 import { readFile } from 'fs/promises'
 import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, type CaddyRoute } from '@proxyos/caddy'
-import { dnsProviders, routes, routeSecurity, ssoProviders } from '@proxyos/db'
-import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
+import { dnsProviders, routes, routeRules, routeSecurity, ssoProviders } from '@proxyos/db'
+import type { DnsProvider, DnsProviderType, Route, RouteRule, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const caddyRouter = router({
@@ -58,7 +58,22 @@ export const caddyRouter = router({
     const ssoRows = await ctx.db.select().from(ssoProviders)
     const dnsRows = await ctx.db.select().from(dnsProviders)
     const secRows = await ctx.db.select().from(routeSecurity)
+    const ruleRows = await ctx.db.select().from(routeRules)
     const secMap = new Map(secRows.map(r => [r.routeId, r]))
+    const rulesMap = new Map<string, RouteRule[]>()
+    for (const r of ruleRows) {
+      const list = rulesMap.get(r.routeId) ?? []
+      list.push({
+        id: r.id, routeId: r.routeId, priority: r.priority,
+        matcherType: r.matcherType as RouteRule['matcherType'],
+        matcherKey: r.matcherKey, matcherValue: r.matcherValue,
+        action: r.action as RouteRule['action'],
+        upstream: r.upstream, redirectUrl: r.redirectUrl,
+        staticBody: r.staticBody, staticStatus: r.staticStatus,
+        enabled: Boolean(r.enabled), createdAt: r.createdAt,
+      })
+      rulesMap.set(r.routeId, list)
+    }
     const ssoMap = new Map<string, SSOProvider>(ssoRows.map((r) => [r.id, {
       id: r.id, name: r.name, type: r.type as SSOProviderType,
       forwardAuthUrl: r.forwardAuthUrl,
@@ -84,6 +99,7 @@ export const caddyRouter = router({
         geoipConfig: sec?.geoipConfig ? JSON.parse(sec.geoipConfig) : null,
         mtlsConfig: sec?.mtlsConfig ? JSON.parse(sec.mtlsConfig) : null,
         botChallengeConfig: sec?.botChallengeConfig ? JSON.parse(sec.botChallengeConfig) : null,
+        routeRules: rulesMap.get(row.id) ?? [],
       })
     })
     await ctx.caddy.replaceRoutes('main', caddyRoutes)
@@ -126,6 +142,8 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     websocketEnabled: row.websocketEnabled,
     http2Enabled: row.http2Enabled,
     http3Enabled: row.http3Enabled,
+    pathRewrite: row.pathRewrite ? JSON.parse(row.pathRewrite) : null,
+    corsConfig: row.corsConfig ? JSON.parse(row.corsConfig) : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',

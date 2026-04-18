@@ -1,4 +1,4 @@
-import type { DnsProvider, Route, SSOProvider } from '@proxyos/types'
+import type { DnsProvider, Route, RouteRule, SSOProvider } from '@proxyos/types'
 import type { CaddyHandler, CaddyMatcher, CaddyRoute } from './types'
 
 export interface GeoIPConfig {
@@ -25,6 +25,7 @@ export interface BuildOptions {
   geoipConfig?: GeoIPConfig | null
   mtlsConfig?: MTLSConfig | null
   botChallengeConfig?: BotChallengeConfig | null
+  routeRules?: RouteRule[]
 }
 
 export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRoute {
@@ -119,6 +120,67 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
 
   if (route.compressionEnabled) {
     handlers.push({ handler: 'encode', encodings: { gzip: {}, zstd: {} } })
+  }
+
+  // §9.5 Smart routing rules — evaluated as ordered subroutes before the main proxy
+  const enabledRules = (opts.routeRules ?? []).filter(r => r.enabled).sort((a, b) => a.priority - b.priority)
+  if (enabledRules.length > 0) {
+    const ruleRoutes = enabledRules.map(rule => {
+      let match: Record<string, unknown>
+      switch (rule.matcherType) {
+        case 'path':   match = { path: [rule.matcherValue] }; break
+        case 'header': match = { header: { [rule.matcherKey ?? '']: [rule.matcherValue] } }; break
+        case 'query':  match = { query: { [rule.matcherKey ?? '']: [rule.matcherValue] } }; break
+        case 'method': match = { method: [rule.matcherValue.toUpperCase()] }; break
+        default:       match = { path: [rule.matcherValue] }
+      }
+      let handle: CaddyHandler[]
+      if (rule.action === 'redirect' && rule.redirectUrl) {
+        handle = [{ handler: 'static_response', status_code: 302, headers: { Location: [rule.redirectUrl] } }]
+      } else if (rule.action === 'static') {
+        handle = [{ handler: 'static_response', status_code: rule.staticStatus ?? 200, body: rule.staticBody ?? '' }]
+      } else if (rule.action === 'upstream' && rule.upstream) {
+        const dial = rule.upstream.replace(/^https?:\/\//, '')
+        handle = [{ handler: 'reverse_proxy', upstreams: [{ dial }] }]
+      } else {
+        return null
+      }
+      return { match: [match], handle, terminal: true }
+    }).filter(Boolean)
+    if (ruleRoutes.length > 0) {
+      handlers.push({ handler: 'subroute', routes: ruleRoutes })
+    }
+  }
+
+  // §9.6 Path rewrite
+  if (route.pathRewrite) {
+    const pr = route.pathRewrite
+    if (pr.regex) {
+      handlers.push({ handler: 'rewrite', uri_regexp: [{ find: pr.regex.from, replace: pr.regex.to }] })
+    } else {
+      const rewriteHandler: CaddyHandler = { handler: 'rewrite' }
+      if (pr.strip) rewriteHandler.strip_path_prefix = pr.strip
+      if (pr.add) rewriteHandler.uri = pr.add + '{http.request.uri}'
+      handlers.push(rewriteHandler)
+    }
+  }
+
+  // §9.6 CORS response headers
+  if (route.corsConfig) {
+    const cc = route.corsConfig
+    const origins = cc.preset === 'permissive' ? ['*'] : (cc.allowOrigins ?? [])
+    const methods = cc.allowMethods ?? (cc.preset === 'permissive' ? ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] : ['GET', 'POST', 'OPTIONS'])
+    const allowHeaders = cc.allowHeaders ?? ['Content-Type', 'Authorization']
+    const set: Record<string, string[]> = {
+      'Access-Control-Allow-Origin': origins,
+      'Access-Control-Allow-Methods': [methods.join(', ')],
+      'Access-Control-Allow-Headers': [allowHeaders.join(', ')],
+    }
+    if (cc.exposeHeaders && cc.exposeHeaders.length > 0) {
+      set['Access-Control-Expose-Headers'] = [cc.exposeHeaders.join(', ')]
+    }
+    if (cc.maxAge) set['Access-Control-Max-Age'] = [String(cc.maxAge)]
+    handlers.push({ handler: 'headers', response: { set } })
   }
 
   // §3.15 Mirror / shadow traffic

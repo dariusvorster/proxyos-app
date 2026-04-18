@@ -975,6 +975,45 @@ export function ensureSchema(db: Database.Database): void {
   }
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_routes_site ON routes(site_id)`) } catch { /* exists */ }
 
+  // Phase 9 — Traffic intelligence
+  db.exec(`CREATE TABLE IF NOT EXISTS route_rules (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    priority INTEGER NOT NULL DEFAULT 0,
+    matcher_type TEXT NOT NULL,
+    matcher_key TEXT,
+    matcher_value TEXT NOT NULL,
+    action TEXT NOT NULL DEFAULT 'upstream',
+    upstream TEXT,
+    redirect_url TEXT,
+    static_body TEXT,
+    static_status INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_route_rules_route ON route_rules(route_id, priority)`)
+  db.exec(`CREATE TABLE IF NOT EXISTS slow_requests (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    method TEXT,
+    path TEXT,
+    status_code INTEGER,
+    latency_ms INTEGER NOT NULL,
+    upstream_ms INTEGER,
+    client_ip TEXT,
+    recorded_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_slow_requests_route ON slow_requests(route_id, recorded_at DESC)`)
+  const PHASE9_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN path_rewrite TEXT`,
+    `ALTER TABLE routes ADD COLUMN cors_config TEXT`,
+    `ALTER TABLE routes ADD COLUMN slow_request_threshold_ms INTEGER NOT NULL DEFAULT 1000`,
+    `ALTER TABLE routes ADD COLUMN bandwidth_limit_bytes INTEGER`,
+  ]
+  for (const stmt of PHASE9_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
+
   // Phase A backfill
   db.exec(`INSERT OR IGNORE INTO tenants (id, name, slug, plan, status, settings_json, created_at)
     VALUES ('tenant_default', 'Default', 'default', 'self_hosted', 'active', '{}', ${Date.now()})`)

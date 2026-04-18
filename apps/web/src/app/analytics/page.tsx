@@ -6,6 +6,58 @@ import { Button, Card, DataTable, LineChart, Select, Sparkline, StatCard, td, th
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
+// §9.9 Bandwidth billing view
+function BandwidthView({ windowDays }: { windowDays: number }) {
+  const bw = trpc.analytics.bandwidth.useQuery({ windowDays })
+  const data = bw.data
+  if (!data) return <div style={{ fontSize: 12, color: 'var(--text3)', padding: '12px 0' }}>Loading…</div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+        Total: {formatBytes(data.totalBytes)}
+      </div>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'flex-end', height: 80 }}>
+        {data.byDay.map(d => {
+          const max = Math.max(...data.byDay.map(x => x.bytes), 1)
+          const h = Math.max(4, Math.round((d.bytes / max) * 72))
+          return (
+            <div key={d.date} title={`${d.date}: ${formatBytes(d.bytes)}`} style={{ flex: 1, minWidth: 6, maxWidth: 20, height: h, background: 'var(--pu-400)', borderRadius: 2, opacity: 0.8 }} />
+          )
+        })}
+      </div>
+      {data.byRoute.length > 0 && (
+        <DataTable>
+          <thead>
+            <tr>
+              <th style={th}>Route</th>
+              <th style={{ ...th, width: '22%' }}>Bandwidth</th>
+              <th style={{ ...th, width: '22%' }}>Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.byRoute.map(r => (
+              <tr key={r.routeId}>
+                <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{r.domain}</td>
+                <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{formatBytes(r.bytes)}</td>
+                <td style={td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2 }}>
+                      <div style={{ height: '100%', width: `${data.totalBytes > 0 ? (r.bytes / data.totalBytes * 100).toFixed(1) : 0}%`, background: 'var(--pu-400)', borderRadius: 2 }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text3)', minWidth: 36 }}>
+                      {data.totalBytes > 0 ? (r.bytes / data.totalBytes * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      )}
+    </div>
+  )
+}
+
 type Range = '1h' | '24h' | '7d' | '30d'
 const rangeMin: Record<Range, number> = { '1h': 60, '24h': 1440, '7d': 10080, '30d': 43200 }
 
@@ -42,19 +94,23 @@ export default function AnalyticsPage() {
               <option value="">All routes</option>
               {routes.data?.map((r) => <option key={r.id} value={r.id}>{r.domain}</option>)}
             </Select>
+            <Link href="/analytics/live" style={{ fontSize: 12, color: 'var(--pu-400)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', animation: 'pulse 1.8s ease-in-out infinite' }} />
+              Live
+            </Link>
             <Button onClick={exportCsv}>Export CSV</Button>
           </>
         }
       />
       <PageContent>
         <PageHeader title="Analytics" desc="Traffic metrics, error rates, and latency across all routes." />
-        <AggregateView routes={filteredRoutes} rangeMin={rangeMin[range]} filterId={routeFilter} />
+        <AggregateView routes={filteredRoutes} rangeMin={rangeMin[range]} filterId={routeFilter} rangeDays={range === '30d' ? 30 : range === '7d' ? 7 : 1} />
       </PageContent>
     </>
   )
 }
 
-function AggregateView({ routes, rangeMin, filterId }: { routes: Array<{ id: string; domain: string }>; rangeMin: number; filterId: string }) {
+function AggregateView({ routes, rangeMin, filterId, rangeDays }: { routes: Array<{ id: string; domain: string }>; rangeMin: number; filterId: string; rangeDays: number }) {
   const targetIds = filterId ? [filterId] : routes.map((r) => r.id)
   const queries = trpc.useQueries((t) => targetIds.map((id) => t.analytics.summary({ routeId: id, windowMinutes: rangeMin }, { refetchInterval: 15_000 })))
 
@@ -109,6 +165,11 @@ function AggregateView({ routes, rangeMin, filterId }: { routes: Array<{ id: str
           <span><span style={{ display: 'inline-block', width: 8, height: 2, background: 'var(--pu-400)', marginRight: 6 }} />Requests</span>
           <span><span style={{ display: 'inline-block', width: 8, height: 2, background: 'var(--red)', marginRight: 6 }} />Errors</span>
         </div>
+      </Card>
+
+      {/* §9.9 Bandwidth billing */}
+      <Card header={<span>Bandwidth</span>}>
+        <BandwidthView windowDays={rangeDays} />
       </Card>
 
       <Card header={<span>Per route</span>}>

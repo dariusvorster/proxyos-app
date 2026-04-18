@@ -150,6 +150,51 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [botChallengeConfig.data])
 
+  // §9.4 A/B traffic split
+  const trafficSplitQuery = trpc.intelligence.getTrafficSplit.useQuery({ routeId: id })
+  const setTrafficSplitMut = trpc.intelligence.setTrafficSplit.useMutation({
+    onSuccess: () => { setAbMsg('Saved'); trafficSplitQuery.refetch() },
+    onError: (e) => setAbMsg(`Error: ${e.message}`),
+  })
+  const [abUpstreams, setAbUpstreams] = useState<{ address: string; weight: number; label: string }[]>([])
+  const [abMsg, setAbMsg] = useState('')
+
+  useEffect(() => {
+    if (trafficSplitQuery.data) setAbUpstreams(trafficSplitQuery.data.upstreams)
+  }, [trafficSplitQuery.data])
+
+  // §9.5 Route rules
+  const routeRulesQuery = trpc.intelligence.listRouteRules.useQuery({ routeId: id })
+  const createRuleMut = trpc.intelligence.createRouteRule.useMutation({ onSuccess: () => { setRulesMsg('Rule added'); routeRulesQuery.refetch() }, onError: (e) => setRulesMsg(`Error: ${e.message}`) })
+  const updateRuleMut = trpc.intelligence.updateRouteRule.useMutation({ onSuccess: () => routeRulesQuery.refetch() })
+  const deleteRuleMut = trpc.intelligence.deleteRouteRule.useMutation({ onSuccess: () => routeRulesQuery.refetch() })
+  const [ruleMatcherType, setRuleMatcherType] = useState<'path' | 'header' | 'query' | 'method'>('path')
+  const [ruleMatcherKey, setRuleMatcherKey] = useState('')
+  const [ruleMatcherValue, setRuleMatcherValue] = useState('')
+  const [ruleAction, setRuleAction] = useState<'upstream' | 'redirect' | 'static'>('upstream')
+  const [ruleTarget, setRuleTarget] = useState('')
+  const [rulePriority, setRulePriority] = useState(0)
+  const [rulesMsg, setRulesMsg] = useState('')
+
+  // §9.6 Transforms
+  const [pathStrip, setPathStrip] = useState('')
+  const [pathAdd, setPathAdd] = useState('')
+  const [transformMsg, setTransformMsg] = useState('')
+  const [corsPreset, setCorsPreset] = useState<'permissive' | 'restrictive' | 'custom'>('permissive')
+  const [corsOrigins, setCorsOrigins] = useState('')
+  const [corsMsg, setCorsMsg] = useState('')
+
+  useEffect(() => {
+    if (!route) return
+    const pr = route.pathRewrite as { strip?: string; add?: string } | null | undefined
+    if (pr) { setPathStrip(pr.strip ?? ''); setPathAdd(pr.add ?? '') }
+    const cc = route.corsConfig as { preset?: string; allowOrigins?: string[] } | null | undefined
+    if (cc) { setCorsPreset((cc.preset ?? 'permissive') as typeof corsPreset); setCorsOrigins(cc.allowOrigins?.join(', ') ?? '') }
+  }, [route])
+
+  // §9.8 Slow requests
+  const slowReqs = trpc.analytics.slowRequests.useQuery({ routeId: id, thresholdMs: 1000, limit: 50 }, { refetchInterval: 15000 })
+
   return (
     <>
       <Topbar
@@ -991,6 +1036,158 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                   <td style={td}><Badge tone={statusTone(r.statusCode ?? 0)}>{r.statusCode}</Badge></td>
                   <td style={{ ...td, color: 'var(--text-secondary)' }}>{r.latencyMs}ms</td>
                   <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)' }}>{r.clientIp}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </Card>
+
+        {/* §9.4 A/B traffic split */}
+        <Card header={<span>A/B traffic split</span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {abUpstreams.length === 0 && <div style={{ fontSize: 12, color: 'var(--text3)' }}>No upstreams configured. Add upstreams in the main settings.</div>}
+            {abUpstreams.map((u, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px', gap: 8, alignItems: 'center' }}>
+                <Input value={u.label} onChange={e => setAbUpstreams(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="label" style={{ fontSize: 12 }} />
+                <Input value={u.address} onChange={e => setAbUpstreams(prev => prev.map((x, j) => j === i ? { ...x, address: e.target.value } : x))} placeholder="host:port" style={{ fontSize: 12 }} />
+                <Input type="number" min={0} max={100} value={u.weight} onChange={e => setAbUpstreams(prev => prev.map((x, j) => j === i ? { ...x, weight: Number(e.target.value) } : x))} placeholder="weight" style={{ fontSize: 12 }} />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="ghost" style={{ fontSize: 11 }} onClick={() => setAbUpstreams(prev => [...prev, { address: '', weight: 50, label: `upstream-${prev.length + 1}` }])}>+ Add upstream</Button>
+              <Button variant="primary" style={{ fontSize: 11 }} disabled={setTrafficSplitMut.isPending} onClick={() => setTrafficSplitMut.mutate({ routeId: id, upstreams: abUpstreams })}>Save split</Button>
+            </div>
+            {abMsg && <div style={{ fontSize: 11, color: abMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{abMsg}</div>}
+          </div>
+        </Card>
+
+        {/* §9.5 Smart routing rules */}
+        <Card header={<span>Smart routing rules</span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {routeRulesQuery.data && routeRulesQuery.data.length > 0 && (
+              <DataTable>
+                <thead>
+                  <tr>
+                    <th style={th}>Priority</th>
+                    <th style={th}>Match</th>
+                    <th style={th}>Value</th>
+                    <th style={th}>Action</th>
+                    <th style={th}>Target</th>
+                    <th style={th}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routeRulesQuery.data.map(rule => (
+                    <tr key={rule.id}>
+                      <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{rule.priority}</td>
+                      <td style={{ ...td, fontSize: 11 }}>{rule.matcherType}{rule.matcherKey ? `:${rule.matcherKey}` : ''}</td>
+                      <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{rule.matcherValue}</td>
+                      <td style={td}><Badge tone="neutral">{rule.action}</Badge></td>
+                      <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>{rule.upstream ?? rule.redirectUrl ?? rule.staticBody?.slice(0, 30) ?? '—'}</td>
+                      <td style={td}>
+                        <button onClick={() => updateRuleMut.mutate({ id: rule.id, enabled: !rule.enabled })} style={{ fontSize: 10, color: rule.enabled ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', background: 'none', border: 'none' }}>{rule.enabled ? 'on' : 'off'}</button>
+                        {' '}
+                        <button onClick={() => { if (confirm('Delete rule?')) deleteRuleMut.mutate({ id: rule.id }) }} style={{ fontSize: 10, color: 'var(--red)', cursor: 'pointer', background: 'none', border: 'none' }}>del</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </DataTable>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 60px', gap: 8 }}>
+              <Select value={ruleMatcherType} onChange={e => setRuleMatcherType(e.target.value as typeof ruleMatcherType)} style={{ fontSize: 12 }}>
+                <option value="path">path</option>
+                <option value="header">header</option>
+                <option value="query">query</option>
+                <option value="method">method</option>
+              </Select>
+              <Input value={ruleMatcherKey} onChange={e => setRuleMatcherKey(e.target.value)} placeholder="key (header/query)" style={{ fontSize: 12 }} />
+              <Input value={ruleMatcherValue} onChange={e => setRuleMatcherValue(e.target.value)} placeholder="value / path" style={{ fontSize: 12 }} />
+              <Select value={ruleAction} onChange={e => setRuleAction(e.target.value as typeof ruleAction)} style={{ fontSize: 12 }}>
+                <option value="upstream">upstream</option>
+                <option value="redirect">redirect</option>
+                <option value="static">static</option>
+              </Select>
+              <Input type="number" value={rulePriority} onChange={e => setRulePriority(Number(e.target.value))} placeholder="pri" style={{ fontSize: 12 }} />
+            </div>
+            <Input value={ruleTarget} onChange={e => setRuleTarget(e.target.value)} placeholder="target — upstream host:port, redirect URL, or static body" style={{ fontSize: 12 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="primary" style={{ fontSize: 11 }} disabled={!ruleMatcherValue || !ruleTarget || createRuleMut.isPending}
+                onClick={() => {
+                  const base = { routeId: id, matcherType: ruleMatcherType, matcherValue: ruleMatcherValue, action: ruleAction, priority: rulePriority }
+                  const extra = ruleAction === 'upstream' ? { upstream: ruleTarget } : ruleAction === 'redirect' ? { redirectUrl: ruleTarget } : { staticBody: ruleTarget, staticStatus: 200 }
+                  createRuleMut.mutate({ ...base, ...(ruleMatcherKey ? { matcherKey: ruleMatcherKey } : {}), ...extra })
+                }}>Add rule</Button>
+            </div>
+            {rulesMsg && <div style={{ fontSize: 11, color: rulesMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{rulesMsg}</div>}
+          </div>
+        </Card>
+
+        {/* §9.6 Request/response transforms */}
+        <Card header={<span>Request &amp; response transforms</span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Path rewrite</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Strip prefix</div>
+                  <Input value={pathStrip} onChange={e => setPathStrip(e.target.value)} placeholder="/api/v1" style={{ fontSize: 12 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Add prefix</div>
+                  <Input value={pathAdd} onChange={e => setPathAdd(e.target.value)} placeholder="/v2" style={{ fontSize: 12 }} />
+                </div>
+              </div>
+              <Button variant="primary" style={{ fontSize: 11 }} disabled={updateRoute.isPending}
+                onClick={() => updateRoute.mutate({ id, patch: { pathRewrite: (pathStrip || pathAdd) ? JSON.stringify({ strip: pathStrip || undefined, add: pathAdd || undefined }) : null } as Parameters<typeof updateRoute.mutate>[0]['patch'] },
+                  { onSuccess: () => setTransformMsg('Saved'), onError: e => setTransformMsg(`Error: ${e.message}`) })}>Save path rewrite</Button>
+              {transformMsg && <span style={{ marginLeft: 8, fontSize: 11, color: transformMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{transformMsg}</span>}
+            </div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>CORS</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 8, marginBottom: 8 }}>
+                <Select value={corsPreset} onChange={e => setCorsPreset(e.target.value as typeof corsPreset)} style={{ fontSize: 12 }}>
+                  <option value="permissive">Permissive (*)</option>
+                  <option value="restrictive">Restrictive</option>
+                  <option value="custom">Custom</option>
+                </Select>
+                {corsPreset === 'custom' && (
+                  <Input value={corsOrigins} onChange={e => setCorsOrigins(e.target.value)} placeholder="https://app.example.com, https://other.com" style={{ fontSize: 12 }} />
+                )}
+              </div>
+              <Button variant="primary" style={{ fontSize: 11 }} disabled={updateRoute.isPending}
+                onClick={() => updateRoute.mutate({ id, patch: { corsConfig: JSON.stringify({ preset: corsPreset, allowOrigins: corsPreset === 'custom' ? corsOrigins.split(',').map(s => s.trim()).filter(Boolean) : undefined }) } as Parameters<typeof updateRoute.mutate>[0]['patch'] },
+                  { onSuccess: () => setCorsMsg('Saved'), onError: e => setCorsMsg(`Error: ${e.message}`) })}>Save CORS</Button>
+              {corsMsg && <span style={{ marginLeft: 8, fontSize: 11, color: corsMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{corsMsg}</span>}
+            </div>
+          </div>
+        </Card>
+
+        {/* §9.8 Slow request log */}
+        <Card header={<span>Slow requests (&gt;1s)</span>}>
+          <DataTable>
+            <thead>
+              <tr>
+                <th style={{ ...th, width: '16%' }}>Time</th>
+                <th style={{ ...th, width: '8%' }}>Method</th>
+                <th style={{ ...th, width: '34%' }}>Path</th>
+                <th style={{ ...th, width: '10%' }}>Status</th>
+                <th style={{ ...th, width: '12%' }}>Latency</th>
+                <th style={{ ...th, width: '20%' }}>Client</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!slowReqs.data || slowReqs.data.length === 0) && (
+                <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text3)', padding: '24px 12px' }}>No slow requests recorded.</td></tr>
+              )}
+              {slowReqs.data?.map(r => (
+                <tr key={r.id}>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>{new Date(r.recordedAt).toLocaleTimeString()}</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{r.method}</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--pu-400)', fontSize: 11 }}>{r.path}</td>
+                  <td style={td}><Badge tone={statusTone(r.statusCode ?? 0)}>{r.statusCode}</Badge></td>
+                  <td style={{ ...td, color: 'var(--amber)', fontWeight: 600 }}>{r.latencyMs}ms</td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>{r.clientIp}</td>
                 </tr>
               ))}
             </tbody>

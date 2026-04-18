@@ -167,10 +167,32 @@ export interface Route extends RouteInput {
   hstsEnabled?: boolean
   hstsSubdomains?: boolean
   trustUpstreamHeaders?: boolean
+  // §9.6 Request/response transforms
+  pathRewrite?: { strip?: string; add?: string; regex?: { from: string; to: string } } | null
+  corsConfig?: { preset: 'permissive' | 'restrictive' | 'custom'; allowOrigins?: string[]; allowMethods?: string[]; allowHeaders?: string[]; exposeHeaders?: string[]; maxAge?: number } | null
+  // §9.8 Slow request threshold
+  slowRequestThresholdMs?: number | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'
   scope: 'exclusive' | 'local_only'
+}
+
+// §9.5 Smart routing rules
+export interface RouteRule {
+  id: string
+  routeId: string
+  priority: number
+  matcherType: 'path' | 'header' | 'query' | 'method'
+  matcherKey: string | null
+  matcherValue: string
+  action: 'upstream' | 'redirect' | 'static'
+  upstream: string | null
+  redirectUrl: string | null
+  staticBody: string | null
+  staticStatus: number | null
+  enabled: boolean
+  createdAt: Date
 }
 
 // §3.16 Scheduled changes

@@ -74,6 +74,16 @@ export const routes = sqliteTable('routes', {
   configVersion: integer('config_version').notNull().default(1),
   scope: text('scope', { enum: ['exclusive', 'local_only'] }).notNull().default('exclusive'),
 
+  // §9.6 Request/response transforms
+  pathRewrite: text('path_rewrite'),
+  corsConfig: text('cors_config'),
+
+  // §9.8 Slow request threshold
+  slowRequestThresholdMs: integer('slow_request_threshold_ms'),
+
+  // §9.9 Bandwidth limit
+  bandwidthLimitBytes: integer('bandwidth_limit_bytes'),
+
   // SSL / security headers
   forceSSL: integer('force_ssl', { mode: 'boolean' }).notNull().default(false),
   hstsEnabled: integer('hsts_enabled', { mode: 'boolean' }).notNull().default(false),
@@ -1096,3 +1106,36 @@ export const nodeAuthKeys = sqliteTable('node_auth_keys', {
 export type FederationNodeRow = typeof federationNodes.$inferSelect
 export type NodeEnrollmentTokenRow = typeof nodeEnrollmentTokens.$inferSelect
 export type NodeAuthKeyRow = typeof nodeAuthKeys.$inferSelect
+
+// Phase 9 — Traffic intelligence
+
+export const routeRules = sqliteTable('route_rules', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull(),
+  priority: integer('priority').notNull().default(0),
+  matcherType: text('matcher_type', { enum: ['path', 'header', 'query', 'method'] }).notNull(),
+  matcherKey: text('matcher_key'),
+  matcherValue: text('matcher_value').notNull(),
+  action: text('action', { enum: ['upstream', 'redirect', 'static'] }).notNull().default('upstream'),
+  upstream: text('upstream'),
+  redirectUrl: text('redirect_url'),
+  staticBody: text('static_body'),
+  staticStatus: integer('static_status'),
+  enabled: integer('enabled').notNull().default(1),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const slowRequests = sqliteTable('slow_requests', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull(),
+  method: text('method'),
+  path: text('path'),
+  statusCode: integer('status_code'),
+  latencyMs: integer('latency_ms').notNull(),
+  upstreamMs: integer('upstream_ms'),
+  clientIp: text('client_ip'),
+  recordedAt: integer('recorded_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type RouteRuleRow = typeof routeRules.$inferSelect
+export type SlowRequestRow = typeof slowRequests.$inferSelect

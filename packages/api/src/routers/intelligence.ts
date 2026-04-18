@@ -1,10 +1,10 @@
 import { TRPCError } from '@trpc/server'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { routeSlos, sloCompliance, routes } from '@proxyos/db'
+import { routeSlos, sloCompliance, routes, routeRules, nanoid } from '@proxyos/db'
 import { getSLOStatus } from '../intelligence/slo-tracker'
 import { getLatencyTrend } from '../intelligence/trend-analyser'
-import { publicProcedure, router } from '../trpc'
+import { publicProcedure, operatorProcedure, router } from '../trpc'
 
 export const intelligenceRouter = router({
   // ── SLO ───────────────────────────────────────────────────────────────────
@@ -85,6 +85,86 @@ export const intelligenceRouter = router({
         const upstreams = JSON.parse(route.upstreams) as { address: string; weight?: number; label?: string }[]
         return { upstreams: upstreams.map((u, i) => ({ ...u, weight: u.weight ?? 100, label: u.label ?? `upstream-${i + 1}` })) }
       } catch { return null }
+    }),
+
+  // ── Smart routing rules (§9.5) ────────────────────────────────────────────
+
+  listRouteRules: publicProcedure
+    .input(z.object({ routeId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.select().from(routeRules)
+        .where(eq(routeRules.routeId, input.routeId))
+        .orderBy(asc(routeRules.priority))
+        .all()
+    }),
+
+  createRouteRule: operatorProcedure
+    .input(z.object({
+      routeId: z.string(),
+      matcherType: z.enum(['path', 'header', 'query', 'method']),
+      matcherKey: z.string().optional(),
+      matcherValue: z.string().min(1),
+      action: z.enum(['upstream', 'redirect', 'static']),
+      upstream: z.string().optional(),
+      redirectUrl: z.string().optional(),
+      staticBody: z.string().optional(),
+      staticStatus: z.number().int().optional(),
+      priority: z.number().int().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
+      if (!route) throw new TRPCError({ code: 'NOT_FOUND' })
+      const id = nanoid()
+      await ctx.db.insert(routeRules).values({
+        id,
+        routeId: input.routeId,
+        priority: input.priority,
+        matcherType: input.matcherType,
+        matcherKey: input.matcherKey ?? null,
+        matcherValue: input.matcherValue,
+        action: input.action,
+        upstream: input.upstream ?? null,
+        redirectUrl: input.redirectUrl ?? null,
+        staticBody: input.staticBody ?? null,
+        staticStatus: input.staticStatus ?? null,
+        enabled: 1,
+        createdAt: new Date(),
+      })
+      return { id }
+    }),
+
+  updateRouteRule: operatorProcedure
+    .input(z.object({
+      id: z.string(),
+      enabled: z.boolean().optional(),
+      priority: z.number().int().optional(),
+      matcherValue: z.string().optional(),
+      action: z.enum(['upstream', 'redirect', 'static']).optional(),
+      upstream: z.string().nullable().optional(),
+      redirectUrl: z.string().nullable().optional(),
+      staticBody: z.string().nullable().optional(),
+      staticStatus: z.number().int().nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...patch } = input
+      const set: Record<string, unknown> = {}
+      if (patch.enabled !== undefined) set.enabled = patch.enabled ? 1 : 0
+      if (patch.priority !== undefined) set.priority = patch.priority
+      if (patch.matcherValue !== undefined) set.matcherValue = patch.matcherValue
+      if (patch.action !== undefined) set.action = patch.action
+      if ('upstream' in patch) set.upstream = patch.upstream
+      if ('redirectUrl' in patch) set.redirectUrl = patch.redirectUrl
+      if ('staticBody' in patch) set.staticBody = patch.staticBody
+      if ('staticStatus' in patch) set.staticStatus = patch.staticStatus
+      await ctx.db.update(routeRules).set(set).where(eq(routeRules.id, id))
+      return { ok: true }
+    }),
+
+  deleteRouteRule: operatorProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(routeRules).where(eq(routeRules.id, input.id))
+      return { ok: true }
     }),
 
   setTrafficSplit: publicProcedure
