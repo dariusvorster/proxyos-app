@@ -121,6 +121,7 @@ export default function RoutesPage() {
                 <th style={{ ...th, width: '18%' }}>Upstream</th>
                 <th style={{ ...th, width: '8%' }}>TLS</th>
                 <th style={{ ...th, width: '8%' }}>SSO</th>
+                <th style={{ ...th, width: '8%' }}>Origin</th>
                 <th style={{ ...th, width: '10%' }}>Req/h</th>
                 <th style={{ ...th, width: '10%' }}>p95</th>
                 <th style={{ ...th, width: '13%' }}>Last req</th>
@@ -166,7 +167,7 @@ function ChainHealthDots({ routeId }: { routeId: string }) {
   )
 }
 
-function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
+function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 60 }, { refetchInterval: 30_000 })
   const last = summary.data?.buckets.slice(-1)[0]
   return (
@@ -199,6 +200,11 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
       </td>
       <td style={td}><Badge tone={route.tlsMode === 'off' ? 'red' : route.tlsMode === 'internal' ? 'amber' : 'green'}>{route.tlsMode}</Badge></td>
       <td style={td}>{route.ssoEnabled ? <Badge tone="purple">ON</Badge> : <Badge tone="neutral">—</Badge>}</td>
+      <td style={td}>
+        {route.origin === 'local'
+          ? <Badge tone="blue">local</Badge>
+          : <Badge tone="neutral">central</Badge>}
+      </td>
       <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--pu-400)' }}>{summary.data?.requests ?? 0}</td>
       <td style={{ ...td, color: 'var(--text-secondary)' }}>{summary.data?.avgLatencyMs ?? 0}ms</td>
       <td style={{ ...td, color: 'var(--text-dim)', fontSize: 10 }}>
@@ -457,10 +463,20 @@ function RoutePanel({ route }: { route: Route }) {
         </div>
       </Section>
       <Section title="Actions">
+        {route.origin === 'local' && (
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>synced from node — read-only</div>
+        )}
+        {route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node') && (
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>managed by central — read-only</div>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button size="sm" variant="primary" onClick={startEdit}>Edit</Button>
+          {!(route.origin === 'local') && !(route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node')) && (
+            <Button size="sm" variant="primary" onClick={startEdit}>Edit</Button>
+          )}
           <Link href={`/routes/${route.id}`}><Button size="sm">Open analytics</Button></Link>
-          <Button size="sm" variant="danger" onClick={() => { if (confirm(`Delete ${route.domain}?`)) del.mutate({ id: route.id }) }}>Delete</Button>
+          {!(route.origin === 'local') && !(route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node')) && (
+            <Button size="sm" variant="danger" onClick={() => { if (confirm(`Delete ${route.domain}?`)) del.mutate({ id: route.id }) }}>Delete</Button>
+          )}
         </div>
       </Section>
     </div>

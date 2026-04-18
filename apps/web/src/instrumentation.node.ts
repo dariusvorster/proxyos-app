@@ -91,6 +91,8 @@ void (async () => {
         onRescan: () => void networkDiscoveryService.syncOnce().catch((e: unknown) => console.warn('[federation] rescan failed:', e)),
       })
       await client.start()
+      const { setFederationClient } = await import('@proxyos/federation/client')
+      setFederationClient(client)
       console.log('[proxyos] federation client started')
     } catch (err) {
       console.error('[proxyos] FATAL: federation client failed to start:', err)

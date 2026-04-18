@@ -63,6 +63,8 @@ export const driftRouter = router({
             http3Enabled: row.http3Enabled,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
+            origin: (row.origin as 'central' | 'local') ?? 'central',
+            scope: (row.scope as 'exclusive' | 'local_only') ?? 'exclusive',
           }
           try {
             await ctx.caddy.updateRoute(row.id, buildCaddyRoute(route))

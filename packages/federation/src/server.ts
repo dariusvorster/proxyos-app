@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws'
 import type { IncomingMessage } from 'http'
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
-import { getDb, federationNodes, nodeAuthKeys } from '@proxyos/db'
+import { getDb, federationNodes, nodeAuthKeys, routes, nanoid } from '@proxyos/db'
 import { eq, and, isNull } from 'drizzle-orm'
 import type {
   FederationMessage,
@@ -11,12 +11,14 @@ import type {
   ConfigApplyMessage,
   ConfigAckMessage,
   TelemetryHeartbeatMessage,
+  ConfigLocalUpdateMessage,
 } from './protocol'
 import { computeConfigForNode } from './config-builder'
 
 interface ConnectedNode {
   agentId: string
   siteId: string
+  tenantId: string
   ws: WebSocket
   lastHeartbeatAt: number
   configVersionApplied: number
@@ -111,6 +113,7 @@ export class FederationServer {
 
       ;(info.req as unknown as Record<string, unknown>).nodeId = nodeId
       ;(info.req as unknown as Record<string, unknown>).siteId = node.siteId
+      ;(info.req as unknown as Record<string, unknown>).tenantId = node.tenantId
       cb(true)
     } catch (err) {
       console.error('[federation] verifyClient error:', err)
@@ -122,10 +125,12 @@ export class FederationServer {
     const r = req as unknown as Record<string, unknown>
     const nodeId = r.nodeId as string
     const siteId = r.siteId as string
+    const tenantId = r.tenantId as string
 
     const conn: ConnectedNode = {
       agentId: nodeId,
       siteId,
+      tenantId,
       ws,
       lastHeartbeatAt: Date.now(),
       configVersionApplied: 0,
@@ -163,6 +168,9 @@ export class FederationServer {
         break
       case 'telemetry.heartbeat':
         await this.handleHeartbeat(conn, msg as TelemetryHeartbeatMessage)
+        break
+      case 'config.local_update':
+        await this.handleLocalUpdate(conn, msg as ConfigLocalUpdateMessage)
         break
       case 'pong':
         break
@@ -223,6 +231,66 @@ export class FederationServer {
       .update(federationNodes)
       .set({ lastHeartbeatAt: new Date() })
       .where(eq(federationNodes.id, conn.agentId))
+  }
+
+  private async handleLocalUpdate(conn: ConnectedNode, msg: ConfigLocalUpdateMessage): Promise<void> {
+    const db = getDb()
+    const { action, route } = msg.payload
+
+    if (action === 'delete') {
+      await db
+        .update(routes)
+        .set({ archivedAt: new Date() })
+        .where(eq(routes.id, route.id))
+      console.log(`[federation] local route deleted: ${route.id} from node ${conn.agentId}`)
+      return
+    }
+
+    const existing = await db.select().from(routes).where(eq(routes.id, route.id)).get()
+    const now = new Date()
+
+    if (existing) {
+      await db
+        .update(routes)
+        .set({
+          domain: route.host,
+          upstreams: route.upstream,
+          tlsMode: route.tls_mode,
+          websocketEnabled: route.websocket_enabled,
+          origin: route.origin,
+          scope: route.scope,
+          updatedAt: now,
+        })
+        .where(eq(routes.id, route.id))
+    } else {
+      await db.insert(routes).values({
+        id: route.id,
+        name: route.host,
+        domain: route.host,
+        enabled: true,
+        upstreamType: 'http',
+        upstreams: route.upstream,
+        tlsMode: route.tls_mode,
+        websocketEnabled: route.websocket_enabled,
+        origin: 'local',
+        scope: route.scope,
+        siteId: conn.siteId,
+        tenantId: conn.tenantId,
+        configVersion: 1,
+        lbPolicy: 'round_robin',
+        ssoEnabled: false,
+        compressionEnabled: true,
+        healthCheckEnabled: true,
+        healthCheckPath: '/',
+        healthCheckInterval: 30,
+        http2Enabled: true,
+        http3Enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+
+    console.log(`[federation] local route mirrored: ${route.id} (${route.host}) from node ${conn.agentId}`)
   }
 
   private onDisconnect(nodeId: string): void {

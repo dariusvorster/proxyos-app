@@ -32,6 +32,16 @@ interface Identity {
   enrolled_at: number
 }
 
+let _instance: FederationClient | null = null
+
+export function setFederationClient(c: FederationClient): void {
+  _instance = c
+}
+
+export function getFederationClient(): FederationClient | null {
+  return _instance
+}
+
 export class FederationClient {
   private ws: WebSocket | null = null
   private identity: Identity | null = null
@@ -61,6 +71,25 @@ export class FederationClient {
   send(msg: FederationMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
     this.ws.send(JSON.stringify(msg))
+  }
+
+  sendLocalUpdate(action: 'upsert' | 'delete', route: { id: string; domain: string; upstreams: unknown; tlsMode: string; websocketEnabled?: boolean | null; origin: 'central' | 'local'; scope: 'exclusive' | 'local_only' }): void {
+    this.send({
+      type: 'config.local_update',
+      request_id: randomUUID(),
+      payload: {
+        action,
+        route: {
+          id: route.id,
+          host: route.domain,
+          upstream: typeof route.upstreams === 'string' ? route.upstreams : JSON.stringify(route.upstreams),
+          tls_mode: route.tlsMode,
+          websocket_enabled: Boolean(route.websocketEnabled),
+          origin: route.origin,
+          scope: route.scope,
+        },
+      },
+    })
   }
 
   get agentId(): string | null {

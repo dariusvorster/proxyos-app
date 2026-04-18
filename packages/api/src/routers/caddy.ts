@@ -117,5 +117,7 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     http3Enabled: row.http3Enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    origin: (row.origin as Route['origin']) ?? 'central',
+    scope: (row.scope as Route['scope']) ?? 'exclusive',
   }
 }

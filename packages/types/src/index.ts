@@ -169,6 +169,8 @@ export interface Route extends RouteInput {
   trustUpstreamHeaders?: boolean
   createdAt: Date
   updatedAt: Date
+  origin: 'central' | 'local'
+  scope: 'exclusive' | 'local_only'
 }
 
 // §3.16 Scheduled changes

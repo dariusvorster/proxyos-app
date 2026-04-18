@@ -75,6 +75,8 @@ async function executePendingChanges(db: Db): Promise<void> {
             http3Enabled: updatedRoute.http3Enabled,
             createdAt: updatedRoute.createdAt,
             updatedAt: updatedRoute.updatedAt,
+            origin: (updatedRoute.origin as 'central' | 'local') ?? 'central',
+            scope: (updatedRoute.scope as 'exclusive' | 'local_only') ?? 'exclusive',
           }))
         } catch {
           // Caddy sync failure doesn't block marking as done

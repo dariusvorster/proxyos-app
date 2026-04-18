@@ -93,6 +93,8 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     skipTlsVerify: Boolean(row.skipTlsVerify),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    origin: (row.origin as Route['origin']) ?? 'central',
+    scope: (row.scope as Route['scope']) ?? 'exclusive',
   }
 }
 
@@ -206,6 +208,8 @@ export const routesRouter = router({
       websocketEnabled: true,
       http2Enabled: true,
       http3Enabled: true,
+      origin: 'central',
+      scope: 'exclusive',
       createdAt: now,
       updatedAt: now,
     }
@@ -229,6 +233,9 @@ export const routesRouter = router({
       websocketEnabled: true,
       http2Enabled: true,
       http3Enabled: true,
+      origin: 'central',
+      scope: 'exclusive',
+      configVersion: 1,
       createdAt: now,
       updatedAt: now,
     })
@@ -325,6 +332,8 @@ export const routesRouter = router({
       websocketEnabled: true,
       http2Enabled: true,
       http3Enabled: true,
+      origin: 'central',
+      scope: 'exclusive',
       createdAt: now,
       updatedAt: now,
     }
@@ -347,6 +356,9 @@ export const routesRouter = router({
       websocketEnabled: true,
       http2Enabled: true,
       http3Enabled: true,
+      origin: 'central',
+      scope: 'exclusive',
+      configVersion: 1,
       createdAt: now,
       updatedAt: now,
     })
@@ -581,6 +593,13 @@ export const routesRouter = router({
       await ctx.caddy.removeRoute(input.id)
       await ctx.db.delete(routes).where(eq(routes.id, input.id))
 
+      if (row.origin === 'local') {
+        const { getFederationClient } = await import('@proxyos/federation/client').catch(() => ({ getFederationClient: null as unknown as typeof import('@proxyos/federation/client').getFederationClient }))
+        if (getFederationClient) {
+          getFederationClient()?.sendLocalUpdate('delete', rowToRoute(row))
+        }
+      }
+
       await ctx.db.insert(auditLog).values({
         id: nanoid(),
         action: 'route.delete',
@@ -696,5 +715,75 @@ export const routesRouter = router({
         await ctx.db.delete(routes).where(eq(routes.id, id))
       }
       return { success: true, count: input.ids.length }
+    }),
+
+  createLocal: operatorProcedure
+    .input(createInput.extend({
+      scope: z.enum(['exclusive', 'local_only']).default('local_only'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const centralConflict = await ctx.db
+        .select()
+        .from(routes)
+        .where(eq(routes.domain, input.domain))
+        .get()
+
+      if (centralConflict?.origin === 'central') {
+        if (input.scope !== 'local_only') {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `${input.domain} is owned by a central route — use scope=local_only`,
+          })
+        }
+      } else if (centralConflict?.origin === 'local') {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `${input.domain} already has a local route on this node`,
+        })
+      }
+
+      const now = new Date()
+      const id = nanoid()
+
+      await ctx.db.insert(routes).values({
+        id,
+        name: input.name,
+        domain: input.domain,
+        enabled: true,
+        upstreamType: 'http',
+        upstreams: JSON.stringify(input.upstreams),
+        lbPolicy: input.lbPolicy,
+        tlsMode: input.tlsMode,
+        tlsDnsProviderId: input.tlsDnsProviderId ?? null,
+        ssoEnabled: input.ssoEnabled,
+        ssoProviderId: input.ssoProviderId ?? null,
+        compressionEnabled: input.compressionEnabled,
+        healthCheckEnabled: input.healthCheckEnabled,
+        healthCheckPath: input.healthCheckPath,
+        healthCheckInterval: 30,
+        websocketEnabled: true,
+        http2Enabled: true,
+        http3Enabled: true,
+        origin: 'local',
+        scope: input.scope,
+        configVersion: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+      if (!row) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Route not found after insert' })
+      const route = rowToRoute(row)
+
+      await syncRouteToCaddy(ctx, route).catch((e: unknown) =>
+        console.warn('[routes] local route caddy sync failed:', e)
+      )
+
+      const { getFederationClient } = await import('@proxyos/federation/client').catch(() => ({ getFederationClient: null as unknown as typeof import('@proxyos/federation/client').getFederationClient }))
+      if (getFederationClient) {
+        getFederationClient()?.sendLocalUpdate('upsert', route)
+      }
+
+      return route
     }),
 })

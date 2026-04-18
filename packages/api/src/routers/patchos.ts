@@ -34,6 +34,8 @@ async function doSetMaintenance(
         healthCheckEnabled: false, healthCheckPath: '/', healthCheckInterval: 30,
         compressionEnabled: false, websocketEnabled: false, http2Enabled: true, http3Enabled: false,
         wafMode: 'off' as const, createdAt: updated.createdAt, updatedAt: updated.updatedAt,
+        origin: (updated.origin as 'central' | 'local') ?? 'central',
+        scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
       }, {}))
     } catch { /* Caddy sync failure is non-fatal — maintenance flag is set in DB */ }
   }
@@ -70,6 +72,8 @@ async function doRestore(
         compressionEnabled: updated.compressionEnabled, websocketEnabled: updated.websocketEnabled, http2Enabled: updated.http2Enabled, http3Enabled: updated.http3Enabled,
         wafMode: (updated.wafMode ?? 'off') as 'off',
         createdAt: updated.createdAt, updatedAt: updated.updatedAt,
+        origin: (updated.origin as 'central' | 'local') ?? 'central',
+        scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
       }, {}))
     } catch { /* non-fatal */ }
   }
