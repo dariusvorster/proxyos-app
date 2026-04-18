@@ -71,4 +71,28 @@ void (async () => {
       console.warn('[proxyos] federation server failed to start:', err)
     }
   }
+
+  if (modes.has('node')) {
+    try {
+      const { FederationClient } = await import('@proxyos/federation/client')
+      const os = await import('os')
+      const client = new FederationClient({
+        centralUrl: process.env.PROXYOS_CENTRAL_URL!,
+        agentToken: process.env.PROXYOS_AGENT_TOKEN,
+        agentName: process.env.PROXYOS_AGENT_NAME ?? os.hostname(),
+        caCert: process.env.PROXYOS_CA_CERT,
+        tlsSkipVerify: process.env.PROXYOS_TLS_SKIP_VERIFY === 'true',
+        identityPath: process.env.PROXYOS_IDENTITY_PATH ?? '/data/proxyos/identity.json',
+        reconnectDelayS: Number(process.env.PROXYOS_RECONNECT_DELAY ?? 1),
+        maxReconnectDelayS: Number(process.env.PROXYOS_MAX_RECONNECT_DELAY ?? 60),
+        heartbeatIntervalS: Number(process.env.PROXYOS_HEARTBEAT_INTERVAL ?? 30),
+        welcomeTimeoutS: Number(process.env.PROXYOS_WELCOME_TIMEOUT ?? 30),
+      })
+      await client.start()
+      console.log('[proxyos] federation client started')
+    } catch (err) {
+      console.error('[proxyos] FATAL: federation client failed to start:', err)
+      process.exit(1)
+    }
+  }
 })()

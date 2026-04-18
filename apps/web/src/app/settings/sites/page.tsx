@@ -45,12 +45,20 @@ export default function SitesPage() {
                       <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>{site.description}</span>
                     )}
                   </div>
-                  <Link
-                    href={`/settings/organizations/${site.organizationId}`}
-                    style={{ fontSize: 11, color: 'var(--blue)', textDecoration: 'none' }}
-                  >
-                    View org ↗
-                  </Link>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <Link
+                      href={`/settings/sites/${site.id}/nodes`}
+                      style={{ fontSize: 11, color: 'var(--blue)', textDecoration: 'none' }}
+                    >
+                      Nodes ↗
+                    </Link>
+                    <Link
+                      href={`/settings/organizations/${site.organizationId}`}
+                      style={{ fontSize: 11, color: 'var(--blue)', textDecoration: 'none' }}
+                    >
+                      View org ↗
+                    </Link>
+                  </div>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
                   <code style={{ fontFamily: 'var(--font-mono)' }}>{site.slug}</code>
