@@ -8,6 +8,8 @@ import type {
   WelcomeMessage,
   ConfigApplyMessage,
 } from './protocol'
+import { startHeartbeat, stopHeartbeat } from './heartbeat'
+import { startTelemetry, stopTelemetry } from './telemetry-sender'
 
 export interface FederationClientConfig {
   centralUrl: string
@@ -20,6 +22,7 @@ export interface FederationClientConfig {
   maxReconnectDelayS: number
   heartbeatIntervalS: number
   welcomeTimeoutS: number
+  onRescan?: () => void
 }
 
 interface Identity {
@@ -166,6 +169,8 @@ export class FederationClient {
         try {
           await this.handshake()
           this.runMessageLoop(resolve, reject)
+          startHeartbeat(this, this.config.heartbeatIntervalS)
+          startTelemetry(this)
         } catch (e) {
           reject(e)
         }
@@ -214,22 +219,6 @@ export class FederationClient {
       }
     }, 5_000)
 
-    const heartbeatTimer = setInterval(() => {
-      this.send({
-        type: 'telemetry.heartbeat',
-        request_id: randomUUID(),
-        payload: {
-          routes_active: 0,
-          requests_since_last: 0,
-          errors_since_last: 0,
-          caddy_ok: true,
-          docker_ok: true,
-          mem_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
-          cpu_pct: 0,
-        },
-      })
-    }, this.config.heartbeatIntervalS * 1000)
-
     this.ws.on('message', (data: Buffer | string) => {
       lastMessageAt = Date.now()
       try {
@@ -242,14 +231,16 @@ export class FederationClient {
 
     this.ws.on('close', (code: number, reason: Buffer) => {
       clearInterval(deadlineCheck)
-      clearInterval(heartbeatTimer)
+      stopHeartbeat()
+      stopTelemetry()
       console.log(`[federation] connection closed: ${code} ${reason.toString()}`)
       onDisconnect()
     })
 
     this.ws.on('error', (e: Error) => {
       clearInterval(deadlineCheck)
-      clearInterval(heartbeatTimer)
+      stopHeartbeat()
+      stopTelemetry()
       onError(e)
     })
   }
@@ -295,6 +286,7 @@ export class FederationClient {
         void this.stop()
         break
       case 'cmd.rescan':
+        this.config.onRescan?.()
         break
       default:
         break

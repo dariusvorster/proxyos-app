@@ -76,6 +76,7 @@ void (async () => {
     try {
       const { FederationClient } = await import('@proxyos/federation/client')
       const os = await import('os')
+      const { networkDiscoveryService } = await import('@proxyos/api/automation/network-join')
       const client = new FederationClient({
         centralUrl: process.env.PROXYOS_CENTRAL_URL!,
         agentToken: process.env.PROXYOS_AGENT_TOKEN,
@@ -87,6 +88,7 @@ void (async () => {
         maxReconnectDelayS: Number(process.env.PROXYOS_MAX_RECONNECT_DELAY ?? 60),
         heartbeatIntervalS: Number(process.env.PROXYOS_HEARTBEAT_INTERVAL ?? 30),
         welcomeTimeoutS: Number(process.env.PROXYOS_WELCOME_TIMEOUT ?? 30),
+        onRescan: () => void networkDiscoveryService.syncOnce().catch((e: unknown) => console.warn('[federation] rescan failed:', e)),
       })
       await client.start()
       console.log('[proxyos] federation client started')
