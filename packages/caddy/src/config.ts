@@ -116,14 +116,60 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
         }))
 
   const allUpstreamsFlat = [...route.upstreams, ...(route.stagingUpstreams ?? [])]
-  const httpsUpstream = allUpstreamsFlat.some(u => u.address.startsWith('https://'))
-  const upstreamSkipVerify = allUpstreamsFlat.some(u => u.skipVerify)
 
-  handlers.push({
+  // Detect HTTPS upstream by scheme prefix OR well-known HTTPS ports.
+  // Proxmox/PBS use 8006/8007 with self-signed certs — auto-detect prevents 301 loops.
+  const HTTPS_PORTS = new Set([443, 8006, 8007, 8443, 9090, 9443, 10443])
+  const isHttpsByPort = (addr: string): boolean => {
+    const m = addr.match(/:(\d+)(?:\/|$)/)
+    return m ? HTTPS_PORTS.has(Number(m[1])) : false
+  }
+  const httpsByScheme = allUpstreamsFlat.some(u => u.address.startsWith('https://'))
+  const httpsByPort = allUpstreamsFlat.some(u => isHttpsByPort(u.address))
+  const httpsUpstream = httpsByScheme || httpsByPort
+  // Port-detected HTTPS implies skip-verify (self-signed is the norm for those services)
+  const upstreamSkipVerify =
+    allUpstreamsFlat.some(u => u.skipVerify) || httpsByPort || Boolean(route.skipTlsVerify)
+
+  // The reverse_proxy handler — every field here is unconditional except the optional blocks.
+  // Host/X-Forwarded-* headers are ALWAYS set so upstream sees real client context.
+  // WebSocket Upgrade/Connection headers are passed through via standard Caddy reverse_proxy
+  //   behavior (it handles Upgrade transparently as long as we don't strip the headers).
+  const reverseProxyHandler: CaddyHandler = {
     handler: 'reverse_proxy',
     upstreams: blueGreenUpstreams,
+    headers: {
+      request: {
+        set: {
+          'Host': ['{http.request.host}'],
+          'X-Forwarded-Host': ['{http.request.host}'],
+          'X-Forwarded-Proto': ['{http.request.scheme}'],
+          'X-Forwarded-For': ['{http.request.remote.host}'],
+          'X-Forwarded-Port': ['{http.request.port}'],
+          'X-Real-IP': ['{http.request.remote.host}'],
+        },
+      },
+    },
+    // Always emit transport block for HTTPS upstreams so Caddy dials HTTPS, not HTTP.
+    // Without this block, Caddy defaults to HTTP and HTTPS-only upstreams redirect-loop.
+    ...(httpsUpstream
+      ? {
+          transport: {
+            protocol: 'http',
+            tls: {
+              insecure_skip_verify: upstreamSkipVerify,
+            },
+          },
+        }
+      : {}),
     ...(blueGreenUpstreams.length > 1
-      ? { load_balancing: { selection_policy: { policy: blueGreenUpstreams.some(u => 'weight' in u) ? 'weighted_round_robin' : policy } } }
+      ? {
+          load_balancing: {
+            selection_policy: {
+              policy: blueGreenUpstreams.some(u => 'weight' in u) ? 'weighted_round_robin' : policy,
+            },
+          },
+        }
       : {}),
     ...(route.healthCheckEnabled
       ? {
@@ -136,21 +182,9 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
           },
         }
       : {}),
-    headers: {
-      request: {
-        set: {
-          'Host': ['{http.request.host}'],
-          'X-Forwarded-Host': ['{http.request.host}'],
-          'X-Forwarded-Proto': ['{http.request.scheme}'],
-          'X-Forwarded-For': ['{http.request.remote.host}'],
-          'X-Real-IP': ['{http.request.remote.host}'],
-        },
-      },
-    },
-    ...((httpsUpstream || route.skipTlsVerify)
-      ? { transport: { protocol: 'http', tls: { insecure_skip_verify: upstreamSkipVerify || Boolean(route.skipTlsVerify) } } }
-      : {}),
-  })
+  }
+
+  handlers.push(reverseProxyHandler)
 
   const match: CaddyMatcher[] = [{ host: [route.domain] }]
   if (route.ipAllowlist && route.ipAllowlist.length > 0) {
