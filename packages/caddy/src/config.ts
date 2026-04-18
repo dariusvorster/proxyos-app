@@ -136,20 +136,17 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
           },
         }
       : {}),
-    ...(route.trustUpstreamHeaders
-      ? {
-          headers: {
-            request: {
-              set: {
-                'X-Real-IP': ['{http.request.remote.host}'],
-                'X-Forwarded-For': ['{http.request.remote.host}'],
-                'X-Forwarded-Proto': ['{http.request.scheme}'],
-                'X-Forwarded-Host': ['{http.request.host}'],
-              },
-            },
-          },
-        }
-      : {}),
+    headers: {
+      request: {
+        set: {
+          'Host': ['{http.request.host}'],
+          'X-Forwarded-Host': ['{http.request.host}'],
+          'X-Forwarded-Proto': ['{http.request.scheme}'],
+          'X-Forwarded-For': ['{http.request.remote.host}'],
+          'X-Real-IP': ['{http.request.remote.host}'],
+        },
+      },
+    },
     ...((httpsUpstream || route.skipTlsVerify)
       ? { transport: { protocol: 'http', tls: { insecure_skip_verify: upstreamSkipVerify || Boolean(route.skipTlsVerify) } } }
       : {}),
