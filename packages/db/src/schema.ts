@@ -68,6 +68,12 @@ export const routes = sqliteTable('routes', {
   // §3.19 Multi-tenant
   tenantId: text('tenant_id'),
 
+  // Federation
+  siteId: text('site_id'),
+  origin: text('origin', { enum: ['central', 'local'] }).notNull().default('central'),
+  configVersion: integer('config_version').notNull().default(1),
+  scope: text('scope', { enum: ['exclusive', 'local_only'] }).notNull().default('exclusive'),
+
   // SSL / security headers
   forceSSL: integer('force_ssl', { mode: 'boolean' }).notNull().default(false),
   hstsEnabled: integer('hsts_enabled', { mode: 'boolean' }).notNull().default(false),
@@ -940,6 +946,9 @@ export const tenants = sqliteTable('tenants', {
   logoUrl: text('logo_url'),
   accentColor: text('accent_color'),
   subdomain: text('subdomain'),
+  plan: text('plan', { enum: ['self_hosted', 'cloud_starter', 'cloud_pro', 'cloud_enterprise'] }).notNull().default('self_hosted'),
+  status: text('status', { enum: ['active', 'suspended', 'archived'] }).notNull().default('active'),
+  settingsJson: text('settings_json').notNull().default('{}'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
@@ -999,3 +1008,48 @@ export const staticUpstreams = sqliteTable('static_upstreams', {
 })
 
 export type StaticUpstreamRow = typeof staticUpstreams.$inferSelect
+
+// Phase A — Federation hierarchy
+
+export const organizations = sqliteTable('organizations', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+})
+
+export const sites = sqliteTable('sites', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  organizationId: text('organization_id').notNull(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+})
+
+export const orgMemberships = sqliteTable('org_memberships', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  organizationId: text('organization_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: text('role', { enum: ['org_admin', 'org_operator', 'org_viewer'] }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const siteMemberships = sqliteTable('site_memberships', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  siteId: text('site_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: text('role', { enum: ['site_operator', 'site_viewer'] }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type OrganizationRow = typeof organizations.$inferSelect
+export type SiteRow = typeof sites.$inferSelect
+export type OrgMembershipRow = typeof orgMemberships.$inferSelect
+export type SiteMembershipRow = typeof siteMemberships.$inferSelect

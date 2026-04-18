@@ -902,4 +902,80 @@ export function ensureSchema(db: Database.Database): void {
     updated_at INTEGER NOT NULL
   )`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_static_upstreams_name ON static_upstreams(name)`)
+
+  // Phase A — Federation hierarchy
+  db.exec(`CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    archived_at INTEGER,
+    UNIQUE(tenant_id, slug)
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_organizations_tenant ON organizations(tenant_id)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS sites (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    description TEXT,
+    created_at INTEGER NOT NULL,
+    archived_at INTEGER,
+    UNIQUE(organization_id, slug)
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sites_org ON sites(organization_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_sites_tenant ON sites(tenant_id)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS org_memberships (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK(role IN ('org_admin','org_operator','org_viewer')),
+    created_at INTEGER NOT NULL,
+    UNIQUE(organization_id, user_id)
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_org_memberships_org ON org_memberships(organization_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_org_memberships_user ON org_memberships(user_id)`)
+
+  db.exec(`CREATE TABLE IF NOT EXISTS site_memberships (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK(role IN ('site_operator','site_viewer')),
+    created_at INTEGER NOT NULL,
+    UNIQUE(site_id, user_id)
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_site_memberships_site ON site_memberships(site_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_site_memberships_user ON site_memberships(user_id)`)
+
+  const PHASE_A_ALTERS = [
+    `ALTER TABLE tenants ADD COLUMN plan TEXT NOT NULL DEFAULT 'self_hosted'`,
+    `ALTER TABLE tenants ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`,
+    `ALTER TABLE tenants ADD COLUMN settings_json TEXT NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE routes ADD COLUMN site_id TEXT REFERENCES sites(id)`,
+    `ALTER TABLE routes ADD COLUMN origin TEXT NOT NULL DEFAULT 'central' CHECK(origin IN ('central','local'))`,
+    `ALTER TABLE routes ADD COLUMN config_version INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE routes ADD COLUMN scope TEXT NOT NULL DEFAULT 'exclusive' CHECK(scope IN ('exclusive','local_only'))`,
+  ]
+  for (const stmt of PHASE_A_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_routes_site ON routes(site_id)`) } catch { /* exists */ }
+
+  // Phase A backfill
+  db.exec(`INSERT OR IGNORE INTO tenants (id, name, slug, plan, status, settings_json, created_at)
+    VALUES ('tenant_default', 'Default', 'default', 'self_hosted', 'active', '{}', ${Date.now()})`)
+  db.exec(`UPDATE tenants SET plan = 'self_hosted', status = 'active', settings_json = '{}'
+    WHERE id = 'tenant_default' AND (plan IS NULL OR plan = '')`)
+  db.exec(`INSERT OR IGNORE INTO organizations (id, tenant_id, name, slug, created_at)
+    VALUES ('org_default', 'tenant_default', 'Default Org', 'default', ${Date.now()})`)
+  db.exec(`INSERT OR IGNORE INTO sites (id, tenant_id, organization_id, name, slug, description, created_at)
+    VALUES ('site_local', 'tenant_default', 'org_default', 'Local', 'local', 'This machine', ${Date.now()})`)
+  db.exec(`UPDATE routes SET tenant_id = 'tenant_default', site_id = 'site_local', origin = 'local', scope = 'exclusive'
+    WHERE tenant_id IS NULL`)
 }
