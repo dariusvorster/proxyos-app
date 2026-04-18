@@ -6,7 +6,7 @@ import { Badge, Button, Card, Checkbox, Input, Select, Toggle } from '~/componen
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 
-type Section = 'general' | 'alerts' | 'sso' | 'dns' | 'integrations' | 'apikeys' | 'users' | 'tracing' | 'templates' | 'export' | 'danger' | 'profile' | 'http'
+type Section = 'general' | 'alerts' | 'sso' | 'dns' | 'integrations' | 'apikeys' | 'users' | 'tracing' | 'templates' | 'approvals' | 'export' | 'danger' | 'profile' | 'http'
 
 const sections: { id: Section; label: string }[] = [
   { id: 'profile', label: 'My profile' },
@@ -20,6 +20,7 @@ const sections: { id: Section; label: string }[] = [
   { id: 'users', label: 'Users & roles' },
   { id: 'tracing', label: 'Observability' },
   { id: 'templates', label: 'Route templates' },
+  { id: 'approvals', label: 'Change approvals' },
   { id: 'export', label: 'Export' },
   { id: 'danger', label: 'Danger zone' },
 ]
@@ -68,6 +69,7 @@ export default function SettingsPage() {
             {active === 'users' && <UsersSection />}
             {active === 'tracing' && <TracingSection />}
             {active === 'templates' && <TemplatesSection />}
+            {active === 'approvals' && <ApprovalsSection />}
             {active === 'export' && <ExportSection />}
             {active === 'danger' && <DangerSection />}
           </div>
@@ -314,6 +316,17 @@ function TemplatesSection() {
         Manage built-in and custom templates used when creating routes.
       </p>
       <Link href="/settings/templates"><Button variant="primary">Manage templates →</Button></Link>
+    </SectionCard>
+  )
+}
+
+function ApprovalsSection() {
+  return (
+    <SectionCard title="Change approvals" desc="Require admin sign-off before sensitive operator changes are applied.">
+      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12 }}>
+        Configure approval policy, review the change queue, and approve or reject pending changes.
+      </p>
+      <Link href="/settings/approvals"><Button variant="primary">Manage approvals →</Button></Link>
     </SectionCard>
   )
 }
