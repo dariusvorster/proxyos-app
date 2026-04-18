@@ -98,6 +98,13 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
   }
 }
 
+async function notifyFederationConfigChange(siteId: string): Promise<void> {
+  try {
+    const { getFederationServer } = await import('@proxyos/federation/server')
+    await getFederationServer()?.notifyConfigChange(siteId)
+  } catch { /* non-fatal — standalone mode has no federation server */ }
+}
+
 async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route): Promise<void> {
   let ssoProvider: SSOProvider | null = null
   if (route.ssoEnabled && route.ssoProviderId) {
@@ -270,6 +277,7 @@ export const routesRouter = router({
       createdAt: now,
     })
     await insertRouteVersion(ctx.db, route, 'user', 'created')
+    void notifyFederationConfigChange('site_local')
 
     return route
   }),
@@ -533,6 +541,7 @@ export const routesRouter = router({
         createdAt: new Date(),
       })
       await insertRouteVersion(ctx.db, route)
+      void notifyFederationConfigChange('site_local')
       return route
     }),
 
@@ -609,6 +618,7 @@ export const routesRouter = router({
         actor: 'user',
         createdAt: new Date(),
       })
+      void notifyFederationConfigChange('site_local')
 
       return { success: true }
     }),

@@ -29,6 +29,7 @@ export interface HelloMessage extends BaseMessage {
     os: string
     docker_version: string
     capabilities: string[]
+    config_version_applied: number
   }
 }
 

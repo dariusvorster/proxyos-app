@@ -46,8 +46,13 @@ export class FederationClient {
   private ws: WebSocket | null = null
   private identity: Identity | null = null
   private stopped = false
+  private appliedVersion = 0
 
   constructor(private readonly config: FederationClientConfig) {}
+
+  setAppliedVersion(v: number): void {
+    this.appliedVersion = v
+  }
 
   async start(): Promise<void> {
     this.identity = this.loadIdentity()
@@ -58,7 +63,22 @@ export class FederationClient {
       this.identity = await this.enroll()
       this.saveIdentity(this.identity)
     }
+    await this.applyFromCache()
     void this.runWithReconnect()
+  }
+
+  private async applyFromCache(): Promise<void> {
+    const { loadConfigCache } = await import('./config-cache')
+    const { applyConfig } = await import('./config-applier')
+    const cachePath = process.env.PROXYOS_CONFIG_CACHE ?? '/data/proxyos/config-cache.json'
+    const cached = loadConfigCache(cachePath)
+    if (!cached) return
+    console.log(`[federation] applying cached config v${cached.version} (${cached.routes.length} routes)`)
+    await applyConfig(this, {
+      type: 'config.apply',
+      request_id: 'cache',
+      payload: cached,
+    }).catch((e: unknown) => console.warn('[federation] cache apply failed:', e))
   }
 
   async stop(): Promise<void> {
@@ -226,6 +246,7 @@ export class FederationClient {
         os: `${process.platform}/${process.arch}`,
         docker_version: 'unknown',
         capabilities: ['routes.v1', 'telemetry.v1'],
+        config_version_applied: this.appliedVersion,
       },
     }
     this.send(hello)

@@ -965,6 +965,14 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of PHASE_A_ALTERS) {
     try { db.exec(stmt) } catch { /* column already exists */ }
   }
+
+  // Phase F additions
+  const PHASE_F_ALTERS = [
+    `ALTER TABLE nodes ADD COLUMN config_version_desired INTEGER DEFAULT 0`,
+  ]
+  for (const stmt of PHASE_F_ALTERS) {
+    try { db.exec(stmt) } catch { /* column already exists */ }
+  }
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_routes_site ON routes(site_id)`) } catch { /* exists */ }
 
   // Phase A backfill

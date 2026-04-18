@@ -1066,6 +1066,7 @@ export const federationNodes = sqliteTable('federation_nodes', {
   agentVersion: text('agent_version'),
   status: text('status', { enum: ['pending', 'connected', 'offline', 'revoked'] }).notNull().default('pending'),
   configVersionApplied: integer('config_version_applied').default(0),
+  configVersionDesired: integer('config_version_desired').default(0),
   enrolledAt: integer('enrolled_at', { mode: 'timestamp' }),
   lastHeartbeatAt: integer('last_heartbeat_at', { mode: 'timestamp' }),
   revokedAt: integer('revoked_at', { mode: 'timestamp' }),

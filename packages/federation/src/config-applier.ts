@@ -2,6 +2,7 @@ import type { FederationClient } from './client'
 import type { ConfigApplyMessage } from './protocol'
 import { getDb, routes } from '@proxyos/db'
 import { eq } from 'drizzle-orm'
+import { saveConfigCache } from './config-cache'
 
 export async function applyConfig(
   client: FederationClient,
@@ -63,6 +64,10 @@ export async function applyConfig(
     } catch (e) {
       console.warn('[federation] caddy re-apply failed:', e)
     }
+
+    const cachePath = process.env.PROXYOS_CONFIG_CACHE ?? '/data/proxyos/config-cache.json'
+    saveConfigCache(cachePath, { version, routes: routeConfigs, settings: {} })
+    client.setAppliedVersion(version)
 
     client.send({
       type: 'config.ack',

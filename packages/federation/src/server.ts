@@ -191,6 +191,7 @@ export class FederationServer {
       .where(eq(federationNodes.id, conn.agentId))
 
     const config = await computeConfigForNode(conn.siteId)
+    const nodeApplied = hello.payload.config_version_applied ?? 0
 
     const welcome: WelcomeMessage = {
       type: 'welcome',
@@ -204,12 +205,66 @@ export class FederationServer {
     }
     conn.ws.send(JSON.stringify(welcome))
 
-    const applyMsg: ConfigApplyMessage = {
-      type: 'config.apply',
+    const msgType: 'config.apply' | 'config.reconcile' =
+      nodeApplied === 0 ? 'config.apply' : 'config.reconcile'
+
+    conn.ws.send(JSON.stringify({
+      type: msgType,
       request_id: randomUUID(),
       payload: config,
+    }))
+
+    await this.logFederationEvent(conn.agentId, nodeApplied === 0 ? 'node.connected' : 'node.reconnected', {
+      config_version: config.version,
+      node_applied: nodeApplied,
+    })
+  }
+
+  async notifyConfigChange(siteId: string): Promise<void> {
+    const db = getDb()
+    const nodes = await db
+      .select()
+      .from(federationNodes)
+      .where(and(eq(federationNodes.siteId, siteId), isNull(federationNodes.revokedAt)))
+
+    for (const node of nodes) {
+      const next = (node.configVersionDesired ?? 0) + 1
+      await db
+        .update(federationNodes)
+        .set({ configVersionDesired: next })
+        .where(eq(federationNodes.id, node.id))
+
+      const conn = this.connections.get(node.id)
+      if (conn) {
+        const config = await computeConfigForNode(siteId)
+        conn.ws.send(JSON.stringify({
+          type: 'config.apply',
+          request_id: randomUUID(),
+          payload: config,
+        }))
+      }
     }
-    conn.ws.send(JSON.stringify(applyMsg))
+  }
+
+  private async logFederationEvent(
+    nodeId: string,
+    event: string,
+    detail: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      const { auditLog, nanoid: aid } = await import('@proxyos/db')
+      const db = getDb()
+      await db.insert(auditLog).values({
+        id: aid(),
+        action: `federation.${event}`,
+        resourceType: 'node',
+        resourceId: nodeId,
+        resourceName: nodeId,
+        actor: 'federation',
+        detail: JSON.stringify(detail),
+        createdAt: new Date(),
+      })
+    } catch { /* audit log failure is non-fatal */ }
   }
 
   private async handleConfigAck(conn: ConnectedNode, ack: ConfigAckMessage): Promise<void> {
@@ -223,6 +278,11 @@ export class FederationServer {
     if (!ack.payload.success) {
       console.warn(`[federation] node ${conn.agentId} failed config v${ack.payload.version}: ${ack.payload.error}`)
     }
+    await this.logFederationEvent(conn.agentId, 'config.ack', {
+      version: ack.payload.version,
+      success: ack.payload.success,
+      error: ack.payload.error,
+    })
   }
 
   private async handleHeartbeat(conn: ConnectedNode, _hb: TelemetryHeartbeatMessage): Promise<void> {
@@ -298,6 +358,7 @@ export class FederationServer {
     console.log(`[federation] node disconnected: ${nodeId}`)
     const db = getDb()
     void db.update(federationNodes).set({ status: 'offline' }).where(eq(federationNodes.id, nodeId))
+    void this.logFederationEvent(nodeId, 'node.disconnected', {})
   }
 
   private async monitorHeartbeats(): Promise<void> {
