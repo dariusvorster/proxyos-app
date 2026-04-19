@@ -86,6 +86,18 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
   if (result.pushedRouteIds && result.pushedRouteIds.length > 0) {
     await db.update(routesTable).set({ syncSource: 'bootstrap' }).where(inArray(routesTable.id, result.pushedRouteIds))
   }
+
+  // Always ensure the dashboard port is routed to the Next.js app, regardless of DB routes
+  const dashboardPort = process.env.PROXYOS_DASHBOARD_PORT ?? '3071'
+  await fetch(`http://localhost:2019/config/apps/http/servers/dashboard`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      listen: [`:${dashboardPort}`],
+      routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: 'localhost:3000' }] }] }],
+    }),
+  }).catch((e: unknown) => console.warn('[proxyos] dashboard route inject failed:', e))
+
   return result
 }
 
