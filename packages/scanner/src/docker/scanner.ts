@@ -1,7 +1,22 @@
+import * as http from 'node:http'
 import type { ImportedRoute } from '@proxyos/importers'
 import { parseProxyOSLabels, proxyOSLabelsToRoute } from './label-parser'
 import { scanDockerForTraefikLabels, type ContainerLabels } from '@proxyos/importers'
 import { resolveUpstream, isLikelyHTTP, type ScannerContainer } from './upstream-resolver'
+
+function fetchFromSocket(socketPath: string, path: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(
+      { socketPath, path, headers: { Host: 'localhost' } },
+      (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => { try { resolve(JSON.parse(data)) } catch (e) { reject(e) } })
+      },
+    )
+    req.on('error', reject)
+  })
+}
 
 export interface DockerScannerConfig {
   socketPath?: string
@@ -66,10 +81,7 @@ export class DockerScanner {
   }
 
   async scanRaw(): Promise<ScannedContainer[]> {
-    const apiBase = this.config.apiUrl ?? 'http://localhost:2375'
-    const res = await fetch(`${apiBase}/containers/json`)
-    if (!res.ok) throw new Error(`Docker API error: ${res.status} ${res.statusText}`)
-    const containers = await res.json() as Array<{
+    let containers: Array<{
       Id: string
       Names: string[]
       Image: string
@@ -78,6 +90,15 @@ export class DockerScanner {
       Ports: Array<{ IP?: string; PrivatePort: number; PublicPort?: number; Type: string }>
       NetworkSettings: { Networks: Record<string, { IPAddress: string }> }
     }>
+
+    if (this.config.apiUrl) {
+      const res = await fetch(`${this.config.apiUrl}/containers/json`)
+      if (!res.ok) throw new Error(`Docker API error: ${res.status} ${res.statusText}`)
+      containers = await res.json() as typeof containers
+    } else {
+      const socketPath = this.config.socketPath ?? '/var/run/docker.sock'
+      containers = await fetchFromSocket(socketPath, '/containers/json') as typeof containers
+    }
 
     return containers.map(c => this.processContainer(c))
   }
