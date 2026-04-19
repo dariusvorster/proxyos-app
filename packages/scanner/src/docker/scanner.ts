@@ -1,4 +1,4 @@
-import * as http from 'node:http'
+import * as http from 'http'
 import type { ImportedRoute } from '@proxyos/importers'
 import { parseProxyOSLabels, proxyOSLabelsToRoute } from './label-parser'
 import { scanDockerForTraefikLabels, type ContainerLabels } from '@proxyos/importers'
