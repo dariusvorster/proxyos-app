@@ -9,7 +9,7 @@ RUN sh scripts/check-no-js-shadows.sh
 RUN pnpm --filter @proxyos/web build
 
 # ── caddy-builder ─────────────────────────────────────────────────────
-FROM golang:1.23-alpine AS caddy-builder
+FROM golang:1.25-alpine AS caddy-builder
 RUN apk add --no-cache git ca-certificates wget
 ARG CADDY_VERSION=2.11.2
 ARG XCADDY_VERSION=0.4.4
