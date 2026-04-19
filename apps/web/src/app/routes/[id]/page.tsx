@@ -1,7 +1,5 @@
 'use client'
 
-'use client'
-
 import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Dot, Input, Select, StatCard, td, th } from '~/components/ui'

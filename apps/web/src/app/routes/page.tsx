@@ -183,13 +183,13 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 60 }, { refetchInterval: 30_000 })
   const last = summary.data?.buckets.slice(-1)[0]
   return (
-    <tr>
+    <tr onClick={onOpen} style={{ cursor: 'pointer' }}>
       <td style={td} onClick={(e) => e.stopPropagation()}>
         <Checkbox checked={checked} onChange={onCheck} />
       </td>
-      <td style={td} onClick={onOpen} role="button">
+      <td style={td} role="button">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontWeight: 500, cursor: 'pointer', color: 'var(--text-primary)' }}>{route.domain}</span>
+          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{route.domain}</span>
           <a
             href={`${route.tlsMode === 'off' ? 'http' : 'https'}://${route.domain}`}
             target="_blank"
