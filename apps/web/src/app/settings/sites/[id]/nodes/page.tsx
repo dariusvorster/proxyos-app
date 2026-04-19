@@ -116,8 +116,14 @@ volumes:
                 </form>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                    Token expires: {new Date(generatedToken.expiresAt).toLocaleString()} — shown once, copy now.
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                      Token expires: {new Date(generatedToken.expiresAt).toLocaleString()} — shown once, copy now.
+                    </span>
+                    <Button variant="ghost" size="sm"
+                      onClick={() => void navigator.clipboard.writeText(composeSnippet)}>
+                      Copy
+                    </Button>
                   </div>
                   <pre style={{
                     fontSize: 11,
