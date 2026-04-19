@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useState } from 'react'
+import Link from 'next/link'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
@@ -17,8 +18,8 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 export default function SiteNodesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: siteId } = use(params)
 
-  const { data: nodes, refetch } = trpc.nodes.list.useQuery({ siteId })
-  const { data: connectedIds } = trpc.nodes.connectedIds.useQuery()
+  const { data: nodes, refetch } = trpc.nodes.list.useQuery({ siteId }, { refetchInterval: 5000 })
+  const { data: connectedIds } = trpc.nodes.connectedIds.useQuery(undefined, { refetchInterval: 5000 })
   const createTokenMutation = trpc.nodes.createEnrollmentToken.useMutation()
   const revokeMutation = trpc.nodes.revoke.useMutation({ onSuccess: () => refetch() })
   const pingMutation = trpc.nodes.ping.useMutation()
@@ -67,6 +68,11 @@ volumes:
     <>
       <Topbar title="Nodes" />
       <PageContent>
+        <div style={{ marginBottom: 8 }}>
+          <Link href={`/settings/sites/${siteId}`} style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none' }}>
+            ← Back to site
+          </Link>
+        </div>
         <PageHeader
           title="Nodes"
           desc={`Remote ProxyOS instances managed by this site.`}
@@ -78,7 +84,7 @@ volumes:
             size="sm"
             onClick={() => { setShowForm((v) => !v); setGeneratedToken(null) }}
           >
-            {showForm ? 'Cancel' : '+ Add node'}
+            {generatedToken ? 'Done' : showForm ? 'Cancel' : '+ Add node'}
           </Button>
         </div>
 
