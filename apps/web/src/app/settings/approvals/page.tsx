@@ -138,7 +138,7 @@ export default function ApprovalsPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
               <span>
                 Change queue
-                {pending > 0 && <Badge tone="amber" style={{ marginLeft: 8 }}>{pending} pending</Badge>}
+                {pending > 0 && <span style={{ marginLeft: 8 }}><Badge tone="amber">{pending} pending</Badge></span>}
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {(['pending', 'approved', 'rejected', 'all'] as const).map(s => (
