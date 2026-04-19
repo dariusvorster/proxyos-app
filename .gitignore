@@ -16,3 +16,5 @@ Specs/
 # See scripts/check-no-js-shadows.sh and CLAUDE.md for context.
 packages/*/src/**/*.js
 !packages/*/src/**/*.d.ts
+.playwright-mcp/
+missing.png
