@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { LogoMark, Wordmark } from './logo'
 import { useTheme } from './theme'
 import { getSession, clearSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
+import { useSiteSelection } from '~/lib/site-context'
 import { trpc } from '~/lib/trpc'
 
 type NavItem = { href: string; label: string; icon?: string }
@@ -59,6 +60,7 @@ const navSections: NavSection[] = [
 ]
 
 const TIER = (process.env.NEXT_PUBLIC_PROXYOS_TIER ?? 'homelab') as 'homelab' | 'cloud'
+const IS_CENTRAL = (process.env.NEXT_PUBLIC_PROXYOS_MODE ?? '').includes('central')
 const TIER_LABEL = TIER === 'cloud' ? 'cloud' : 'self-hosted'
 
 const AUTH_ROUTES = new Set(['/login', '/register', '/forgot-password'])
@@ -161,6 +163,7 @@ function Sidebar() {
       </div>
 
       <TenantSwitcher />
+      {IS_CENTRAL && <SiteSwitcher />}
 
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto' }}>
@@ -334,6 +337,77 @@ function TenantSwitcher() {
               style={{ width: '100%', display: 'block', padding: '8px 12px', background: t.id === active?.id ? 'var(--accent-dim)' : 'transparent', border: 'none', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)', color: t.id === active?.id ? 'var(--accent-dark)' : 'var(--text)', cursor: 'pointer' }}
             >
               {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const SITE_LOCAL = '__local__'
+
+function SiteSwitcher() {
+  const { data: sites = [] } = trpc.sites.listAll.useQuery()
+  const { siteId, setSiteId } = useSiteSelection()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activeId = siteId ?? SITE_LOCAL
+  const activeName = activeId === SITE_LOCAL
+    ? 'This instance'
+    : (sites.find(s => s.id === activeId)?.name ?? activeId)
+
+  const options = [
+    { id: SITE_LOCAL, name: 'This instance' },
+    ...sites.map(s => ({ id: s.id, name: s.name })),
+  ]
+
+  function select(id: string) {
+    setSiteId(id === SITE_LOCAL ? null : id)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', margin: '0 10px 4px' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '5px 10px',
+          background: 'var(--surface2, var(--surf2))',
+          border: '1px solid var(--border)',
+          borderRadius: 7,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>site</span>
+        <span style={{ fontSize: 11, color: 'var(--text)', fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {activeName}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text3)' }}>⌄</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--surf)', border: '1px solid var(--border)', borderRadius: 7, zIndex: 50, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,.2)' }}>
+          {options.map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => select(opt.id)}
+              style={{ width: '100%', display: 'block', padding: '8px 12px', background: opt.id === activeId ? 'var(--accent-dim)' : 'transparent', border: 'none', textAlign: 'left', fontSize: 12, fontFamily: 'var(--font-sans)', color: opt.id === activeId ? 'var(--accent-dark)' : 'var(--text)', cursor: 'pointer' }}
+            >
+              {opt.name}
             </button>
           ))}
         </div>

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { AlertBanner, Badge, Button, Card, Checkbox, Dot, Input, Select, StepIndicator, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useSiteSelection } from '~/lib/site-context'
 
 type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SourceMode = 'manual' | 'infraos' | 'scanner'
@@ -14,6 +15,7 @@ const STEPS = ['Source', 'Domain', 'Routing', 'Access', 'Options', 'Monitoring',
 
 export default function ExposePage() {
   const utils = trpc.useUtils()
+  const { siteId } = useSiteSelection()
   const status = trpc.system.caddyStatus.useQuery(undefined, { refetchInterval: 5000 })
   const ssoProviders = trpc.sso.list.useQuery()
   const dnsProviders = trpc.dns.list.useQuery()
@@ -128,6 +130,7 @@ export default function ExposePage() {
       tlsDnsProviderId: tlsMode === 'dns' ? tlsDnsProviderId || null : null,
       ssoEnabled,
       ssoProviderId: ssoEnabled ? ssoProviderId || null : null,
+      siteId: siteId ?? null,
     })
   }
 

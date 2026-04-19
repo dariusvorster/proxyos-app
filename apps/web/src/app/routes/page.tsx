@@ -5,6 +5,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useSiteSelection } from '~/lib/site-context'
 import type { Route } from '@proxyos/types'
 
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
@@ -13,7 +14,8 @@ type TypeFilter = 'all' | 'proxy'
 
 export default function RoutesPage() {
   const utils = trpc.useUtils()
-  const list = trpc.routes.list.useQuery()
+  const { siteId } = useSiteSelection()
+  const list = trpc.routes.list.useQuery({ siteId })
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
 
   const [search, setSearch] = useState('')
