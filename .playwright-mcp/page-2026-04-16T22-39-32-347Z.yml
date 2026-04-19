@@ -1,0 +1,144 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e13]: ProxyOS
+        - generic [ref=e14]: v3
+      - navigation [ref=e15]:
+        - generic [ref=e16]:
+          - link "Dashboard" [ref=e17] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e18]: ◆
+            - generic [ref=e19]: Dashboard
+          - link "Routes" [ref=e20] [cursor=pointer]:
+            - /url: /routes
+            - generic [ref=e21]: ↗
+            - generic [ref=e22]: Routes
+          - link "Redirect hosts" [ref=e23] [cursor=pointer]:
+            - /url: /redirect-hosts
+            - generic [ref=e24]: ↪
+            - generic [ref=e25]: Redirect hosts
+          - link "Error hosts" [ref=e26] [cursor=pointer]:
+            - /url: /error-hosts
+            - generic [ref=e27]: ✕
+            - generic [ref=e28]: Error hosts
+          - link "Streams" [ref=e29] [cursor=pointer]:
+            - /url: /streams
+            - generic [ref=e30]: ⇌
+            - generic [ref=e31]: Streams
+          - link "Analytics" [ref=e32] [cursor=pointer]:
+            - /url: /analytics
+            - generic [ref=e33]: ▤
+            - generic [ref=e34]: Analytics
+          - link "Certificates" [ref=e35] [cursor=pointer]:
+            - /url: /certificates
+            - generic [ref=e36]: ◼
+            - generic [ref=e37]: Certificates
+        - generic [ref=e38]:
+          - generic [ref=e39]: Federation
+          - link "Agents" [ref=e40] [cursor=pointer]:
+            - /url: /agents
+            - generic [ref=e41]: ◇
+            - generic [ref=e42]: Agents
+          - link "Connections" [ref=e43] [cursor=pointer]:
+            - /url: /connections
+            - generic [ref=e44]: ⇌
+            - generic [ref=e45]: Connections
+          - link "Scanner" [ref=e46] [cursor=pointer]:
+            - /url: /scanner
+            - generic [ref=e47]: ◉
+            - generic [ref=e48]: Scanner
+        - generic [ref=e49]:
+          - generic [ref=e50]: Tools
+          - link "Import" [ref=e51] [cursor=pointer]:
+            - /url: /import
+            - generic [ref=e52]: ⇣
+            - generic [ref=e53]: Import
+          - link "Access lists" [ref=e54] [cursor=pointer]:
+            - /url: /access-lists
+            - generic [ref=e55]: ⊘
+            - generic [ref=e56]: Access lists
+          - link "Audit log" [ref=e57] [cursor=pointer]:
+            - /url: /audit
+            - generic [ref=e58]: ≡
+            - generic [ref=e59]: Audit log
+          - link "Logs" [ref=e60] [cursor=pointer]:
+            - /url: /logs
+            - generic [ref=e61]: ▤
+            - generic [ref=e62]: Logs
+          - link "Operations" [ref=e63] [cursor=pointer]:
+            - /url: /logs/operations
+            - generic [ref=e64]: ◎
+            - generic [ref=e65]: Operations
+        - generic [ref=e66]:
+          - generic [ref=e67]: Account
+          - link "Billing" [ref=e68] [cursor=pointer]:
+            - /url: /billing
+            - generic [ref=e69]: ◈
+            - generic [ref=e70]: Billing
+          - link "Docs" [ref=e71] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e72]: "?"
+            - generic [ref=e73]: Docs
+      - generic [ref=e74]:
+        - link "TE" [ref=e75] [cursor=pointer]:
+          - /url: /settings/profile
+          - generic [ref=e76]: TE
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - button "Settings" [ref=e79] [cursor=pointer]:
+              - img [ref=e80]
+            - button "Light mode" [ref=e83] [cursor=pointer]:
+              - img [ref=e84]
+            - button "Sign out" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+          - generic [ref=e91]: Test
+          - generic [ref=e92]: self-hosted · v3.1
+    - generic [ref=e93]:
+      - banner [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]: ProxyOS
+          - generic [ref=e97]: /
+          - generic [ref=e98]: Logs
+      - main [ref=e99]:
+        - generic [ref=e100]:
+          - button "System logs" [ref=e101] [cursor=pointer]
+          - button "Access logs" [ref=e102] [cursor=pointer]
+          - button "Alert events" [ref=e103] [cursor=pointer]
+        - generic [ref=e104]:
+          - button "info · —" [ref=e105] [cursor=pointer]: info · —
+          - button "warn · —" [ref=e107] [cursor=pointer]: warn · —
+          - button "error · —" [ref=e109] [cursor=pointer]: error · —
+          - generic [ref=e111]:
+            - button "Export CSV" [ref=e112] [cursor=pointer]
+            - button "Clear >30d" [ref=e113] [cursor=pointer]
+        - generic [ref=e116]:
+          - textbox "Search…" [ref=e117]
+          - textbox [ref=e118]
+          - generic [ref=e119]: →
+          - textbox [ref=e120]
+          - combobox [ref=e121]:
+            - option "All categories" [selected]
+            - option "Auth"
+            - option "Caddy"
+            - option "System"
+            - option "API"
+            - option "User"
+        - generic [ref=e122]:
+          - generic [ref=e124]:
+            - text: System logs
+            - generic [ref=e125]: 0 entries
+          - table [ref=e127]:
+            - rowgroup [ref=e128]:
+              - row "Time Level Category Message User" [ref=e129]:
+                - columnheader [ref=e130]
+                - columnheader "Time" [ref=e131]
+                - columnheader "Level" [ref=e132]
+                - columnheader "Category" [ref=e133]
+                - columnheader "Message" [ref=e134]
+                - columnheader "User" [ref=e135]
+            - rowgroup [ref=e136]:
+              - row "Loading…" [ref=e137]:
+                - cell "Loading…" [ref=e138]
+  - alert [ref=e139]

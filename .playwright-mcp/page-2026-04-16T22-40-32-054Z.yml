@@ -1,0 +1,170 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e32]: ProxyOS v3.1 — Dashboard
+  - generic [ref=e221]:
+    - complementary [ref=e222]:
+      - generic [ref=e224]:
+        - img [ref=e225]
+        - generic [ref=e232]: ProxyOS
+        - generic [ref=e233]: v3
+      - navigation [ref=e234]:
+        - generic [ref=e235]:
+          - link "Dashboard" [ref=e236] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e237]: ◆
+            - generic [ref=e238]: Dashboard
+          - link "Routes" [ref=e239] [cursor=pointer]:
+            - /url: /routes
+            - generic [ref=e240]: ↗
+            - generic [ref=e241]: Routes
+          - link "Redirect hosts" [ref=e242] [cursor=pointer]:
+            - /url: /redirect-hosts
+            - generic [ref=e243]: ↪
+            - generic [ref=e244]: Redirect hosts
+          - link "Error hosts" [ref=e245] [cursor=pointer]:
+            - /url: /error-hosts
+            - generic [ref=e246]: ✕
+            - generic [ref=e247]: Error hosts
+          - link "Streams" [ref=e248] [cursor=pointer]:
+            - /url: /streams
+            - generic [ref=e249]: ⇌
+            - generic [ref=e250]: Streams
+          - link "Analytics" [ref=e251] [cursor=pointer]:
+            - /url: /analytics
+            - generic [ref=e252]: ▤
+            - generic [ref=e253]: Analytics
+          - link "Certificates" [ref=e254] [cursor=pointer]:
+            - /url: /certificates
+            - generic [ref=e255]: ◼
+            - generic [ref=e256]: Certificates
+        - generic [ref=e257]:
+          - generic [ref=e258]: Federation
+          - link "Agents" [ref=e259] [cursor=pointer]:
+            - /url: /agents
+            - generic [ref=e260]: ◇
+            - generic [ref=e261]: Agents
+          - link "Connections" [ref=e262] [cursor=pointer]:
+            - /url: /connections
+            - generic [ref=e263]: ⇌
+            - generic [ref=e264]: Connections
+          - link "Scanner" [ref=e265] [cursor=pointer]:
+            - /url: /scanner
+            - generic [ref=e266]: ◉
+            - generic [ref=e267]: Scanner
+        - generic [ref=e268]:
+          - generic [ref=e269]: Tools
+          - link "Import" [ref=e270] [cursor=pointer]:
+            - /url: /import
+            - generic [ref=e271]: ⇣
+            - generic [ref=e272]: Import
+          - link "Access lists" [ref=e273] [cursor=pointer]:
+            - /url: /access-lists
+            - generic [ref=e274]: ⊘
+            - generic [ref=e275]: Access lists
+          - link "Audit log" [ref=e276] [cursor=pointer]:
+            - /url: /audit
+            - generic [ref=e277]: ≡
+            - generic [ref=e278]: Audit log
+          - link "Logs" [ref=e279] [cursor=pointer]:
+            - /url: /logs
+            - generic [ref=e280]: ▤
+            - generic [ref=e281]: Logs
+          - link "Operations" [ref=e282] [cursor=pointer]:
+            - /url: /logs/operations
+            - generic [ref=e283]: ◎
+            - generic [ref=e284]: Operations
+        - generic [ref=e285]:
+          - generic [ref=e286]: Account
+          - link "Billing" [ref=e287] [cursor=pointer]:
+            - /url: /billing
+            - generic [ref=e288]: ◈
+            - generic [ref=e289]: Billing
+          - link "Docs" [ref=e290] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e291]: "?"
+            - generic [ref=e292]: Docs
+      - generic [ref=e293]:
+        - link "TE" [ref=e294] [cursor=pointer]:
+          - /url: /settings/profile
+          - generic [ref=e295]: TE
+        - generic [ref=e296]:
+          - generic [ref=e297]:
+            - button "Settings" [ref=e298] [cursor=pointer]:
+              - img [ref=e299]
+            - button "Light mode" [ref=e302] [cursor=pointer]:
+              - img [ref=e303]
+            - button "Sign out" [ref=e306] [cursor=pointer]:
+              - img [ref=e307]
+          - generic [ref=e310]: Test
+          - generic [ref=e311]: self-hosted · v3.1
+    - generic [ref=e312]:
+      - banner [ref=e313]:
+        - generic [ref=e314]:
+          - generic [ref=e315]: ProxyOS
+          - generic [ref=e316]: /
+          - generic [ref=e317]: Dashboard
+        - generic [ref=e318]:
+          - link "Scanner" [ref=e319] [cursor=pointer]:
+            - /url: /scanner
+            - button "Scanner" [ref=e320]
+          - link "Import" [ref=e321] [cursor=pointer]:
+            - /url: /import
+            - button "Import" [ref=e322]
+          - link "+ Expose service" [ref=e323] [cursor=pointer]:
+            - /url: /expose
+            - button "+ Expose service" [ref=e324]
+      - main [ref=e325]:
+        - generic [ref=e326]:
+          - generic [ref=e327]:
+            - generic [ref=e328]: Active routes
+            - generic [ref=e329]: "1"
+            - generic [ref=e330]: Caddy healthy
+          - generic [ref=e331]:
+            - generic [ref=e332]: Agents online
+            - generic [ref=e333]: 0 / 0
+            - generic [ref=e334]: No agents yet
+          - generic [ref=e335]:
+            - generic [ref=e336]: Requests / 24h
+            - generic [ref=e337]: —
+            - generic [ref=e338]: no data
+          - generic [ref=e339]:
+            - generic [ref=e340]: Certs expiring
+            - generic [ref=e341]: "0"
+            - generic [ref=e342]: None expiring
+        - generic [ref=e343]:
+          - generic [ref=e344]:
+            - generic [ref=e345]: Routes
+            - link "View all →" [ref=e346] [cursor=pointer]:
+              - /url: /routes
+          - table [ref=e348]:
+            - rowgroup [ref=e349]:
+              - row "Domain Upstream TLS SSO Status" [ref=e350]:
+                - columnheader "Domain" [ref=e351]
+                - columnheader "Upstream" [ref=e352]
+                - columnheader "TLS" [ref=e353]
+                - columnheader "SSO" [ref=e354]
+                - columnheader "Status" [ref=e355]
+            - rowgroup [ref=e356]:
+              - row "proxyos.homelabza.com 192.168.80.12:3070 auto — active" [ref=e357]:
+                - cell "proxyos.homelabza.com" [ref=e358]:
+                  - link "proxyos.homelabza.com" [ref=e359] [cursor=pointer]:
+                    - /url: /routes/q0Fufzil0-VCO3gZK8H9E
+                - cell "192.168.80.12:3070" [ref=e360]
+                - cell "auto" [ref=e361]:
+                  - generic [ref=e362]: auto
+                - cell "—" [ref=e363]:
+                  - generic [ref=e364]: —
+                - cell "active" [ref=e365]:
+                  - generic [ref=e368]: active
+        - generic [ref=e369]:
+          - generic [ref=e370]:
+            - generic [ref=e372]: Agents
+            - generic [ref=e374]:
+              - text: Agents are not set up yet. Register your first agent in
+              - link "Agents" [ref=e375] [cursor=pointer]:
+                - /url: /agents
+              - text: .
+          - generic [ref=e376]:
+            - generic [ref=e378]: Certificates
+            - generic [ref=e381]:
+              - generic [ref=e382]: proxyos.homelabza.com
+              - generic [ref=e383]: provisioning

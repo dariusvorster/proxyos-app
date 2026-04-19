@@ -1,0 +1,167 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e13]: ProxyOS
+        - generic [ref=e14]: v3
+      - navigation [ref=e15]:
+        - generic [ref=e16]:
+          - link "Dashboard" [ref=e17] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e18]: ◆
+            - generic [ref=e19]: Dashboard
+          - link "Routes" [ref=e20] [cursor=pointer]:
+            - /url: /routes
+            - generic [ref=e21]: ↗
+            - generic [ref=e22]: Routes
+          - link "Redirect hosts" [ref=e23] [cursor=pointer]:
+            - /url: /redirect-hosts
+            - generic [ref=e24]: ↪
+            - generic [ref=e25]: Redirect hosts
+          - link "Error hosts" [ref=e26] [cursor=pointer]:
+            - /url: /error-hosts
+            - generic [ref=e27]: ✕
+            - generic [ref=e28]: Error hosts
+          - link "Streams" [ref=e29] [cursor=pointer]:
+            - /url: /streams
+            - generic [ref=e30]: ⇌
+            - generic [ref=e31]: Streams
+          - link "Analytics" [ref=e32] [cursor=pointer]:
+            - /url: /analytics
+            - generic [ref=e33]: ▤
+            - generic [ref=e34]: Analytics
+          - link "Certificates" [ref=e35] [cursor=pointer]:
+            - /url: /certificates
+            - generic [ref=e36]: ◼
+            - generic [ref=e37]: Certificates
+        - generic [ref=e38]:
+          - generic [ref=e39]: Federation
+          - link "Agents" [ref=e40] [cursor=pointer]:
+            - /url: /agents
+            - generic [ref=e41]: ◇
+            - generic [ref=e42]: Agents
+          - link "Connections" [ref=e43] [cursor=pointer]:
+            - /url: /connections
+            - generic [ref=e44]: ⇌
+            - generic [ref=e45]: Connections
+          - link "Scanner" [ref=e46] [cursor=pointer]:
+            - /url: /scanner
+            - generic [ref=e47]: ◉
+            - generic [ref=e48]: Scanner
+        - generic [ref=e49]:
+          - generic [ref=e50]: Tools
+          - link "Import" [ref=e51] [cursor=pointer]:
+            - /url: /import
+            - generic [ref=e52]: ⇣
+            - generic [ref=e53]: Import
+          - link "Access lists" [ref=e54] [cursor=pointer]:
+            - /url: /access-lists
+            - generic [ref=e55]: ⊘
+            - generic [ref=e56]: Access lists
+          - link "Audit log" [ref=e57] [cursor=pointer]:
+            - /url: /audit
+            - generic [ref=e58]: ≡
+            - generic [ref=e59]: Audit log
+          - link "Logs" [ref=e60] [cursor=pointer]:
+            - /url: /logs
+            - generic [ref=e61]: ▤
+            - generic [ref=e62]: Logs
+          - link "Operations" [ref=e63] [cursor=pointer]:
+            - /url: /logs/operations
+            - generic [ref=e64]: ◎
+            - generic [ref=e65]: Operations
+        - generic [ref=e66]:
+          - generic [ref=e67]: Account
+          - link "Billing" [ref=e68] [cursor=pointer]:
+            - /url: /billing
+            - generic [ref=e69]: ◈
+            - generic [ref=e70]: Billing
+          - link "Docs" [ref=e71] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e72]: "?"
+            - generic [ref=e73]: Docs
+      - generic [ref=e74]:
+        - link "TE" [ref=e75] [cursor=pointer]:
+          - /url: /settings/profile
+          - generic [ref=e76]: TE
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - button "Settings" [ref=e79] [cursor=pointer]:
+              - img [ref=e80]
+            - button "Light mode" [ref=e83] [cursor=pointer]:
+              - img [ref=e84]
+            - button "Sign out" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+          - generic [ref=e91]: Test
+          - generic [ref=e92]: self-hosted · v3.1
+    - generic [ref=e93]:
+      - banner [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]: ProxyOS
+          - generic [ref=e97]: /
+          - generic [ref=e98]: My profile
+        - link "← Settings" [ref=e100] [cursor=pointer]:
+          - /url: /settings
+      - main [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e104]: Profile
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e107]:
+                - button "TE Upload" [ref=e108] [cursor=pointer]:
+                  - generic [ref=e109]: TE
+                  - generic [ref=e110]: Upload
+                - button "Upload" [ref=e112] [cursor=pointer]
+              - generic [ref=e113]:
+                - generic [ref=e114]: test@gmail.comadmin
+                - generic [ref=e115]: Fallback colour (used when no photo)
+                - generic [ref=e116]:
+                  - button "#4338CA" [ref=e117] [cursor=pointer]
+                  - button "#0E9F6E" [ref=e118] [cursor=pointer]
+                  - button "#B4231F" [ref=e119] [cursor=pointer]
+                  - button "#B4600E" [ref=e120] [cursor=pointer]
+                  - button "#7C6FF0" [ref=e121] [cursor=pointer]
+                  - button "#0369A1" [ref=e122] [cursor=pointer]
+                  - button "#6D28D9" [ref=e123] [cursor=pointer]
+                  - button "#047857" [ref=e124] [cursor=pointer]
+                  - button "#9D174D" [ref=e125] [cursor=pointer]
+                  - button "#92400E" [ref=e126] [cursor=pointer]
+                  - button "#1D4ED8" [ref=e127] [cursor=pointer]
+                  - button "#065F46" [ref=e128] [cursor=pointer]
+            - generic [ref=e129]:
+              - generic [ref=e130]: Display name
+              - textbox "Display name" [ref=e131]:
+                - /placeholder: test
+                - text: Test
+            - button "Save profile" [ref=e133] [cursor=pointer]
+        - generic [ref=e134]:
+          - generic [ref=e136]: Change password
+          - generic [ref=e138]:
+            - generic [ref=e139]:
+              - generic [ref=e140]: Current password
+              - textbox "Current password" [ref=e141]
+            - generic [ref=e142]:
+              - generic [ref=e143]: New password (min 8 chars)
+              - textbox "New password (min 8 chars)" [ref=e144]
+            - generic [ref=e145]:
+              - generic [ref=e146]: Confirm new password
+              - textbox "Confirm new password" [ref=e147]
+            - button "Update password" [disabled] [ref=e149] [cursor=pointer]
+        - generic [ref=e150]:
+          - generic [ref=e152]: Two-factor authentication
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - generic [ref=e155]: Not enabled
+              - generic [ref=e156]: Add an extra layer of security with an authenticator app.
+            - button "Set up authenticator" [ref=e157] [cursor=pointer]
+        - generic [ref=e158]:
+          - generic [ref=e160]: Account
+          - generic [ref=e162]:
+            - generic [ref=e163]:
+              - generic [ref=e164]: Email
+              - generic [ref=e165]: test@gmail.com
+            - generic [ref=e166]:
+              - generic [ref=e167]: Role
+              - generic [ref=e168]: admin
+  - alert [ref=e169]

@@ -1,0 +1,164 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e13]: ProxyOS
+        - generic [ref=e14]: v3
+      - navigation [ref=e15]:
+        - generic [ref=e16]:
+          - link "Dashboard" [ref=e17] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e18]: ◆
+            - generic [ref=e19]: Dashboard
+          - link "Routes" [ref=e20] [cursor=pointer]:
+            - /url: /routes
+            - generic [ref=e21]: ↗
+            - generic [ref=e22]: Routes
+          - link "Redirect hosts" [ref=e23] [cursor=pointer]:
+            - /url: /redirect-hosts
+            - generic [ref=e24]: ↪
+            - generic [ref=e25]: Redirect hosts
+          - link "Error hosts" [ref=e26] [cursor=pointer]:
+            - /url: /error-hosts
+            - generic [ref=e27]: ✕
+            - generic [ref=e28]: Error hosts
+          - link "Streams" [ref=e29] [cursor=pointer]:
+            - /url: /streams
+            - generic [ref=e30]: ⇌
+            - generic [ref=e31]: Streams
+          - link "Analytics" [ref=e32] [cursor=pointer]:
+            - /url: /analytics
+            - generic [ref=e33]: ▤
+            - generic [ref=e34]: Analytics
+          - link "Certificates" [ref=e35] [cursor=pointer]:
+            - /url: /certificates
+            - generic [ref=e36]: ◼
+            - generic [ref=e37]: Certificates
+        - generic [ref=e38]:
+          - generic [ref=e39]: Federation
+          - link "Agents" [ref=e40] [cursor=pointer]:
+            - /url: /agents
+            - generic [ref=e41]: ◇
+            - generic [ref=e42]: Agents
+          - link "Connections" [ref=e43] [cursor=pointer]:
+            - /url: /connections
+            - generic [ref=e44]: ⇌
+            - generic [ref=e45]: Connections
+          - link "Scanner" [ref=e46] [cursor=pointer]:
+            - /url: /scanner
+            - generic [ref=e47]: ◉
+            - generic [ref=e48]: Scanner
+        - generic [ref=e49]:
+          - generic [ref=e50]: Tools
+          - link "Import" [ref=e51] [cursor=pointer]:
+            - /url: /import
+            - generic [ref=e52]: ⇣
+            - generic [ref=e53]: Import
+          - link "Access lists" [ref=e54] [cursor=pointer]:
+            - /url: /access-lists
+            - generic [ref=e55]: ⊘
+            - generic [ref=e56]: Access lists
+          - link "Audit log" [ref=e57] [cursor=pointer]:
+            - /url: /audit
+            - generic [ref=e58]: ≡
+            - generic [ref=e59]: Audit log
+          - link "Logs" [ref=e60] [cursor=pointer]:
+            - /url: /logs
+            - generic [ref=e61]: ▤
+            - generic [ref=e62]: Logs
+          - link "Operations" [ref=e63] [cursor=pointer]:
+            - /url: /logs/operations
+            - generic [ref=e64]: ◎
+            - generic [ref=e65]: Operations
+        - generic [ref=e66]:
+          - generic [ref=e67]: Account
+          - link "Billing" [ref=e68] [cursor=pointer]:
+            - /url: /billing
+            - generic [ref=e69]: ◈
+            - generic [ref=e70]: Billing
+          - link "Docs" [ref=e71] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e72]: "?"
+            - generic [ref=e73]: Docs
+      - generic [ref=e74]:
+        - link "TE" [ref=e75] [cursor=pointer]:
+          - /url: /settings/profile
+          - generic [ref=e76]: TE
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - button "Settings" [ref=e79] [cursor=pointer]:
+              - img [ref=e80]
+            - button "Light mode" [ref=e83] [cursor=pointer]:
+              - img [ref=e84]
+            - button "Sign out" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+          - generic [ref=e91]: Test
+          - generic [ref=e92]: self-hosted · v3.1
+    - generic [ref=e93]:
+      - banner [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]: ProxyOS
+          - generic [ref=e97]: /
+          - generic [ref=e98]: Expose service
+        - generic [ref=e102]: Caddy · unreachable
+      - generic [ref=e166]: Caddy admin API is not reachable — you can prepare the config but pushing will fail.
+      - main [ref=e103]:
+        - generic [ref=e104]:
+          - generic [ref=e106]:
+            - generic [ref=e107]: ✓
+            - generic [ref=e108]: Source
+          - generic [ref=e111]:
+            - generic [ref=e112]: ✓
+            - generic [ref=e113]: Domain
+          - generic [ref=e116]:
+            - generic [ref=e117]: ✓
+            - generic [ref=e118]: Routing
+          - generic [ref=e121]:
+            - generic [ref=e122]: "4"
+            - generic [ref=e123]: Access
+          - generic [ref=e126]:
+            - generic [ref=e127]: "5"
+            - generic [ref=e128]: Options
+          - generic [ref=e131]:
+            - generic [ref=e132]: "6"
+            - generic [ref=e133]: Monitoring
+          - generic [ref=e136]:
+            - generic [ref=e137]: "7"
+            - generic [ref=e138]: Review
+        - generic [ref=e219]:
+          - generic [ref=e221]: Access
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - generic [ref=e224]: Require SSO
+              - switch [ref=e225] [cursor=pointer]
+            - generic [ref=e227]:
+              - generic [ref=e228]: IP allowlist (CIDR, comma separated)
+              - textbox "IP allowlist (CIDR, comma separated) Leave empty for public." [ref=e229]:
+                - /placeholder: 10.0.0.0/8, 192.168.0.0/16
+              - generic [ref=e230]: Leave empty for public.
+            - generic [ref=e231]:
+              - generic [ref=e232]: Basic auth
+              - switch [ref=e233] [cursor=pointer]
+            - generic [ref=e235]:
+              - generic [ref=e236]: Cloudflare security
+              - generic [ref=e237]:
+                - generic [ref=e238]: Bot fight mode
+                - switch [ref=e239] [cursor=pointer]
+              - generic [ref=e241]:
+                - generic [ref=e242]: GeoIP block (country codes, comma separated)
+                - textbox "GeoIP block (country codes, comma separated) e.g. CN, RU, KP" [ref=e243]:
+                  - /placeholder: CN, RU
+                - generic [ref=e244]: e.g. CN, RU, KP
+              - generic [ref=e245]:
+                - generic [ref=e246]: Edge rate limit (req/min, 0 = off)
+                - spinbutton "Edge rate limit (req/min, 0 = off)" [ref=e247]
+            - generic [ref=e248]:
+              - generic [ref=e249]: Proxy-layer security
+              - generic [ref=e250]:
+                - generic [ref=e251]: JWT validation
+                - switch [ref=e252] [cursor=pointer]
+        - generic [ref=e161]:
+          - button "← Back" [ref=e162] [cursor=pointer]
+          - button "Next →" [active] [ref=e163] [cursor=pointer]
+  - alert [ref=e164]
