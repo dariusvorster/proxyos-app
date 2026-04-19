@@ -12,7 +12,8 @@ export const systemRouter = router({
 
   deploymentMode: publicProcedure.query(() => {
     const tier = (process.env.PROXYOS_TIER ?? 'homelab') as 'homelab' | 'cloud'
-    return { tier }
+    const mode = (process.env.PROXYOS_MODE ?? 'standalone') as 'central' | 'node' | 'standalone'
+    return { tier, mode }
   }),
 
   getForceHttps: publicProcedure.query(async ({ ctx }) => {

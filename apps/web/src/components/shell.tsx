@@ -59,9 +59,7 @@ const navSections: NavSection[] = [
   },
 ]
 
-const TIER = (process.env.NEXT_PUBLIC_PROXYOS_TIER ?? 'homelab') as 'homelab' | 'cloud'
-const IS_CENTRAL = (process.env.NEXT_PUBLIC_PROXYOS_MODE ?? '').includes('central')
-const TIER_LABEL = TIER === 'cloud' ? 'cloud' : 'self-hosted'
+const TIER_LABEL = 'self-hosted'
 
 const AUTH_ROUTES = new Set(['/login', '/register', '/forgot-password'])
 
@@ -70,6 +68,15 @@ function AuthGuard() {
   useEffect(() => {
     if (!getSession()) router.replace('/login')
   }, [router])
+  return null
+}
+
+function SiteSelectionGuard() {
+  const { data: deployMode } = trpc.system.deploymentMode.useQuery()
+  const { setSiteId } = useSiteSelection()
+  useEffect(() => {
+    if (deployMode && deployMode.mode !== 'central') setSiteId(null)
+  }, [deployMode, setSiteId])
   return null
 }
 
@@ -84,6 +91,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <>
       <AuthGuard />
+      <SiteSelectionGuard />
       <div className="proxyos-shell" style={{ display: 'grid', minHeight: '100vh' }}>
         <Sidebar />
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{children}</div>
@@ -118,6 +126,8 @@ function Sidebar() {
   const router = useRouter()
   const { theme, toggle: toggleTheme } = useTheme()
   const [session, setSession_] = useState<Session | null>(null)
+  const { data: deployMode } = trpc.system.deploymentMode.useQuery()
+  const isCentral = deployMode?.mode === 'central'
 
   useEffect(() => {
     setSession_(getSession())
@@ -163,7 +173,7 @@ function Sidebar() {
       </div>
 
       <TenantSwitcher />
-      {IS_CENTRAL && <SiteSwitcher />}
+      {isCentral && <SiteSwitcher />}
 
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto' }}>
@@ -579,6 +589,8 @@ export function Topbar({
   actions?: ReactNode
   banner?: ReactNode
 }) {
+  const { data: deployMode } = trpc.system.deploymentMode.useQuery()
+  const isCentral = deployMode?.mode === 'central'
   const [syncTime, setSyncTime] = useState('')
   useEffect(() => {
     if (typeof document !== 'undefined') document.title = `ProxyOS — ${title}`
@@ -612,7 +624,7 @@ export function Topbar({
             <span style={{ color: 'var(--text3)' }}>/</span>
             <span style={{ fontWeight: 500, color: 'var(--text)' }}>{title}</span>
           </div>
-          {IS_CENTRAL && <NodeSelector />}
+          {isCentral && <NodeSelector />}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {syncTime && (
