@@ -1073,4 +1073,7 @@ export function ensureSchema(db: Database.Database): void {
   // Fix: Phase E migration incorrectly set origin='local' for all existing routes on this instance.
   // Routes created on a standalone ProxyOS instance are authoritative here, so origin must be 'central'.
   db.exec(`UPDATE routes SET origin = 'central' WHERE origin = 'local' AND site_id = 'site_local'`)
+  // Fix: Phase B CREATE TABLE federation_nodes was missing config_version_desired column.
+  // Phase F tried to add it to 'nodes' (wrong table). Add it correctly here.
+  try { db.exec(`ALTER TABLE federation_nodes ADD COLUMN config_version_desired INTEGER DEFAULT 0`) } catch { /* already exists */ }
 }
