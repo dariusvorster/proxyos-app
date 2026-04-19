@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Guard against compiled .js shadows in packages/*/src/ directories.
 # .js files alongside .ts files silently override them at runtime because
 # package.json 'exports' reference paths without extensions. This has caused
