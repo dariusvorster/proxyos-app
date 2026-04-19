@@ -1070,4 +1070,7 @@ export function ensureSchema(db: Database.Database): void {
   try { db.exec(`ALTER TABLE routes ADD COLUMN sync_diff TEXT`) } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE routes ADD COLUMN sync_checked_at INTEGER`) } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE routes ADD COLUMN sync_source TEXT`) } catch { /* already exists */ }
+  // Fix: Phase E migration incorrectly set origin='local' for all existing routes on this instance.
+  // Routes created on a standalone ProxyOS instance are authoritative here, so origin must be 'central'.
+  db.exec(`UPDATE routes SET origin = 'central' WHERE origin = 'local' AND site_id = 'site_local'`)
 }
