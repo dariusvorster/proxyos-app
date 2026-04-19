@@ -26,6 +26,8 @@ packages/api/src/routers/users.ts                  ← login/logout __setCookie 
 packages/api/src/trpc.ts                           ← createContext with resHeaders fallback (see Auth Cookie Handling below)
 apps/web/src/app/api/trpc/[trpc]/route.ts          ← tRPC response interceptor for Set-Cookie injection
 docker-compose.yml                                 ← /var/run/docker.sock mount required for network discovery
+packages/caddy/src/verify.ts              ← drift detection — do not simplify normalization rules (Fix 4)
+packages/db/src/migrations.ts (Fix 4 entries) ← sync_status/sync_diff/sync_checked_at/sync_source — never edit existing DDL entries, only append
 ```
 
 *(Adjust these paths to match actual repo structure when you first populate this file.)*
@@ -164,6 +166,21 @@ For all of these: STOP. Report the finding. Wait for user direction.
 
 ---
 
+### sync_source is authoritative for drift classification
+
+The `routes.sync_source` field records which flow last pushed a route to Caddy. Verification uses it to decide whether drift is a real alert (`'drift'`) or expected (`'synced-machine'`):
+
+- `'manual'` — user-driven create/update/expose; drift = red alert
+- `'bootstrap'` — startup replaceRoutes; drift = red alert (should match buildCaddyRoute exactly)
+- `'drift-repair'` — user clicked Re-push; drift = red alert
+- `'patchos'` — PatchOS maintenance push (partial route); drift = expected, grey status
+- `'scheduled'` — scheduled-changes push; drift = expected, grey status
+- `null` — unknown; fail-closed to `'drift'`
+
+If you add a new flow that pushes routes to Caddy, it MUST set `syncSource` after the push, using one of the values above or adding a new value (and updating `classifyDrift` in `packages/caddy/src/verify.ts` to handle it). Forgetting to set `sync_source` is a bug.
+
+---
+
 ## 📜 Version History of This File
 
 ```
@@ -176,6 +193,15 @@ For all of these: STOP. Report the finding. Wait for user direction.
                     packages/api/src/trpc.ts (resHeaders fallback),
                     apps/web/src/app/api/trpc/[trpc]/route.ts (interceptor),
                     docker-compose.yml (docker.sock mount)
+
+2026-04-18  Fix 4: roundtrip verification (commits 32c556d, 07d8255, c68a7ad, 2f39841, 273cc10)
+            Added: verify.ts (diffCaddyRoute + classifyDrift), CaddyClient.verifyRoute,
+                   verifyAndPersist helper in routes.ts, forceResync procedure,
+                   sync_status/sync_diff/sync_checked_at/sync_source columns on routes,
+                   dashboard Sync column + drift banner with Re-push button
+            Locked: packages/caddy/src/verify.ts, Fix 4 entries in migrations.ts
+            Policy: sync_source must be set by every route-push flow; classifyDrift
+                    must be updated if a new sync_source value is introduced
 ```
 
 When you update this file (with user approval), append a version row.
