@@ -54,6 +54,7 @@ async function executePendingChanges(db: Db): Promise<void> {
       if (updatedRoute) {
         try {
           const caddy = new CaddyClient()
+          // TODO(validate): wire validateCaddyRoute here before pushing
           await caddy.updateRoute(updatedRoute.id, buildCaddyRoute({
             id: updatedRoute.id,
             name: updatedRoute.name,

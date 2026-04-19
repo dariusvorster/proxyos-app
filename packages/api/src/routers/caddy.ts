@@ -97,6 +97,7 @@ export const caddyRouter = router({
     const caddyRoutes: CaddyRoute[] = enabled.map((row) => {
       const route: Route = rowToRoute(row)
       const sec = secMap.get(row.id)
+      // TODO(validate): wire validateCaddyRoute here before pushing
       return buildCaddyRoute(route, {
         ssoProvider: route.ssoProviderId ? ssoMap.get(route.ssoProviderId) ?? null : null,
         dnsProvider: route.tlsDnsProviderId ? dnsMap.get(route.tlsDnsProviderId) ?? null : null,

@@ -67,8 +67,10 @@ export const driftRouter = router({
             scope: (row.scope as 'exclusive' | 'local_only') ?? 'exclusive',
           }
           try {
+            // TODO(validate): wire validateCaddyRoute here before pushing
             await ctx.caddy.updateRoute(row.id, buildCaddyRoute(route))
           } catch {
+            // TODO(validate): wire validateCaddyRoute here before pushing
             await ctx.caddy.addRoute(buildCaddyRoute(route))
           }
         }

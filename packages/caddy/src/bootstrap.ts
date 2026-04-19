@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises'
 import { CaddyClient } from './client'
 import { waitForCaddyReady } from './wait-ready'
 import { buildCaddyRoute, buildHoldingPageHtml } from './config'
+import { validateCaddyRoute, formatValidation } from './validate'
 import type { CaddyRoute } from './types'
 import type { Route, SSOProvider } from '@proxyos/types'
 
@@ -94,7 +95,23 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   const providers = opts.getProviders ? await opts.getProviders() : new Map<string, SSOProvider>()
   const build = opts.buildRoute ?? ((r: Route) => buildCaddyRoute(r))
   const routes = await opts.getRoutes()
-  const caddyRoutes: CaddyRoute[] = routes.filter((r) => r.enabled).map((r) => build(r, providers))
+
+  const built = routes
+    .filter((r) => r.enabled)
+    .map((r) => {
+      const route = build(r, providers)
+      return { route, source: r, validation: validateCaddyRoute(route) }
+    })
+
+  const invalid = built.filter(b => !b.validation.valid)
+  if (invalid.length > 0) {
+    console.error(`[caddy-bootstrap] ${invalid.length} route(s) failed validation — they will NOT be pushed:`)
+    for (const b of invalid) {
+      console.error(formatValidation(b.validation))
+    }
+  }
+
+  const caddyRoutes: CaddyRoute[] = built.filter(b => b.validation.valid).map(b => b.route)
 
   await client.replaceRoutes(serverName, caddyRoutes)
 

@@ -24,6 +24,7 @@ async function doSetMaintenance(
   const updated = await ctx.db.select().from(routes).where(eq(routes.id, routeId)).get()
   if (updated) {
     try {
+      // TODO(validate): wire validateCaddyRoute here before pushing
       await ctx.caddy.updateRoute(routeId, buildCaddyRoute({
         id: updated.id, name: updated.name, domain: updated.domain, enabled: updated.enabled,
         upstreamType: updated.upstreamType as 'http',
@@ -67,6 +68,7 @@ async function doRestore(
         upstreams: JSON.parse(updated.upstreams),
         lbPolicy: (updated.lbPolicy ?? 'round_robin') as 'round_robin',
         tlsMode: updated.tlsMode as 'auto',
+        // TODO(validate): wire validateCaddyRoute here before pushing
         ssoEnabled: updated.ssoEnabled, ssoProviderId: updated.ssoProviderId, tlsDnsProviderId: updated.tlsDnsProviderId,
         healthCheckEnabled: updated.healthCheckEnabled, healthCheckPath: updated.healthCheckPath, healthCheckInterval: updated.healthCheckInterval,
         compressionEnabled: updated.compressionEnabled, websocketEnabled: updated.websocketEnabled, http2Enabled: updated.http2Enabled, http3Enabled: updated.http3Enabled,
