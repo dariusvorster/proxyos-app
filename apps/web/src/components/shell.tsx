@@ -51,8 +51,6 @@ const navSections: NavSection[] = [
     label: 'Account',
     items: [
       { href: '/settings/tenants', label: 'Tenants', icon: '⊞' },
-      { href: '/settings/organizations', label: 'Organizations', icon: '⊞' },
-      { href: '/settings/sites', label: 'Sites', icon: '◈' },
       { href: '/billing', label: 'Billing', icon: '◈' },
       { href: '/docs', label: 'Docs', icon: '?' },
     ],
@@ -173,7 +171,6 @@ function Sidebar() {
       </div>
 
       <TenantSwitcher />
-      {isCentral && <SiteSwitcher />}
 
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto' }}>
