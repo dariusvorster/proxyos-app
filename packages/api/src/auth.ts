@@ -2,6 +2,13 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 export const TOKEN_COOKIE = 'proxyos_token'
 const EXPIRES_IN = 60 * 60 * 24 * 30 // 30 days
+const COOKIE_SECURE = process.env.PROXYOS_COOKIE_SECURE === 'true'
+
+function buildCookie(name: string, value: string, maxAge: number): string {
+  const parts = [`${name}=${value}`, 'HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAge}`]
+  if (COOKIE_SECURE) parts.push('Secure')
+  return parts.join('; ')
+}
 
 function secret(): string {
   const s = process.env.PROXYOS_SECRET
@@ -52,9 +59,9 @@ export function getTokenFromCookies(cookieHeader: string | null): string | null 
 }
 
 export function makeTokenCookie(token: string): string {
-  return `${TOKEN_COOKIE}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${EXPIRES_IN}`
+  return buildCookie(TOKEN_COOKIE, token, EXPIRES_IN)
 }
 
 export function clearTokenCookie(): string {
-  return `${TOKEN_COOKIE}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`
+  return buildCookie(TOKEN_COOKIE, '', 0)
 }
