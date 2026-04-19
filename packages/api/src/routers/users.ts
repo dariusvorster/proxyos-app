@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
-import { publicProcedure, protectedProcedure, adminProcedure, router } from '../trpc'
+import { publicProcedure, protectedProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import QRCode from 'qrcode'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
@@ -128,6 +128,13 @@ export const usersRouter = router({
   register: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string().min(8), displayName: z.string().min(1).optional() }))
     .mutation(async ({ ctx, input }) => {
+      const ipKey = `register:ip:${ctx.clientIp}`
+      const slot = beginAttempt(ipKey, 5)
+      if (!slot.allowed) {
+        endAttempt(ipKey)
+        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many registration attempts. Try again later.' })
+      }
+      endAttempt(ipKey)
       const existing = await ctx.db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).get()
       if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Email already registered' })
       const all = await ctx.db.select({ id: users.id }).from(users).all()
@@ -141,6 +148,9 @@ export const usersRouter = router({
   getProfile: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.id && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
       if (!u) return null
       return { id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, lastLogin: u.lastLogin, createdAt: u.createdAt, totpEnabled: !!u.totpEnabled }
@@ -166,15 +176,19 @@ export const usersRouter = router({
     }),
 
   updatePassword: protectedProcedure
-    .input(z.object({ id: z.string(), currentPassword: z.string(), newPassword: z.string().min(8) }))
+    .input(z.object({ id: z.string(), currentPassword: z.string().optional(), newPassword: z.string().min(8) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.session.userId !== input.id && ctx.session.role !== 'admin') {
         throw new TRPCError({ code: 'FORBIDDEN' })
       }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.id)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
-      if (!u.passwordHash || !(await verifyPassword(input.currentPassword, u.passwordHash))) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' })
+      // Admins changing another user's password skip the current-password check
+      const isAdminReset = ctx.session.role === 'admin' && ctx.session.userId !== input.id
+      if (!isAdminReset) {
+        if (!input.currentPassword || !u.passwordHash || !(await verifyPassword(input.currentPassword, u.passwordHash))) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' })
+        }
       }
       await ctx.db.update(users).set({ passwordHash: await hashPassword(input.newPassword) }).where(eq(users.id, input.id))
       return { ok: true }
@@ -232,6 +246,9 @@ export const usersRouter = router({
   setupTotp: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.userId && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       const secret = generateTotpSecret()
@@ -243,6 +260,9 @@ export const usersRouter = router({
   verifyAndEnableTotp: protectedProcedure
     .input(z.object({ userId: z.string(), secret: z.string(), code: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.userId && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       if (!verifyTotp(input.secret, input.code)) {
@@ -256,6 +276,9 @@ export const usersRouter = router({
   disableTotp: protectedProcedure
     .input(z.object({ userId: z.string(), password: z.string(), code: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.userId && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
       if (!u.passwordHash || !(await verifyPassword(input.password, u.passwordHash))) {
@@ -280,16 +303,19 @@ export const usersRouter = router({
       return user ? { userId: user.id, email: user.email, assignedAt: row.assignedAt } : null
     }),
 
-  claimRoute: protectedProcedure
+  claimRoute: operatorProcedure
     .input(z.object({ routeId: z.string(), userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.session.userId !== input.userId && ctx.session.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN' })
+      }
       const now = new Date()
       await ctx.db.insert(routeOwnership).values({ routeId: input.routeId, userId: input.userId, assignedAt: now })
         .onConflictDoUpdate({ target: routeOwnership.routeId, set: { userId: input.userId, assignedAt: now } })
       return { ok: true }
     }),
 
-  releaseRoute: protectedProcedure
+  releaseRoute: operatorProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.delete(routeOwnership).where(eq(routeOwnership.routeId, input.routeId))
@@ -298,7 +324,19 @@ export const usersRouter = router({
 
   // ── Dashboard SSO config ────────────────────────────────────────────────────
 
+  // Public endpoint — returns SSO provider info for the login page but strips clientSecret
   getDashboardSSO: publicProcedure.query(async ({ ctx }) => {
+    const row = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'dashboard_sso')).get()
+    if (!row) return null
+    try {
+      const cfg = DashboardSSOSchema.parse(JSON.parse(row.value))
+      const { clientSecret: _redacted, ...safe } = cfg
+      return safe
+    } catch { return null }
+  }),
+
+  // Admin-only — returns full config including clientSecret for the settings panel
+  getDashboardSSOConfig: adminProcedure.query(async ({ ctx }) => {
     const row = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'dashboard_sso')).get()
     if (!row) return null
     try { return DashboardSSOSchema.parse(JSON.parse(row.value)) } catch { return null }

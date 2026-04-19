@@ -3,7 +3,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypt
 const PREFIX = 'enc:v1:'
 
 function deriveKey(): Buffer {
-  const secret = process.env.PROXYOS_SECRET ?? 'dev-secret-change-me'
+  const secret = process.env.PROXYOS_SECRET
+  if (!secret) throw new Error('PROXYOS_SECRET environment variable must be set')
   return createHash('sha256').update(secret).digest()
 }
 

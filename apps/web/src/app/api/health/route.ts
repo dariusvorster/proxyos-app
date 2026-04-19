@@ -14,7 +14,6 @@ export async function GET(): Promise<Response> {
   const status = dbOk ? 'ok' : 'degraded'
   return new Response(JSON.stringify({
     status,
-    version: process.env.PROXYOS_VERSION ?? '3.0.0',
     timestamp: new Date().toISOString(),
     db: dbOk ? 'ok' : 'fail',
   }), {

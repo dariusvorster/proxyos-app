@@ -83,7 +83,8 @@ RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up -o -name finish \
 
 RUN mkdir -p /data/proxyos /data/caddy /config/caddy
 
-EXPOSE 80 443 3000 2019
+EXPOSE 80 443 3000
+# Port 2019 (Caddy admin API) is intentionally NOT exposed — it must never be published externally
 VOLUME ["/data/proxyos", "/data/caddy", "/config/caddy"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

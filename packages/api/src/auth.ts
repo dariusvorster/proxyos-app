@@ -4,7 +4,9 @@ export const TOKEN_COOKIE = 'proxyos_token'
 const EXPIRES_IN = 60 * 60 * 24 * 30 // 30 days
 
 function secret(): string {
-  return process.env.PROXYOS_SECRET ?? 'dev-secret-change-me'
+  const s = process.env.PROXYOS_SECRET
+  if (!s) throw new Error('PROXYOS_SECRET environment variable must be set')
+  return s
 }
 
 function b64url(str: string): string {
@@ -24,6 +26,8 @@ export function verifyToken(token: string): { userId: string; role: string } | n
     const parts = token.split('.')
     if (parts.length !== 3) return null
     const [header, body, sig] = parts as [string, string, string]
+    const headerData = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'))
+    if (headerData.alg !== 'HS256') return null
     const expected = createHmac('sha256', secret()).update(`${header}.${body}`).digest('base64url')
     if (!timingSafeEqual(Buffer.from(sig, 'base64url'), Buffer.from(expected, 'base64url'))) return null
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
@@ -48,9 +52,9 @@ export function getTokenFromCookies(cookieHeader: string | null): string | null 
 }
 
 export function makeTokenCookie(token: string): string {
-  return `${TOKEN_COOKIE}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${EXPIRES_IN}`
+  return `${TOKEN_COOKIE}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${EXPIRES_IN}`
 }
 
 export function clearTokenCookie(): string {
-  return `${TOKEN_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
+  return `${TOKEN_COOKIE}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`
 }

@@ -7,6 +7,18 @@ export const dynamic = 'force-dynamic'
 
 type Scope = 'read' | 'routes' | 'agents' | 'connections' | 'admin'
 
+const HOSTNAME_RE = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
+const VALID_TLS_MODES = ['auto', 'off', 'manual', 'internal'] as const
+type TlsMode = typeof VALID_TLS_MODES[number]
+
+function isValidDomain(domain: string): boolean {
+  return HOSTNAME_RE.test(domain) && domain.length <= 253
+}
+
+function isValidTlsMode(mode: unknown): mode is TlsMode {
+  return typeof mode === 'string' && (VALID_TLS_MODES as readonly string[]).includes(mode)
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -131,6 +143,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug?: 
     let body: Record<string, unknown>
     try { body = await req.json() as Record<string, unknown> } catch { return err('Invalid JSON body', 400) }
     if (!body.domain || !body.upstreams) return err('domain and upstreams are required', 400)
+    if (!isValidDomain(String(body.domain))) return err('domain must be a valid hostname', 400)
+    if (!Array.isArray(body.upstreams) || body.upstreams.length === 0) return err('upstreams must be a non-empty array', 400)
+    if (body.tlsMode !== undefined && !isValidTlsMode(body.tlsMode)) return err(`tlsMode must be one of: ${VALID_TLS_MODES.join(', ')}`, 400)
     const id = nanoid()
     const now = new Date()
     await db.insert(routes).values({
@@ -210,7 +225,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug?: s
     if (typeof body.name === 'string') updates.name = body.name
     if (typeof body.enabled === 'boolean') updates.enabled = body.enabled
     if (typeof body.upstreams !== 'undefined') updates.upstreams = JSON.stringify(body.upstreams)
-    if (typeof body.tlsMode === 'string') updates.tlsMode = body.tlsMode
+    if (body.tlsMode !== undefined) {
+      if (!isValidTlsMode(body.tlsMode)) return err(`tlsMode must be one of: ${VALID_TLS_MODES.join(', ')}`, 400)
+      updates.tlsMode = body.tlsMode
+    }
     await db.update(routes).set(updates).where(eq(routes.id, id))
     const row = await db.select().from(routes).where(eq(routes.id, id)).get()
     if (!row) return err('Route not found', 404)

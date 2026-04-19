@@ -3,7 +3,7 @@
 # Validate required environment variables before starting anything
 MISSING=""
 for VAR in PROXYOS_SECRET PROXYOS_URL; do
-  eval "VAL=\$$VAR"
+  VAL=$(printenv "$VAR" || true)
   if [ -z "$VAL" ]; then
     MISSING="$MISSING $VAR"
   fi
