@@ -79,7 +79,7 @@ export const routes = sqliteTable('routes', {
   corsConfig: text('cors_config'),
 
   // §9.8 Slow request threshold
-  slowRequestThresholdMs: integer('slow_request_threshold_ms'),
+  slowRequestThresholdMs: integer('slow_request_threshold_ms').default(1000),
 
   // §9.9 Bandwidth limit
   bandwidthLimitBytes: integer('bandwidth_limit_bytes'),
