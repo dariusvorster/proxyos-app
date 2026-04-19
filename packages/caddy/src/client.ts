@@ -1,5 +1,7 @@
 import type { CaddyRoute } from './types'
 import { caddyRouteId } from './config'
+import { diffCaddyRoute } from './verify'
+import type { VerifyResult } from './verify'
 import { request as httpRequest } from 'http'
 
 export interface CaddyClientOptions {
@@ -169,6 +171,30 @@ export class CaddyClient {
     const url = `${this.baseUrl}/id/${caddyRouteId(routeId)}`
     const res = await this.doRequest(url, 'DELETE')
     if (!res.ok && res.status !== 404) throw new Error(`Caddy removeRoute failed: ${res.status} ${await res.text()}`)
+  }
+
+  async verifyRoute(routeId: string, expected: CaddyRoute): Promise<VerifyResult> {
+    const url = `${this.baseUrl}/id/${caddyRouteId(routeId)}`
+    let res: AdminResponse
+    try {
+      res = await this.doRequest(url, 'GET')
+    } catch (e) {
+      return { status: 'error', diff: null, expected, actual: null, error: `verifyRoute fetch failed: ${String(e)}` }
+    }
+    if (res.status === 404) {
+      return { status: 'missing', diff: null, expected, actual: null }
+    }
+    if (!res.ok) {
+      return { status: 'error', diff: null, expected, actual: null, error: `Caddy returned ${res.status}` }
+    }
+    let actual: CaddyRoute
+    try {
+      actual = JSON.parse(await res.text()) as CaddyRoute
+    } catch (e) {
+      return { status: 'error', diff: null, expected, actual: null, error: `verifyRoute JSON parse failed: ${String(e)}` }
+    }
+    const diff = diffCaddyRoute(expected, actual)
+    return { status: diff.length === 0 ? 'synced' : 'drift', diff, expected, actual }
   }
 
   async setHttpRedirectServer(): Promise<void> {
