@@ -204,7 +204,10 @@ export class CaddyClient {
 
   async upsertServer(name: string, config: unknown): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/${name}`
-    const res = await this.doRequest(url, 'PUT', config)
+    let res = await this.doRequest(url, 'PUT', config)
+    if (res.status === 409) {
+      res = await this.doRequest(url, 'PATCH', config)
+    }
     if (!res.ok) throw new Error(`Caddy upsertServer(${name}) failed: ${res.status} ${await res.text()}`)
   }
 
