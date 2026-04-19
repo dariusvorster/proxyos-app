@@ -125,12 +125,13 @@ export default function RoutesPage() {
                 <th style={{ ...th, width: '10%' }}>Req/h</th>
                 <th style={{ ...th, width: '10%' }}>p95</th>
                 <th style={{ ...th, width: '13%' }}>Last req</th>
+                <th style={{ ...th, width: '9%' }}>Sync</th>
                 <th style={{ ...th, width: '11%' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)', padding: '24px 12px' }}>No routes match your filters.</td></tr>
+                <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)', padding: '24px 12px' }}>No routes match your filters.</td></tr>
               )}
               {filtered.map((r) => (
                 <RouteRow
@@ -167,7 +168,18 @@ function ChainHealthDots({ routeId }: { routeId: string }) {
   )
 }
 
-function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
+function syncDot(status: string | null | undefined): { tone: 'green' | 'red' | 'amber' | 'neutral'; label: string; title: string } {
+  switch (status) {
+    case 'synced': return { tone: 'green', label: 'Synced', title: 'Route verified in Caddy' }
+    case 'drift': return { tone: 'red', label: 'Drift', title: 'Caddy state differs from config — click for details' }
+    case 'synced-machine': return { tone: 'neutral', label: 'Machine', title: 'Managed by automation — diff is expected' }
+    case 'missing': return { tone: 'red', label: 'Missing', title: 'Route not found in Caddy — may need repush' }
+    case 'error': return { tone: 'amber', label: 'Error', title: 'Verification failed — see system log' }
+    default: return { tone: 'neutral', label: '—', title: 'Not yet verified' }
+  }
+}
+
+function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string; syncStatus?: string | null }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 60 }, { refetchInterval: 30_000 })
   const last = summary.data?.buckets.slice(-1)[0]
   return (
@@ -209,6 +221,15 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
       <td style={{ ...td, color: 'var(--text-secondary)' }}>{summary.data?.avgLatencyMs ?? 0}ms</td>
       <td style={{ ...td, color: 'var(--text-dim)', fontSize: 10 }}>
         {last ? new Date(last.t).toLocaleTimeString() : '—'}
+      </td>
+      <td style={td}>
+        {(() => { const s = syncDot(route.syncStatus); return (
+          <Link href={`/routes/${route.id}`} style={{ textDecoration: 'none' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={s.title}>
+              <Dot tone={s.tone} /><span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{s.label}</span>
+            </span>
+          </Link>
+        )})()}
       </td>
       <td style={td}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>

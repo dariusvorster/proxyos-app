@@ -51,6 +51,12 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     onError: e => setMxwatchMsg(`Error: ${e.message}`),
   })
 
+  const forceResync = trpc.routes.forceResync.useMutation({
+    onSuccess: () => { setTimeout(() => routes.refetch(), 3000) },
+  })
+  const [resyncMsg, setResyncMsg] = useState('')
+  const [diffExpanded, setDiffExpanded] = useState(true)
+
   const patchosStatus = trpc.patchos.getStatus.useQuery({ routeId: id })
   const setMaintenanceMut = trpc.patchos.setMaintenance.useMutation({
     onSuccess: () => { patchosStatus.refetch(); routes.refetch() },
@@ -202,6 +208,67 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         actions={<Link href="/routes" style={{ fontSize: 11, color: 'var(--pu-400)' }}>← Routes</Link>}
       />
       <PageContent>
+        {route?.syncStatus === 'drift' && (
+          <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: 'var(--red, #ef4444)' }}>
+                <span>⚠</span><span>Caddy has diverged from ProxyOS config</span>
+              </div>
+              <button onClick={() => setDiffExpanded(v => !v)} style={{ fontSize: 10, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                {diffExpanded ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {route.syncCheckedAt && (
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>Last checked: {new Date(route.syncCheckedAt).toLocaleString()}</div>
+            )}
+            {diffExpanded && route.syncDiff && (() => {
+              const diffs = JSON.parse(route.syncDiff) as Array<{ field: string; expected: unknown; actual: unknown; kind: string }>
+              return (
+                <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{diffs.length} difference{diffs.length !== 1 ? 's' : ''} found:</div>
+                  {diffs.map((d, i) => (
+                    <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, background: 'var(--surf)', borderRadius: 4, padding: '6px 8px' }}>
+                      <div style={{ color: 'var(--text-primary)', marginBottom: 2 }}>{d.field || '(root)'}</div>
+                      <div style={{ color: 'var(--green, #22c55e)' }}>expected: {JSON.stringify(d.expected) ?? '(absent)'}</div>
+                      <div style={{ color: 'var(--red, #ef4444)' }}>actual: {JSON.stringify(d.actual) ?? '(absent)'}</div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button size="sm" variant="primary" onClick={() => { setResyncMsg(''); forceResync.mutate({ id }, { onSuccess: () => setResyncMsg('Route repush initiated. Verification will update within a few seconds.'), onError: (e) => setResyncMsg(`Error: ${e.message}`) }) }} disabled={forceResync.isPending}>
+                {forceResync.isPending ? 'Repushing…' : 'Re-push route'}
+              </Button>
+              {resyncMsg && <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{resyncMsg}</span>}
+            </div>
+          </div>
+        )}
+        {route?.syncStatus === 'synced-machine' && (
+          <div style={{ background: 'rgba(100,100,120,0.08)', border: '1px solid rgba(100,100,120,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                ℹ This route is managed by {route.syncSource ?? 'automation'}
+              </div>
+              <button onClick={() => setDiffExpanded(v => !v)} style={{ fontSize: 10, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                {diffExpanded ? 'Hide diff' : 'Show diff'}
+              </button>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>Caddy state intentionally differs from full config.</div>
+            {diffExpanded && route.syncDiff && (() => {
+              const diffs = JSON.parse(route.syncDiff) as Array<{ field: string; expected: unknown; actual: unknown; kind: string }>
+              return (
+                <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+                  {diffs.map((d, i) => (
+                    <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, background: 'var(--surf)', borderRadius: 4, padding: '4px 8px', color: 'var(--text-dim)' }}>
+                      {d.field || '(root)'}: expected {JSON.stringify(d.expected)}, actual {JSON.stringify(d.actual)}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        )}
         {route && (
           <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
             {route.name} →{' '}

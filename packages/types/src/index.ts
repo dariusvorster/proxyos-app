@@ -172,6 +172,11 @@ export interface Route extends RouteInput {
   corsConfig?: { preset: 'permissive' | 'restrictive' | 'custom'; allowOrigins?: string[]; allowMethods?: string[]; allowHeaders?: string[]; exposeHeaders?: string[]; maxAge?: number } | null
   // §9.8 Slow request threshold
   slowRequestThresholdMs?: number | null
+  // Fix 4: roundtrip verification
+  syncStatus?: string | null
+  syncDiff?: string | null
+  syncCheckedAt?: Date | null
+  syncSource?: string | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'
