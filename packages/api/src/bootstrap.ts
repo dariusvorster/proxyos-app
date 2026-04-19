@@ -1,4 +1,4 @@
-import { buildCaddyRoute } from '@proxyos/caddy'
+import { buildCaddyRoute, CaddyClient } from '@proxyos/caddy'
 import { bootstrapCaddy, type BootstrapResult } from '@proxyos/caddy/bootstrap'
 import { getDb, routes as routesTable, ssoProviders as ssoTable } from '@proxyos/db'
 import { inArray } from 'drizzle-orm'
@@ -89,22 +89,11 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
 
   // Always ensure the dashboard port is routed to the Next.js app, regardless of DB routes
   const dashboardPort = process.env.PROXYOS_DASHBOARD_PORT ?? '3071'
-  try {
-    const dashRes = await fetch(`http://localhost:2019/config/apps/http/servers/dashboard`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost:2019' },
-      body: JSON.stringify({
-        listen: [`:${dashboardPort}`],
-        routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: 'localhost:3000' }] }] }],
-      }),
-    })
-    if (!dashRes.ok) {
-      const body = await dashRes.text()
-      console.warn(`[proxyos] dashboard route inject failed (${dashRes.status}): ${body}`)
-    }
-  } catch (e: unknown) {
-    console.warn('[proxyos] dashboard route inject failed:', e)
-  }
+  const caddyClient = new CaddyClient()
+  await caddyClient.upsertServer('dashboard', {
+    listen: [`:${dashboardPort}`],
+    routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: 'localhost:3000' }] }] }],
+  }).catch((e: unknown) => console.warn('[proxyos] dashboard route inject failed:', e))
 
   return result
 }

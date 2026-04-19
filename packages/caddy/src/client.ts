@@ -202,6 +202,12 @@ export class CaddyClient {
     return { status: diff.length === 0 ? 'synced' : 'drift', diff, expected, actual }
   }
 
+  async upsertServer(name: string, config: unknown): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/${name}`
+    const res = await this.doRequest(url, 'PUT', config)
+    if (!res.ok) throw new Error(`Caddy upsertServer(${name}) failed: ${res.status} ${await res.text()}`)
+  }
+
   async setHttpRedirectServer(): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/http_redirect`
     const config = {
