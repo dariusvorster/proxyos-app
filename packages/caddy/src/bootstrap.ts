@@ -60,6 +60,19 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
     const raw = await readFile(opts.baseConfigPath, 'utf8')
     await client.loadConfig(JSON.parse(raw))
     initialConfigLoaded = true
+  } else if (opts.baseConfigPath) {
+    // Server already exists in Caddy's autosave — re-apply the logging config.
+    // Caddy does not reliably persist the top-level `logging` section across
+    // container restarts, so the access log writer must be re-applied every boot.
+    try {
+      const raw = await readFile(opts.baseConfigPath, 'utf8')
+      const baseConfig = JSON.parse(raw) as Record<string, unknown>
+      if (baseConfig.logging) {
+        await client.ensureLogging(baseConfig.logging)
+      }
+    } catch {
+      console.warn('[caddy-bootstrap] Could not re-apply logging config — access log may be unavailable')
+    }
   }
 
   // Always ensure the TLS app exists — persistent volumes skip loadConfig on restart,

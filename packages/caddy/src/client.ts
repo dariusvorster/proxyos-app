@@ -70,6 +70,11 @@ export class CaddyClient {
     if (!res.ok) throw new Error(`Caddy replaceRoutes failed: ${res.status} ${await res.text()}`)
   }
 
+  async ensureLogging(loggingConfig: unknown): Promise<void> {
+    const res = await this.doRequest(`${this.baseUrl}/config/logging`, 'PUT', loggingConfig)
+    if (!res.ok) throw new Error(`Caddy ensureLogging failed: ${res.status} ${await res.text()}`)
+  }
+
   async ensureTlsAppExists(): Promise<void> {
     const res = await this.doRequest(`${this.baseUrl}/config/apps/tls`, 'GET')
     const text = await res.text()
