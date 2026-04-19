@@ -196,7 +196,7 @@ export const routesRouter = router({
     .query(async ({ ctx, input }) => {
       const rows = input?.siteId
         ? await ctx.db.select().from(routes).where(eq(routes.siteId, input.siteId))
-        : await ctx.db.select().from(routes).where(isNull(routes.siteId))
+        : await ctx.db.select().from(routes)
       return rows.map(rowToRoute)
     }),
 
