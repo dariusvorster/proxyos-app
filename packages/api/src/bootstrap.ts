@@ -92,7 +92,7 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
   try {
     const dashRes = await fetch(`http://localhost:2019/config/apps/http/servers/dashboard`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost:2019' },
       body: JSON.stringify({
         listen: [`:${dashboardPort}`],
         routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: 'localhost:3000' }] }] }],
