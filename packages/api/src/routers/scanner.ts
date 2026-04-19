@@ -30,7 +30,7 @@ export const scannerRouter = router({
 
       const scanner = new DockerScanner(
         {
-          apiUrl: input.dockerApiUrl ?? 'http://localhost:2375',
+          apiUrl: input.dockerApiUrl,
           agentId: input.agentId,
           baseDomainsHint: input.baseDomainsHint,
         },
