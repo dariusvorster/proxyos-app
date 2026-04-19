@@ -1,0 +1,132 @@
+import { router, publicProcedure } from './trpc';
+import { alertsRouter } from './routers/alerts';
+import { analyticsRouter } from './routers/analytics';
+import { auditRouter } from './routers/audit';
+import { caddyRouter } from './routers/caddy';
+import { certificatesRouter } from './routers/certificates';
+import { dashboardRouter } from './routers/dashboard';
+import { dnsRouter } from './routers/dns';
+import { routesRouter } from './routers/routes';
+import { ssoRouter } from './routers/sso';
+import { systemRouter } from './routers/system';
+import { agentsRouter } from './routers/agents';
+import { importersRouter } from './routers/importers';
+import { scannerRouter } from './routers/scanner';
+import { connectionsRouter } from './routers/connections';
+import { chainRouter } from './routers/chain';
+import { monitorsRouter } from './routers/monitors';
+import { notificationsRouter } from './routers/notifications';
+import { securityRouter } from './routers/security';
+import { intelligenceRouter } from './routers/intelligence';
+import { observabilityRouter } from './routers/observability';
+import { apiKeysRouter } from './routers/apiKeys';
+import { templatesRouter } from './routers/templates';
+import { automationRouter } from './routers/automation';
+import { usersRouter } from './routers/users';
+import { approvalsRouter } from './routers/approvals';
+import { integrationsRouter } from './routers/integrations';
+import { systemLogRouter } from './routers/systemLog';
+import { billingRouter } from './routers/billing';
+import { redirectHostsRouter } from './routers/redirectHosts';
+import { errorHostsRouter } from './routers/errorHosts';
+import { operationLogsRouter } from './routers/operationLogs';
+import { preflightRouter } from './routers/preflight';
+import { accessListsRouter } from './routers/accessLists';
+import { streamsRouter } from './routers/streams';
+import { caddyLogsRouter } from './routers/caddyLogs';
+import { publicApiRouter } from './routers/publicApi';
+import { driftRouter } from './routers/drift';
+import { routeVersionsRouter } from './routers/routeVersions';
+import { healthChecksRouter } from './routers/healthChecks';
+import { accessLogSearchRouter } from './routers/accessLogSearch';
+import { tagsRouter } from './routers/tags';
+import { discoveryRouter } from './routers/discovery';
+import { ddnsRouter } from './routers/ddns';
+import { tunnelProvidersRouter } from './routers/tunnelProviders';
+import { oauthProvidersRouter } from './routers/oauthProviders';
+import { wafRouter } from './routers/waf';
+import { secretsProvidersRouter } from './routers/secretsProviders';
+import { scheduledChangesRouter } from './routers/scheduledChanges';
+import { trafficReplayRouter } from './routers/trafficReplay';
+import { healthScoresRouter } from './routers/healthScores';
+import { infraosRouter } from './routers/infraos';
+import { lockboxosRouter } from './routers/lockboxos';
+import { backupConfigRouter } from './routers/backupConfig';
+import { patchosRouter } from './routers/patchos';
+import { accessosRouter } from './routers/accessos';
+import { mxwatchRouter } from './routers/mxwatch';
+import { tenantsRouter } from './routers/tenants';
+import { networksRouter } from './routers/networks';
+import { upstreamsRouter } from './routers/upstreams';
+import { containersRouter } from './routers/containers';
+import { organizationsRouter } from './routers/organizations.js';
+import { sitesRouter } from './routers/sites.js';
+import { nodesRouter } from './routers/nodes.js';
+
+const PKG_VERSION = '0.2.0';
+export const appRouter = router({
+    health: publicProcedure.query(() => ({ ok: true, version: PKG_VERSION })),
+    alerts: alertsRouter,
+    analytics: analyticsRouter,
+    audit: auditRouter,
+    caddy: caddyRouter,
+    certificates: certificatesRouter,
+    dashboard: dashboardRouter,
+    dns: dnsRouter,
+    routes: routesRouter,
+    sso: ssoRouter,
+    system: systemRouter,
+    agents: agentsRouter,
+    importers: importersRouter,
+    scanner: scannerRouter,
+    connections: connectionsRouter,
+    chain: chainRouter,
+    monitors: monitorsRouter,
+    notifications: notificationsRouter,
+    security: securityRouter,
+    intelligence: intelligenceRouter,
+    observability: observabilityRouter,
+    apiKeys: apiKeysRouter,
+    templates: templatesRouter,
+    automation: automationRouter,
+    users: usersRouter,
+    approvals: approvalsRouter,
+    integrations: integrationsRouter,
+    systemLog: systemLogRouter,
+    billing: billingRouter,
+    redirectHosts: redirectHostsRouter,
+    errorHosts: errorHostsRouter,
+    operationLogs: operationLogsRouter,
+    preflight: preflightRouter,
+    accessLists: accessListsRouter,
+    streams: streamsRouter,
+    caddyLogs: caddyLogsRouter,
+    publicApi: publicApiRouter,
+    drift: driftRouter,
+    routeVersions: routeVersionsRouter,
+    healthChecks: healthChecksRouter,
+    accessLogSearch: accessLogSearchRouter,
+    tags: tagsRouter,
+    discovery: discoveryRouter,
+    ddns: ddnsRouter,
+    tunnelProviders: tunnelProvidersRouter,
+    oauthProviders: oauthProvidersRouter,
+    waf: wafRouter,
+    secretsProviders: secretsProvidersRouter,
+    scheduledChanges: scheduledChangesRouter,
+    trafficReplay: trafficReplayRouter,
+    healthScores: healthScoresRouter,
+    infraos: infraosRouter,
+    lockboxos: lockboxosRouter,
+    backupConfig: backupConfigRouter,
+    patchos: patchosRouter,
+    accessos: accessosRouter,
+    mxwatch: mxwatchRouter,
+    tenants: tenantsRouter,
+    networks: networksRouter,
+    upstreams: upstreamsRouter,
+    containers: containersRouter,
+    organizations: organizationsRouter,
+    sites: sitesRouter,
+    nodes: nodesRouter,
+});
