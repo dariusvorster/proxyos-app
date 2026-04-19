@@ -13,7 +13,7 @@
       "access": {
         "writer": {
           "output": "file",
-          "filename": "/tmp/proxyos-access.log",
+          "filename": "/data/proxyos/access.log",
           "roll_size_mb": 100
         },
         "encoder": { "format": "json" },
