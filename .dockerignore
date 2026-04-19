@@ -1,5 +1,10 @@
 node_modules
 **/node_modules
+
+# Block .js shadow files from reaching the Docker build context.
+# These override .ts sources at runtime. See scripts/check-no-js-shadows.sh.
+packages/*/src/**/*.js
+!packages/*/src/**/*.d.ts
 .next
 **/.next
 .turbo
