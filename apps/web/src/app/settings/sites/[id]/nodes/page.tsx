@@ -25,7 +25,7 @@ export default function SiteNodesPage({ params }: { params: Promise<{ id: string
 
   const [showForm, setShowForm] = useState(false)
   const [expiresInHours, setExpiresInHours] = useState(24)
-  const [generatedToken, setGeneratedToken] = useState<{ token: string; expiresAt: string } | null>(null)
+  const [generatedToken, setGeneratedToken] = useState<{ token: string; expiresAt: string; centralUrl: string } | null>(null)
 
   function handleGenerateToken(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +49,7 @@ export default function SiteNodesPage({ params }: { params: Promise<{ id: string
     network_mode: host
     environment:
       PROXYOS_MODE: node
-      PROXYOS_CENTRAL_URL: wss://your-central.example.com/federation/v1
+      PROXYOS_CENTRAL_URL: ${generatedToken.centralUrl}
       PROXYOS_AGENT_TOKEN: ${generatedToken.token}
       PROXYOS_SECRET: \${PROXYOS_SECRET}
     volumes:
@@ -112,11 +112,19 @@ volumes:
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-                      Token expires: {new Date(generatedToken.expiresAt).toLocaleString()} — shown once, copy now.
+                      Token expires: {new Date(generatedToken.expiresAt).toLocaleString()} — save now, shown once.
                     </span>
-                    <Button variant="ghost" size="sm"
-                      onClick={() => void navigator.clipboard.writeText(composeSnippet)}>
-                      Copy
+                    <Button variant="primary" size="sm"
+                      onClick={() => {
+                        const blob = new Blob([composeSnippet], { type: 'text/yaml' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = 'docker-compose.proxyos-node.yml'
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}>
+                      Save
                     </Button>
                   </div>
                   <pre style={{

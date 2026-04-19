@@ -40,7 +40,13 @@ export const nodesRouter = router({
         createdAt: now,
       })
 
-      return { token: rawToken, expiresAt: expiresAt.toISOString() }
+      const federationBase = process.env.PROXYOS_FEDERATION_URL
+        ?? (process.env.PROXYOS_PUBLIC_URL
+          ? process.env.PROXYOS_PUBLIC_URL.replace(/^https/, 'wss').replace(/^http/, 'ws')
+          : 'ws://localhost:7890')
+      const centralUrl = federationBase.replace(/\/+$/, '').replace(/\/federation\/v1$/, '') + '/federation/v1'
+
+      return { token: rawToken, expiresAt: expiresAt.toISOString(), centralUrl }
     }),
 
   revoke: adminProcedure

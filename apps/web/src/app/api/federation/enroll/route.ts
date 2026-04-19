@@ -70,8 +70,11 @@ export async function POST(req: NextRequest) {
     createdAt: now,
   })
 
-  const rawPublicUrl = process.env.PROXYOS_PUBLIC_URL ?? 'ws://localhost:7890'
-  const centralUrl = rawPublicUrl.replace(/^https?/, (m) => m === 'https' ? 'wss' : 'ws') + '/federation/v1'
+  const federationBase = process.env.PROXYOS_FEDERATION_URL
+    ?? (process.env.PROXYOS_PUBLIC_URL
+      ? process.env.PROXYOS_PUBLIC_URL.replace(/^https/, 'wss').replace(/^http/, 'ws')
+      : 'ws://localhost:7890')
+  const centralUrl = federationBase.replace(/\/+$/, '').replace(/\/federation\/v1$/, '') + '/federation/v1'
 
   return NextResponse.json({ agent_id: agentId, auth_key: authKey, central_url: centralUrl })
 }
