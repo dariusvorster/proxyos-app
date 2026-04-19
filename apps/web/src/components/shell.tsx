@@ -508,6 +508,68 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
+function NodeSelector() {
+  const { data: nodes = [] } = trpc.nodes.listAll.useQuery(undefined, { refetchInterval: 10000 })
+  const { siteId, setSiteId } = useSiteSelection()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const uniqueSites = Array.from(new Map(nodes.filter(n => n.siteId).map(n => [n.siteId, n])).values())
+  const activeName = siteId ? (nodes.find(n => n.siteId === siteId)?.name ?? siteId) : 'This instance'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 10px', background: 'var(--accent-dim)',
+          border: '1px solid var(--accent-border, var(--border))',
+          borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+          fontSize: 12, color: 'var(--accent-dark)',
+        }}
+      >
+        <span style={{ fontSize: 10, opacity: 0.7 }}>instance</span>
+        <span style={{ fontWeight: 500 }}>{activeName}</span>
+        <span style={{ fontSize: 10, color: 'var(--text3)' }}>⌄</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, minWidth: 180,
+          background: 'var(--surf)', border: '1px solid var(--border)', borderRadius: 7,
+          zIndex: 100, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,.25)',
+        }}>
+          <button
+            onClick={() => { setSiteId(null); setOpen(false) }}
+            style={{ width: '100%', padding: '9px 14px', background: !siteId ? 'var(--accent-dim)' : 'transparent', border: 'none', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)', color: !siteId ? 'var(--accent-dark)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+            This instance
+          </button>
+          {uniqueSites.map(n => (
+            <button
+              key={n.siteId}
+              onClick={() => { setSiteId(n.siteId!); setOpen(false) }}
+              style={{ width: '100%', padding: '9px 14px', background: siteId === n.siteId ? 'var(--accent-dim)' : 'transparent', border: 'none', textAlign: 'left', fontSize: 13, fontFamily: 'var(--font-sans)', color: siteId === n.siteId ? 'var(--accent-dark)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+              {n.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Topbar({
   title,
   actions,
@@ -543,11 +605,14 @@ export function Topbar({
           zIndex: 10,
         }}
       >
-        {/* Breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 13 }}>
-          <span style={{ color: 'var(--text2)' }}>Dashboard</span>
-          <span style={{ color: 'var(--text3)' }}>/</span>
-          <span style={{ fontWeight: 500, color: 'var(--text)' }}>{title}</span>
+        {/* Left: breadcrumb + node selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 13 }}>
+            <span style={{ color: 'var(--text2)' }}>Dashboard</span>
+            <span style={{ color: 'var(--text3)' }}>/</span>
+            <span style={{ fontWeight: 500, color: 'var(--text)' }}>{title}</span>
+          </div>
+          {IS_CENTRAL && <NodeSelector />}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {syncTime && (
