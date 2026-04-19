@@ -63,16 +63,23 @@ function hotp(secretBuf: Buffer, counter: number): number {
 /**
  * Verify a 6-digit TOTP code. Accepts ±1 time step (30s window) to
  * account for clock skew.
+ *
+ * Returns the matched counter value (for replay protection) or null if invalid.
  */
-export function verifyTotp(secret: string, code: string): boolean {
-  if (!/^\d{6}$/.test(code)) return false
+export function verifyTotp(secret: string, code: string, lastCounter?: number | null): number | null {
+  if (!/^\d{6}$/.test(code)) return null
   const secretBuf = base32Decode(secret)
   const step = Math.floor(Date.now() / 1000 / 30)
   const codeNum = parseInt(code, 10)
   for (const delta of [-1, 0, 1]) {
-    if (hotp(secretBuf, step + delta) === codeNum) return true
+    const counter = step + delta
+    if (hotp(secretBuf, counter) === codeNum) {
+      // Reject replay: counter must be strictly greater than the last accepted one
+      if (lastCounter != null && counter <= lastCounter) return null
+      return counter
+    }
   }
-  return false
+  return null
 }
 
 /**

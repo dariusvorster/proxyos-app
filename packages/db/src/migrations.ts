@@ -1063,4 +1063,6 @@ export function ensureSchema(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_federation_nodes_site ON federation_nodes(site_id)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_node_tokens_site ON node_enrollment_tokens(site_id)`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_node_keys_node ON node_auth_keys(node_id)`)
+  // TOTP replay protection — tracks last accepted counter so codes cannot be replayed within the 90-second window
+  try { db.exec(`ALTER TABLE users ADD COLUMN totp_last_counter INTEGER`) } catch { /* already exists */ }
 }

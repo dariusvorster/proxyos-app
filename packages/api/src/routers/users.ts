@@ -95,12 +95,14 @@ export const usersRouter = router({
         if (!input.totpCode) {
           return { requiresTotp: true as const, id: null, email: null, role: null, displayName: null, avatarColor: null, avatarUrl: null }
         }
-        if (!verifyTotp(decrypt(u.totpSecret), input.totpCode)) {
+        const matchedCounter = verifyTotp(decrypt(u.totpSecret), input.totpCode, u.totpLastCounter)
+        if (matchedCounter === null) {
           recordFailure(emailKey, 5)
           recordFailure(ipKey, 20)
           void syslog(ctx.db, 'warn', 'auth', `Failed TOTP attempt`, { email: input.email })
           throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
         }
+        void ctx.db.update(users).set({ totpLastCounter: matchedCounter }).where(eq(users.id, u.id)).catch(() => {})
       }
       // Clear rate limit counters only after both password and TOTP pass
       clearLimit(emailKey)
@@ -265,7 +267,7 @@ export const usersRouter = router({
       }
       const u = await ctx.db.select().from(users).where(eq(users.id, input.userId)).get()
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' })
-      if (!verifyTotp(input.secret, input.code)) {
+      if (verifyTotp(input.secret, input.code) === null) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid code — check your authenticator app and try again' })
       }
       await ctx.db.update(users).set({ totpSecret: encrypt(input.secret), totpEnabled: 1 }).where(eq(users.id, input.userId))
@@ -284,7 +286,7 @@ export const usersRouter = router({
       if (!u.passwordHash || !(await verifyPassword(input.password, u.passwordHash))) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Incorrect password' })
       }
-      if (!u.totpSecret || !verifyTotp(decrypt(u.totpSecret), input.code)) {
+      if (!u.totpSecret || verifyTotp(decrypt(u.totpSecret), input.code, u.totpLastCounter) === null) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid authenticator code' })
       }
       await ctx.db.update(users).set({ totpSecret: null, totpEnabled: 0 }).where(eq(users.id, input.userId))
