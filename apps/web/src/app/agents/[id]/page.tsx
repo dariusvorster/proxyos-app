@@ -69,6 +69,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const deleteMut = trpc.agents.delete.useMutation({
     onSuccess: () => window.history.back(),
   })
+  const [tab, setTab] = useState<Tab>('routes')
 
   if (agent.isLoading) return (
     <>
@@ -85,7 +86,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   )
 
   const a = agent.data
-  const [tab, setTab] = useState<Tab>('routes')
 
   const tabStyle = (active: boolean): CSSProperties => ({
     padding: '10px 16px',
