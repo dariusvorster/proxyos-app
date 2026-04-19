@@ -28,6 +28,16 @@ export const nodesRouter = router({
       const db = getDb()
       const rawToken = randomBytes(32).toString('base64url')
       const tokenHash = await bcrypt.hash(rawToken, 12)
+
+      // [DIAGNOSTIC — remove after debugging]
+      console.log('[enroll-debug] generated token:', {
+        rawToken,
+        rawTokenLength: rawToken.length,
+        tokenHash,
+        tokenHashLength: tokenHash.length,
+        immediateSelfCheck: await bcrypt.compare(rawToken, tokenHash),
+      })
+
       const now = new Date()
       const expiresAt = new Date(now.getTime() + input.expiresInHours * 3600 * 1000)
 
@@ -38,6 +48,17 @@ export const nodesRouter = router({
         tokenHash,
         expiresAt,
         createdAt: now,
+      })
+
+      // [DIAGNOSTIC — verify what got stored]
+      const stored = await db.select().from(nodeEnrollmentTokens)
+        .where(eq(nodeEnrollmentTokens.tokenHash, tokenHash))
+        .get()
+      console.log('[enroll-debug] after insert, read back:', {
+        foundRow: !!stored,
+        storedHashMatchesGenerated: stored?.tokenHash === tokenHash,
+        storedHash: stored?.tokenHash,
+        verifyAgainstStored: stored ? await bcrypt.compare(rawToken, stored.tokenHash) : null,
       })
 
       return { token: rawToken, expiresAt: expiresAt.toISOString() }
