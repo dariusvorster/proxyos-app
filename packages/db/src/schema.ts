@@ -70,7 +70,7 @@ export const routes = sqliteTable('routes', {
 
   // Federation
   siteId: text('site_id'),
-  origin: text('origin', { enum: ['central', 'local'] }).notNull().default('central'),
+  origin: text('origin', { enum: ['central', 'local'] }).notNull().default('local'),
   configVersion: integer('config_version').notNull().default(1),
   scope: text('scope', { enum: ['exclusive', 'local_only'] }).notNull().default('exclusive'),
 

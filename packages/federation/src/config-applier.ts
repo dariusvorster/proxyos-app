@@ -44,14 +44,16 @@ export async function applyConfig(
         })
     }
 
-    const incomingIds = new Set(routeConfigs.map((r) => r.id))
-    const existingCentral = await db
-      .select({ id: routes.id })
-      .from(routes)
-      .where(eq(routes.origin, 'central'))
-    for (const { id } of existingCentral) {
-      if (!incomingIds.has(id)) {
-        await db.delete(routes).where(eq(routes.id, id))
+    if (version > 0) {
+      const incomingIds = new Set(routeConfigs.map((r) => r.id))
+      const existingCentral = await db
+        .select({ id: routes.id })
+        .from(routes)
+        .where(eq(routes.origin, 'central'))
+      for (const { id } of existingCentral) {
+        if (!incomingIds.has(id)) {
+          await db.delete(routes).where(eq(routes.id, id))
+        }
       }
     }
 
