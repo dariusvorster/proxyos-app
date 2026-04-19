@@ -19,6 +19,7 @@ export interface BootstrapResult {
   caddyReachable: boolean
   initialConfigLoaded: boolean
   routesReplaced: number
+  pushedRouteIds?: string[]
   error?: string
 }
 
@@ -113,6 +114,7 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
 
   const caddyRoutes: CaddyRoute[] = built.filter(b => b.validation.valid).map(b => b.route)
 
+  const pushedRouteIds = built.filter(b => b.validation.valid).map(b => b.source.id)
   await client.replaceRoutes(serverName, caddyRoutes)
 
   try {
@@ -131,5 +133,5 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
     // Non-fatal: holding page unavailable, Caddy default error pages will show instead.
   }
 
-  return { caddyReachable: true, initialConfigLoaded, routesReplaced: caddyRoutes.length }
+  return { caddyReachable: true, initialConfigLoaded, routesReplaced: caddyRoutes.length, pushedRouteIds }
 }

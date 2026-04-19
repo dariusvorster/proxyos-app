@@ -38,6 +38,7 @@ async function doSetMaintenance(
         origin: (updated.origin as 'central' | 'local') ?? 'central',
         scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
       }, {}))
+      await ctx.db.update(routes).set({ syncSource: 'patchos' }).where(eq(routes.id, routeId))
     } catch { /* Caddy sync failure is non-fatal — maintenance flag is set in DB */ }
   }
 }
@@ -77,6 +78,7 @@ async function doRestore(
         origin: (updated.origin as 'central' | 'local') ?? 'central',
         scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
       }, {}))
+      await ctx.db.update(routes).set({ syncSource: 'patchos' }).where(eq(routes.id, routeId))
     } catch { /* non-fatal */ }
   }
 }

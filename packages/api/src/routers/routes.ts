@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server'
 import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
-import { buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation } from '@proxyos/caddy'
+import { buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
+import type { CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { resolveStaticUpstreams } from '../automation/static-upstreams'
 import { buildLogEntry } from './systemLog'
@@ -106,7 +107,7 @@ async function notifyFederationConfigChange(siteId: string): Promise<void> {
   } catch { /* non-fatal — standalone mode has no federation server */ }
 }
 
-async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route): Promise<void> {
+async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route, syncSource: string = 'manual'): Promise<void> {
   let ssoProvider: SSOProvider | null = null
   if (route.ssoEnabled && route.ssoProviderId) {
     const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, route.ssoProviderId)).get()
@@ -133,6 +134,28 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
     void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
   }
   await ctx.caddy.updateRoute(route.id, generated)
+  void verifyAndPersist(ctx, route, generated, syncSource)
+}
+
+async function verifyAndPersist(
+  ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient },
+  route: Route,
+  expected: CaddyRoute,
+  syncSource: string,
+): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 500))
+  try {
+    const result = await ctx.caddy.verifyRoute(route.id, expected)
+    const status = classifyDrift(result.diff ?? [], syncSource)
+    await ctx.db.update(routes).set({
+      syncStatus: status,
+      syncDiff: result.diff ? JSON.stringify(result.diff) : null,
+      syncCheckedAt: new Date(),
+      syncSource,
+    }).where(eq(routes.id, route.id))
+  } catch {
+    // fire-and-log: never surface verify errors to the caller
+  }
 }
 
 function rowToDnsProvider(row: typeof dnsProviders.$inferSelect): DnsProvider {
@@ -273,6 +296,7 @@ export const routesRouter = router({
         void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
       }
       await ctx.caddy.addRoute(generatedCreate)
+      void verifyAndPersist(ctx, route, generatedCreate, 'manual')
     } catch (err) {
       await ctx.db.delete(routes).where(eq(routes.id, id))
       await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to push route "${input.domain}" to Caddy`, {
@@ -409,6 +433,7 @@ export const routesRouter = router({
         void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
       }
       await ctx.caddy.addRoute(generatedExpose)
+      void verifyAndPersist(ctx, route, generatedExpose, 'manual')
     } catch (err) {
       await ctx.db.delete(routes).where(eq(routes.id, id))
       await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to expose "${input.domain}" in Caddy`, {
@@ -769,6 +794,15 @@ export const routesRouter = router({
         await ctx.db.delete(routes).where(eq(routes.id, id))
       }
       return { success: true, count: input.ids.length }
+    }),
+
+  forceResync: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      await syncRouteToCaddy(ctx, rowToRoute(row), 'drift-repair')
+      return { ok: true }
     }),
 
   createLocal: protectedProcedure

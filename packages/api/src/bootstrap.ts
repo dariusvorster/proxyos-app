@@ -1,6 +1,7 @@
 import { buildCaddyRoute } from '@proxyos/caddy'
 import { bootstrapCaddy, type BootstrapResult } from '@proxyos/caddy/bootstrap'
 import { getDb, routes as routesTable, ssoProviders as ssoTable } from '@proxyos/db'
+import { inArray } from 'drizzle-orm'
 import type { Route, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { loadAdapters } from './loader'
 import { startDriftDetector } from './automation/drift-detector'
@@ -30,7 +31,7 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
     console.warn('[proxyos] network discovery unavailable:', e instanceof Error ? e.message : e)
   }
   const db = getDb()
-  return bootstrapCaddy({
+  const result = await bootstrapCaddy({
     baseConfigPath,
     buildRoute: (route, providerMap) => buildCaddyRoute(route, { ssoProvider: resolveProvider(route, providerMap) }),
     getProviders: async () => {
@@ -82,6 +83,10 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
       return routes
     },
   })
+  if (result.pushedRouteIds && result.pushedRouteIds.length > 0) {
+    await db.update(routesTable).set({ syncSource: 'bootstrap' }).where(inArray(routesTable.id, result.pushedRouteIds))
+  }
+  return result
 }
 
 function resolveProvider(route: Route, map: Map<string, SSOProvider>): SSOProvider | null {

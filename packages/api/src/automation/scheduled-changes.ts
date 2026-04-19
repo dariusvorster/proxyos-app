@@ -79,6 +79,7 @@ async function executePendingChanges(db: Db): Promise<void> {
             origin: (updatedRoute.origin as 'central' | 'local') ?? 'central',
             scope: (updatedRoute.scope as 'exclusive' | 'local_only') ?? 'exclusive',
           }))
+          await db.update(routes).set({ syncSource: 'scheduled' }).where(eq(routes.id, change.routeId))
         } catch {
           // Caddy sync failure doesn't block marking as done
         }
