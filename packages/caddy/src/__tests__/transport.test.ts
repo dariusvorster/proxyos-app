@@ -69,14 +69,15 @@ describe('transport block emission', () => {
   })
 
   it('emits transport for https:// upstream with explicit port', () => {
-    const rp = getReverseProxy(makeRoute({ upstreams: [{ address: 'https://192.168.69.5:8006' }] }))
+    // port 4443 is not in HTTPS_PORTS — only scheme-based detection fires, so skip-verify stays false
+    const rp = getReverseProxy(makeRoute({ upstreams: [{ address: 'https://192.168.69.5:4443' }] }))
     expect(rp.transport).toMatchObject({ protocol: 'http', tls: { insecure_skip_verify: false } })
   })
 
   it('emits transport for https:// upstream with default port 443', () => {
     const rp = getReverseProxy(makeRoute({ upstreams: [{ address: 'https://example.com' }] }))
     const upstreams = rp.upstreams as Array<{ dial: string }>
-    expect(upstreams[0].dial).toBe('example.com:443')
+    expect(upstreams[0]!.dial).toBe('example.com:443')
     expect(rp.transport).toMatchObject({ protocol: 'http' })
   })
 
@@ -98,14 +99,14 @@ describe('transport block emission', () => {
   it('dial strips scheme and uses correct port for http upstream', () => {
     const rp = getReverseProxy(makeRoute({ upstreams: [{ address: 'http://app:3000' }] }))
     const upstreams = rp.upstreams as Array<{ dial: string }>
-    expect(upstreams[0].dial).toBe('app:3000')
+    expect(upstreams[0]!.dial).toBe('app:3000')
     expect(rp.transport).toBeUndefined()
   })
 
   it('falls through to bare container:port without transport', () => {
     const rp = getReverseProxy(makeRoute({ upstreams: [{ address: 'vaultwarden:80' }] }))
     const upstreams = rp.upstreams as Array<{ dial: string }>
-    expect(upstreams[0].dial).toBe('vaultwarden:80')
+    expect(upstreams[0]!.dial).toBe('vaultwarden:80')
     expect(rp.transport).toBeUndefined()
   })
 })
