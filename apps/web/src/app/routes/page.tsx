@@ -222,14 +222,11 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
       <td style={{ ...td, color: 'var(--text-dim)', fontSize: 10 }}>
         {last ? new Date(last.t).toLocaleTimeString() : '—'}
       </td>
-      <td style={td}>
-        {(() => { const s = syncDot(route.syncStatus); return (
-          <Link href={`/routes/${route.id}`} style={{ textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={s.title}>
-              <Dot tone={s.tone} /><span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{s.label}</span>
-            </span>
-          </Link>
-        )})()}
+      <td style={td} title={syncDot(route.syncStatus).title}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Dot tone={syncDot(route.syncStatus).tone} />
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{syncDot(route.syncStatus).label}</span>
+        </span>
       </td>
       <td style={td}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
