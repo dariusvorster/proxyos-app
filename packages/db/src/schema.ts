@@ -93,6 +93,11 @@ export const routes = sqliteTable('routes', {
 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+
+  syncStatus: text('sync_status'),
+  syncDiff: text('sync_diff'),
+  syncCheckedAt: integer('sync_checked_at', { mode: 'timestamp' }),
+  syncSource: text('sync_source'),
 })
 
 export const auditLog = sqliteTable('audit_log', {

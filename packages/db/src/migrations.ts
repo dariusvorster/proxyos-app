@@ -1065,4 +1065,9 @@ export function ensureSchema(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_node_keys_node ON node_auth_keys(node_id)`)
   // TOTP replay protection — tracks last accepted counter so codes cannot be replayed within the 90-second window
   try { db.exec(`ALTER TABLE users ADD COLUMN totp_last_counter INTEGER`) } catch { /* already exists */ }
+  // Fix 4: roundtrip verification columns
+  try { db.exec(`ALTER TABLE routes ADD COLUMN sync_status TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN sync_diff TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN sync_checked_at INTEGER`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN sync_source TEXT`) } catch { /* already exists */ }
 }
