@@ -5,6 +5,7 @@ WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 COPY . .
 RUN pnpm install --frozen-lockfile
+RUN bash scripts/check-no-js-shadows.sh
 RUN pnpm --filter @proxyos/web build
 
 # ── caddy-builder ─────────────────────────────────────────────────────

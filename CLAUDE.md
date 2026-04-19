@@ -20,6 +20,8 @@ packages/caddy/src/config.ts               ← route/handler builder — locked 
 packages/caddy/src/resolve-upstream.ts     ← static upstream resolver (Bug #2 fix)
 packages/caddy/src/regenerate-routes.ts    ← routes array regeneration (Bug #6 fix)
 packages/db/src/migrations/*.sql           ← all existing migrations — add new migrations, never edit past ones
+scripts/check-no-js-shadows.sh                    ← shadow guard — do not weaken
+.gitignore (packages/*/src/**/*.js entries)       ← shadow guard — do not remove
 packages/api/src/routers/users.ts                  ← login/logout __setCookie mechanism (see Auth Cookie Handling below)
 packages/api/src/trpc.ts                           ← createContext with resHeaders fallback (see Auth Cookie Handling below)
 apps/web/src/app/api/trpc/[trpc]/route.ts          ← tRPC response interceptor for Set-Cookie injection
@@ -112,6 +114,19 @@ If a dependency is pinned to `1.23.4`, don't bump it to `1.23.5` or `^1.23.4` un
 ### Don't remove `// TODO` or `// HACK` comments
 
 They're there for a reason. If you think one should be addressed, mention it in your report. Don't silently delete context.
+
+### Never commit .js files alongside .ts in packages/*/src/
+
+The TypeScript compiler can emit `.js` shadows that override `.ts` sources at runtime because `package.json` `exports` reference paths without extensions. Committing these files silently breaks every future edit to the corresponding `.ts` file. This cost a full day of debugging on 2026-04-18 (see commit `6820364`).
+
+Hard rules:
+- Never run `tsc` in this repo without `--noEmit`
+- Never commit files matching `packages/*/src/**/*.js`
+- If you see `.js` files next to `.ts` files in `packages/*/src/`, delete them immediately
+- The build check in `scripts/check-no-js-shadows.sh` enforces this at Docker build time
+- The `.gitignore` blocks new commits of these files
+
+If a build fails with a shadow-guard error, DO NOT bypass the check — find and delete the shadow files, or ask the user if you believe the guard is wrong.
 
 ---
 

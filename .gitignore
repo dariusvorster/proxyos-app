@@ -11,3 +11,8 @@ V3.1/
 *.db
 *.db-journal
 Specs/
+
+# Block committing compiled .js shadows in workspace packages.
+# See scripts/check-no-js-shadows.sh and CLAUDE.md for context.
+packages/*/src/**/*.js
+!packages/*/src/**/*.d.ts
