@@ -13,13 +13,6 @@ export async function POST(req: NextRequest) {
     proxyos_version: string
   }
 
-  // [DIAGNOSTIC — remove after debugging]
-  console.log('[enroll-debug] received enrollment request:', {
-    tokenReceived: body.token,
-    tokenLength: body.token?.length,
-    tokenBytes: body.token ? Array.from(body.token).slice(0, 8).map(c => c.charCodeAt(0)) : null,
-  })
-
   if (!body.token) {
     return NextResponse.json({ error: 'token required' }, { status: 400 })
   }
@@ -31,17 +24,6 @@ export async function POST(req: NextRequest) {
     .select()
     .from(nodeEnrollmentTokens)
     .where(and(isNull(nodeEnrollmentTokens.usedAt), gt(nodeEnrollmentTokens.expiresAt, now)))
-
-  // [DIAGNOSTIC]
-  console.log('[enroll-debug] candidate count:', candidates.length)
-  for (const t of candidates) {
-    const matches = await bcrypt.compare(body.token, t.tokenHash)
-    console.log('[enroll-debug] candidate check:', {
-      candidateId: t.id,
-      tokenHashPrefix: t.tokenHash.slice(0, 20),
-      compareResult: matches,
-    })
-  }
 
   let matched: typeof candidates[number] | null = null
   for (const t of candidates) {

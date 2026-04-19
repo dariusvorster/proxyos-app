@@ -33,12 +33,6 @@ export default function SiteNodesPage({ params }: { params: Promise<{ id: string
       { siteId, expiresInHours },
       {
         onSuccess: (data) => {
-          // [DIAGNOSTIC — remove after debugging]
-          console.log('[enroll-debug] UI received from mutation:', {
-            token: data.token,
-            tokenLength: data.token?.length,
-            expiresAt: data.expiresAt,
-          })
           setGeneratedToken(data)
           void refetch()
         },
