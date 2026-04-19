@@ -73,7 +73,7 @@ async function poll(): Promise<void> {
         .from(driftEvents)
         .where(and(
           eq(driftEvents.type, 'missing_in_db'),
-          eq(driftEvents.routeId, routeId),
+          isNull(driftEvents.routeId),
           isNull(driftEvents.resolvedAt),
         ))
         .get()
@@ -82,8 +82,8 @@ async function poll(): Promise<void> {
           id: nanoid(),
           detectedAt: now,
           type: 'missing_in_db',
-          routeId,
-          diffJson: JSON.stringify({ caddyId }),
+          routeId: null,
+          diffJson: JSON.stringify({ caddyId, routeId }),
         })
       }
     }
@@ -107,6 +107,7 @@ async function poll(): Promise<void> {
 }
 
 export function startDriftDetector(): void {
-  setInterval(() => { void poll() }, POLL_MS)
-  void poll()
+  const run = () => poll().catch((e: unknown) => console.warn('[drift-detector] poll error:', e))
+  setInterval(() => { void run() }, POLL_MS)
+  void run()
 }
