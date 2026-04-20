@@ -9,7 +9,9 @@ RUN sh scripts/check-no-js-shadows.sh
 RUN pnpm --filter @proxyos/web build
 # Bundle instrumentation.node.ts — webpackIgnore excludes it from Next.js standalone trace
 RUN cd /repo/apps/web && node -e " \
-  const esbuild = require('next/dist/compiled/esbuild'); \
+  const path = require('path'); \
+  const nextDir = path.dirname(require.resolve('next/package.json')); \
+  const esbuild = require(require.resolve('esbuild', { paths: [nextDir] })); \
   esbuild.buildSync({ \
     entryPoints: ['src/instrumentation.node.ts'], \
     bundle: true, \
