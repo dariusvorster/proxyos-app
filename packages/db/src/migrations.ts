@@ -1076,4 +1076,6 @@ export function ensureSchema(db: Database.Database): void {
   // Fix: Phase B CREATE TABLE federation_nodes was missing config_version_desired column.
   // Phase F tried to add it to 'nodes' (wrong table). Add it correctly here.
   try { db.exec(`ALTER TABLE federation_nodes ADD COLUMN config_version_desired INTEGER DEFAULT 0`) } catch { /* already exists */ }
+  // All routes are standalone-local — reset any 'central' origin to 'local'
+  db.exec(`UPDATE routes SET origin = 'local' WHERE origin = 'central'`)
 }
