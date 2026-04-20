@@ -4,7 +4,7 @@ export const TOKEN_COOKIE = 'proxyos_token'
 const EXPIRES_IN = 60 * 60 * 24 * 30 // 30 days
 
 // Fix 2: enforce PROXYOS_SECRET at startup
-const _secret = process.env.PROXYOS_SECRET
+const _secret = process.env.PROXYOS_SECRET as string
 if (!_secret) {
   console.error('\n[FATAL] PROXYOS_SECRET environment variable is not set.')
   console.error('Set it to a random 32+ character value in your docker-compose.yml:')
