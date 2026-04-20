@@ -11,6 +11,7 @@ export interface Session {
 }
 
 export interface Context {
+  req: Request
   db: ReturnType<typeof getDb>
   caddy: CaddyClient
   session: Session | null
@@ -41,7 +42,7 @@ export async function createContext(opts: { req: Request; resHeaders?: Headers }
     req.headers.get('x-real-ip') ??
     'unknown'
 
-  return { db, caddy: new CaddyClient(), session, tokenScopes, resHeaders, clientIp }
+  return { req, db, caddy: new CaddyClient(), session, tokenScopes, resHeaders, clientIp }
 }
 
 const t = initTRPC.context<Context>().create({ transformer: superjson })
