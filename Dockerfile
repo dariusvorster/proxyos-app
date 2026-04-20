@@ -18,7 +18,7 @@ RUN cd /repo/apps/web && node -e " \
     platform: 'node', \
     target: 'node22', \
     format: 'cjs', \
-    external: ['better-sqlite3', 'fsevents', 'nodemailer'], \
+    external: ['better-sqlite3', 'fsevents'], \
     outfile: '.next/server/instrumentation.node.js' \
   })"
 
