@@ -18,7 +18,7 @@ RUN cd /repo/apps/web && node -e " \
     platform: 'node', \
     target: 'node22', \
     format: 'cjs', \
-    external: ['better-sqlite3', 'fsevents'], \
+    external: ['better-sqlite3', 'fsevents', 'nodemailer'], \
     outfile: '.next/server/instrumentation.node.js' \
   })"
 
@@ -81,7 +81,7 @@ COPY --from=builder /repo/apps/web/.next/server/instrumentation.node.js ./apps/w
 # Install native deps not bundled by Next standalone
 RUN mkdir -p /tmp/native && cd /tmp/native && \
     echo '{}' > package.json && \
-    npm install --no-save better-sqlite3@11.5.0 bindings@1.5.0 file-uri-to-path@1.0.0 && \
+    npm install --no-save better-sqlite3@11.5.0 bindings@1.5.0 file-uri-to-path@1.0.0 nodemailer && \
     mkdir -p /app/apps/web/node_modules && \
     cp -r /tmp/native/node_modules/. /app/apps/web/node_modules/ && \
     rm -rf /tmp/native
