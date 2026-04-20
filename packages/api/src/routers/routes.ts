@@ -43,6 +43,8 @@ const exposeInput = z.object({
   ssoEnabled: z.boolean().default(false),
   ssoProviderId: z.string().nullable().default(null),
   siteId: z.string().nullable().optional(),
+  healthCheckEnabled: z.boolean().default(true),
+  healthCheckPath: z.string().default('/'),
 })
 
 function rowToRoute(row: typeof routes.$inferSelect): Route {
@@ -395,8 +397,8 @@ export const routesRouter = router({
       tlsDnsProviderId: input.tlsDnsProviderId ?? null,
       ssoEnabled: input.ssoEnabled,
       ssoProviderId: input.ssoProviderId,
-      healthCheckEnabled: true,
-      healthCheckPath: '/',
+      healthCheckEnabled: input.healthCheckEnabled,
+      healthCheckPath: input.healthCheckPath,
       healthCheckInterval: 30,
       compressionEnabled: true,
       websocketEnabled: true,
@@ -419,8 +421,8 @@ export const routesRouter = router({
       tlsDnsProviderId: route.tlsDnsProviderId,
       ssoEnabled: route.ssoEnabled,
       ssoProviderId: route.ssoProviderId,
-      healthCheckEnabled: true,
-      healthCheckPath: '/',
+      healthCheckEnabled: input.healthCheckEnabled,
+      healthCheckPath: input.healthCheckPath,
       healthCheckInterval: 30,
       compressionEnabled: true,
       websocketEnabled: true,

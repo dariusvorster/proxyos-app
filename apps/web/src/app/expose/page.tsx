@@ -131,6 +131,8 @@ export default function ExposePage() {
       ssoEnabled,
       ssoProviderId: ssoEnabled ? ssoProviderId || null : null,
       siteId: siteId ?? null,
+      healthCheckEnabled: healthCheck,
+      healthCheckPath: healthPath,
     })
   }
 
