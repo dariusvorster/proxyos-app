@@ -599,7 +599,10 @@ export default function ExposePage() {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          <Button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>← Back</Button>
+          {step === 0
+            ? <Link href="/routes"><Button>← Back</Button></Link>
+            : <Button onClick={() => setStep(s => s - 1)}>← Back</Button>
+          }
           {step < STEPS.length - 1 && (
             <Button variant="primary" onClick={() => setStep(s => s + 1)} disabled={!canAdvance()}>Next →</Button>
           )}

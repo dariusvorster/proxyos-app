@@ -483,18 +483,15 @@ function RoutePanel({ route }: { route: Route }) {
         </div>
       </Section>
       <Section title="Actions">
-        {route.origin === 'local' && (
-          <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>synced from node — read-only</div>
-        )}
-        {route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node') && (
+        {route.origin === 'central' && (
           <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>managed by central — read-only</div>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
-          {!(route.origin === 'local') && !(route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node')) && (
+          {route.origin === 'local' && (
             <Button size="sm" variant="primary" onClick={startEdit}>Edit</Button>
           )}
           <Link href={`/routes/${route.id}`}><Button size="sm">Open analytics</Button></Link>
-          {!(route.origin === 'local') && !(route.origin === 'central' && process.env.NEXT_PUBLIC_PROXYOS_MODE?.includes('node')) && (
+          {route.origin === 'local' && (
             <Button size="sm" variant="danger" onClick={() => { if (confirm(`Delete ${route.domain}?`)) del.mutate({ id: route.id }) }}>Delete</Button>
           )}
         </div>
