@@ -3,22 +3,26 @@ import { createHmac, timingSafeEqual } from 'crypto'
 export const TOKEN_COOKIE = 'proxyos_token'
 const EXPIRES_IN = 60 * 60 * 24 * 30 // 30 days
 
-// Fix 2: enforce PROXYOS_SECRET at startup
+// Enforce PROXYOS_SECRET at startup — skip during Next.js build phase
 const _secret = process.env.PROXYOS_SECRET as string
+const _isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 if (!_secret) {
-  console.error('\n[FATAL] PROXYOS_SECRET environment variable is not set.')
-  console.error('Set it to a random 32+ character value in your docker-compose.yml:')
-  console.error('  PROXYOS_SECRET: "$(openssl rand -hex 32)"')
-  console.error('Without it, sessions cannot be signed and all logins will fail.\n')
-  process.exit(1)
-}
-if (_secret.length < 32) {
-  console.warn('[auth] PROXYOS_SECRET is shorter than 32 characters. Recommend at least 32.')
-}
-const WEAK_SECRETS = ['changeme', 'secret', 'password', 'default', 'proxyos']
-if (WEAK_SECRETS.includes(_secret.toLowerCase())) {
-  console.error('[FATAL] PROXYOS_SECRET is set to a known-weak value. Refusing to start.')
-  process.exit(1)
+  if (!_isBuildPhase) {
+    console.error('\n[FATAL] PROXYOS_SECRET environment variable is not set.')
+    console.error('Set it to a random 32+ character value in your docker-compose.yml:')
+    console.error('  PROXYOS_SECRET: "$(openssl rand -hex 32)"')
+    console.error('Without it, sessions cannot be signed and all logins will fail.\n')
+    process.exit(1)
+  }
+} else {
+  if (_secret.length < 32) {
+    console.warn('[auth] PROXYOS_SECRET is shorter than 32 characters. Recommend at least 32.')
+  }
+  const WEAK_SECRETS = ['changeme', 'secret', 'password', 'default', 'proxyos']
+  if (WEAK_SECRETS.includes(_secret.toLowerCase())) {
+    console.error('[FATAL] PROXYOS_SECRET is set to a known-weak value. Refusing to start.')
+    process.exit(1)
+  }
 }
 
 function detectSecure(req: Request): boolean {
