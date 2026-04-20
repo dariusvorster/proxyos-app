@@ -115,29 +115,26 @@ describe('validateCaddyRoute', () => {
     expect(result.issues.some(i => i.field === '@id')).toBe(true)
   })
 
-  it('V7: route with no X-Forwarded-Port is valid but has 1 warning', () => {
+  it('V7: route without X-Real-IP fails', () => {
     const caddyRoute = validCaddyRoute()
     const rp = caddyRoute.handle.find(h => h.handler === 'reverse_proxy') as any
-    delete (rp.headers as any).request.set['X-Forwarded-Port']
+    delete (rp.headers as any).request.set['X-Real-IP']
     const result = validateCaddyRoute(caddyRoute)
-    expect(result.valid).toBe(true)
-    const warnings = result.issues.filter(i => i.severity === 'warning')
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]!.field).toContain('X-Forwarded-Port')
+    expect(result.valid).toBe(false)
+    expect(result.issues.some(i => i.field.includes('X-Real-IP'))).toBe(true)
   })
 
   it('V8: formatValidation output contains route id, counts, and each issue field + message', () => {
     const caddyRoute = validCaddyRoute()
     const rp = caddyRoute.handle.find(h => h.handler === 'reverse_proxy') as any
     delete (rp.headers as any).request.set['Host']
-    delete (rp.headers as any).request.set['X-Forwarded-Port']
+    delete (rp.headers as any).request.set['X-Real-IP']
     const result = validateCaddyRoute(caddyRoute)
     const output = formatValidation(result)
     expect(output).toContain('proxyos-route-v-route')
     expect(output).toMatch(/\d+ error/)
     expect(output).toContain('Host')
-    expect(output).toContain('X-Forwarded-Port')
+    expect(output).toContain('X-Real-IP')
     expect(output).toMatch(/ERROR/)
-    expect(output).toMatch(/WARN/)
   })
 })

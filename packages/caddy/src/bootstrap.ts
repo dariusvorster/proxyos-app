@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { CaddyClient } from './client'
 import { waitForCaddyReady } from './wait-ready'
-import { buildCaddyRoute, buildHoldingPageHtml } from './config'
+import { buildCaddyRoute, buildHoldingPageHtml, buildTrustedProxies } from './config'
 import { validateCaddyRoute, formatValidation } from './validate'
 import type { CaddyRoute } from './types'
 import type { Route, SSOProvider } from '@proxyos/types'
@@ -81,6 +81,14 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
     await client.ensureTlsAppExists()
   } catch {
     // Non-fatal: log and continue. upsertTlsPolicy will surface per-route errors.
+  }
+
+  // Set trusted_proxies at the server level so Caddy natively handles X-Forwarded-* headers
+  // from Cloudflare, LAN, Tailscale, and Docker networks.
+  try {
+    await client.setTrustedProxies(serverName, buildTrustedProxies())
+  } catch {
+    console.warn('[caddy-bootstrap] Could not set trusted_proxies — X-Forwarded-* headers may not be preserved correctly from upstream reverse proxies')
   }
 
   // If a Cloudflare API token is set, inject a catch-all DNS-01 policy so all

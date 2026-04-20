@@ -202,6 +202,12 @@ export class CaddyClient {
     return { status: diff.length === 0 ? 'synced' : 'drift', diff, expected, actual }
   }
 
+  async setTrustedProxies(serverName: string, config: unknown): Promise<void> {
+    const url = `${this.baseUrl}/config/apps/http/servers/${serverName}/trusted_proxies`
+    const res = await this.doRequest(url, 'PUT', config)
+    if (!res.ok) throw new Error(`Caddy setTrustedProxies(${serverName}) failed: ${res.status} ${await res.text()}`)
+  }
+
   async upsertServer(name: string, config: unknown): Promise<void> {
     const url = `${this.baseUrl}/config/apps/http/servers/${name}`
     let res = await this.doRequest(url, 'PUT', config)

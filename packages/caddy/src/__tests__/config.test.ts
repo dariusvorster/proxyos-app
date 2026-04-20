@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCaddyRoute } from '../config'
+import { buildCaddyRoute, buildTrustedProxies } from '../config'
 import type { BuildOptions } from '../config'
 import type { Route } from '@proxyos/types'
 
@@ -127,16 +127,17 @@ describe('buildCaddyRoute', () => {
   })
 
   describe('headers', () => {
-    it('always emits all X-Forwarded-* and Host headers', () => {
+    it('emits Host and X-Real-IP; no X-Forwarded-* in route headers', () => {
       const rp = getReverseProxy(makeRoute())
       const set = rp.headers.request.set
       expect(set['Host']).toBeDefined()
-      expect(set['X-Forwarded-Host']).toBeDefined()
-      expect(set['X-Forwarded-Proto']).toBeDefined()
-      expect(set['X-Forwarded-Port']).toBeDefined()
       expect(set['X-Real-IP']).toBeDefined()
-      // X-Forwarded-For is in add (append), not set
-      expect(rp.headers.request.add['X-Forwarded-For']).toBeDefined()
+      // X-Forwarded-* managed natively by Caddy trusted_proxies — not set at route level
+      expect(set['X-Forwarded-Proto']).toBeUndefined()
+      expect(set['X-Forwarded-Host']).toBeUndefined()
+      expect(set['X-Forwarded-For']).toBeUndefined()
+      expect(set['X-Forwarded-Port']).toBeUndefined()
+      expect(rp.headers.request.add?.['X-Forwarded-For']).toBeUndefined()
     })
 
     it('Host header value is the Caddy request-host placeholder', () => {
@@ -144,29 +145,35 @@ describe('buildCaddyRoute', () => {
       expect(rp.headers.request.set.Host[0]).toBe('{http.request.host}')
     })
 
-    it('X-Forwarded-Proto uses fallback placeholder not hardcoded scheme', () => {
+    it('X-Real-IP is set to remote host placeholder', () => {
       const rp = getReverseProxy(makeRoute())
-      expect(rp.headers.request.set['X-Forwarded-Proto'][0])
-        .toBe('{http.request.header.X-Forwarded-Proto:{http.request.scheme}}')
+      expect(rp.headers.request.set['X-Real-IP'][0]).toBe('{http.request.remote.host}')
+    })
+  })
+
+  describe('buildTrustedProxies', () => {
+    it('configures trusted_proxies with source static and Cloudflare ranges', () => {
+      const tp = buildTrustedProxies()
+      expect(tp.source).toBe('static')
+      expect(tp.ranges).toContain('173.245.48.0/20')
+      expect(tp.ranges).toContain('104.16.0.0/13')
     })
 
-    it('X-Forwarded-Host uses fallback placeholder', () => {
-      const rp = getReverseProxy(makeRoute())
-      expect(rp.headers.request.set['X-Forwarded-Host'][0])
-        .toBe('{http.request.header.X-Forwarded-Host:{http.request.host}}')
+    it('includes private LAN ranges', () => {
+      const tp = buildTrustedProxies()
+      expect(tp.ranges).toContain('10.0.0.0/8')
+      expect(tp.ranges).toContain('192.168.0.0/16')
+      expect(tp.ranges).toContain('172.16.0.0/12')
     })
 
-    it('X-Forwarded-Port uses fallback placeholder', () => {
-      const rp = getReverseProxy(makeRoute())
-      expect(rp.headers.request.set['X-Forwarded-Port'][0])
-        .toBe('{http.request.header.X-Forwarded-Port:{http.request.port}}')
+    it('includes Tailscale CGNAT range', () => {
+      const tp = buildTrustedProxies()
+      expect(tp.ranges).toContain('100.64.0.0/10')
     })
 
-    it('X-Forwarded-For uses add (append) not set (overwrite)', () => {
-      const rp = getReverseProxy(makeRoute())
-      expect(rp.headers.request.add['X-Forwarded-For'])
-        .toEqual(['{http.request.remote.host}'])
-      expect(rp.headers.request.set?.['X-Forwarded-For']).toBeUndefined()
+    it('includes Docker bridge network ranges', () => {
+      const tp = buildTrustedProxies()
+      expect(tp.ranges).toContain('172.17.0.0/16')
     })
   })
 

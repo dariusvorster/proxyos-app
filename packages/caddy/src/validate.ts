@@ -66,9 +66,8 @@ export function validateCaddyRoute(caddyRoute: CaddyRoute): ValidationResult {
       }
     }
 
-    const headers = rp['headers'] as { request?: { set?: Record<string, unknown>; add?: Record<string, unknown> } } | undefined
+    const headers = rp['headers'] as { request?: { set?: Record<string, unknown> } } | undefined
     const reqSet = headers?.request?.set ?? {}
-    const reqAdd = headers?.request?.add ?? {}
 
     // E3: Host header must be ['{http.request.host}']
     const hostVal = reqSet['Host']
@@ -76,19 +75,9 @@ export function validateCaddyRoute(caddyRoute: CaddyRoute): ValidationResult {
       issues.push({ severity: 'error', field: `${base}.headers.request.set.Host`, message: "Host header missing — should be ['{http.request.host}']", routeId })
     }
 
-    // E4: required X-Forwarded-* headers (X-Forwarded-For uses add semantics)
-    for (const h of ['X-Forwarded-Host', 'X-Forwarded-Proto', 'X-Real-IP']) {
-      if (!reqSet[h]) {
-        issues.push({ severity: 'error', field: `${base}.headers.request.set.${h}`, message: `${h} missing`, routeId })
-      }
-    }
-    if (!reqAdd['X-Forwarded-For']) {
-      issues.push({ severity: 'error', field: `${base}.headers.request.add.X-Forwarded-For`, message: 'X-Forwarded-For missing', routeId })
-    }
-
-    // W1: X-Forwarded-Port recommended
-    if (!reqSet['X-Forwarded-Port']) {
-      issues.push({ severity: 'warning', field: `${base}.headers.request.set.X-Forwarded-Port`, message: 'X-Forwarded-Port recommended but missing', routeId })
+    // E4: X-Real-IP must be set; X-Forwarded-* managed natively by server-level trusted_proxies
+    if (!reqSet['X-Real-IP']) {
+      issues.push({ severity: 'error', field: `${base}.headers.request.set.X-Real-IP`, message: 'X-Real-IP missing', routeId })
     }
 
     // E5: HTTPS-port upstreams require transport block
