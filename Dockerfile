@@ -7,6 +7,12 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN sh scripts/check-no-js-shadows.sh
 RUN pnpm --filter @proxyos/web build
+# Bundle instrumentation.node.ts — webpackIgnore excludes it from Next.js standalone trace
+RUN cd /repo/apps/web && \
+    pnpm exec esbuild src/instrumentation.node.ts \
+      --bundle --platform=node --target=node22 --format=cjs \
+      --external:better-sqlite3 --external:fsevents \
+      --outfile=.next/server/instrumentation.node.js
 
 # ── caddy-builder ─────────────────────────────────────────────────────
 FROM golang:1.25-alpine AS caddy-builder
@@ -61,6 +67,8 @@ ENV XDG_CONFIG_HOME=/config/caddy
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /repo/apps/web/public ./apps/web/public
+# instrumentation.node.js is not in the standalone trace (webpackIgnore) — copy explicitly
+COPY --from=builder /repo/apps/web/.next/server/instrumentation.node.js ./apps/web/.next/server/instrumentation.node.js
 
 # Install native deps not bundled by Next standalone
 RUN mkdir -p /tmp/native && cd /tmp/native && \
