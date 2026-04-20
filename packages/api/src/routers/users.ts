@@ -110,21 +110,23 @@ export const usersRouter = router({
       await ctx.db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, u.id))
       void syslog(ctx.db, 'info', 'auth', `User signed in`, { email: u.email }, u.id)
       const token = signToken({ userId: u.id, role: u.role })
+      const setCookie = makeTokenCookie(token, ctx.req)
       // Best-effort: try resHeaders (works in dev, broken in standalone build)
       if (ctx.resHeaders && typeof ctx.resHeaders.append === 'function') {
-        ctx.resHeaders.append('Set-Cookie', makeTokenCookie(token))
+        ctx.resHeaders.append('Set-Cookie', setCookie)
       }
       // The __setCookie field below is consumed by the Next.js route handler
       // as a fallback mechanism when resHeaders is unavailable (Next.js standalone bug)
-      return { requiresTotp: false as const, id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, __setCookie: makeTokenCookie(token) }
+      return { requiresTotp: false as const, id: u.id, email: u.email, role: u.role as typeof ROLES[number], displayName: u.displayName ?? null, avatarColor: u.avatarColor ?? null, avatarUrl: u.avatarUrl ?? null, __setCookie: setCookie }
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
+    const setCookie = clearTokenCookie(ctx.req)
     // Best-effort resHeaders append
     if (ctx.resHeaders && typeof ctx.resHeaders.append === 'function') {
-      ctx.resHeaders.append('Set-Cookie', clearTokenCookie())
+      ctx.resHeaders.append('Set-Cookie', setCookie)
     }
-    return { ok: true, __setCookie: clearTokenCookie() }
+    return { ok: true, __setCookie: setCookie }
   }),
 
   register: publicProcedure

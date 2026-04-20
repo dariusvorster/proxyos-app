@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { LogoMark } from '~/components/logo'
 import { Button, Input } from '~/components/ui'
@@ -10,17 +10,31 @@ import { getSession, setSession } from '~/lib/session'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [step, setStep] = useState<'credentials' | 'totp'>('credentials')
   const [error, setError] = useState<string | null>(null)
+  const [diagMessage, setDiagMessage] = useState<string | null>(null)
   const login = trpc.users.login.useMutation()
 
   // Already logged in — skip to dashboard
   useEffect(() => {
     if (getSession()) router.replace('/')
   }, [router])
+
+  // Show diagnostic hint when redirected with ?reason=
+  useEffect(() => {
+    const reason = searchParams?.get('reason')
+    if (!reason) return
+    fetch('/api/auth/diagnose')
+      .then(r => r.json())
+      .then((d: { status: string; message?: string; hint?: string }) => {
+        if (d.status !== 'ok') setDiagMessage(d.hint ?? d.message ?? null)
+      })
+      .catch(() => {})
+  }, [searchParams])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -68,6 +82,12 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
+
+        {diagMessage && (
+          <div style={{ background: 'var(--amber-dim, rgba(251,191,36,.1))', border: '1px solid var(--amber-border, rgba(251,191,36,.3))', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--font-sans)', marginBottom: 16 }}>
+            {diagMessage}
+          </div>
+        )}
 
         {/* Card */}
         <div style={{

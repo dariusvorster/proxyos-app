@@ -10,7 +10,8 @@
     "./bootstrap": "./src/bootstrap.ts",
     "./observability": "./src/observability/index.ts",
     "./apikeys": "./src/apikeys.ts",
-    "./automation/network-join": "./src/automation/network-join.ts"
+    "./automation/network-join": "./src/automation/network-join.ts",
+    "./auth": "./src/auth.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

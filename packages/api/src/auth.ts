@@ -2,18 +2,42 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 export const TOKEN_COOKIE = 'proxyos_token'
 const EXPIRES_IN = 60 * 60 * 24 * 30 // 30 days
-const COOKIE_SECURE = process.env.PROXYOS_COOKIE_SECURE === 'true'
 
-function buildCookie(name: string, value: string, maxAge: number): string {
-  const parts = [`${name}=${value}`, 'HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAge}`]
-  if (COOKIE_SECURE) parts.push('Secure')
-  return parts.join('; ')
+// Fix 2: enforce PROXYOS_SECRET at startup
+const _secret = process.env.PROXYOS_SECRET
+if (!_secret) {
+  console.error('\n[FATAL] PROXYOS_SECRET environment variable is not set.')
+  console.error('Set it to a random 32+ character value in your docker-compose.yml:')
+  console.error('  PROXYOS_SECRET: "$(openssl rand -hex 32)"')
+  console.error('Without it, sessions cannot be signed and all logins will fail.\n')
+  process.exit(1)
+}
+if (_secret.length < 32) {
+  console.warn('[auth] PROXYOS_SECRET is shorter than 32 characters. Recommend at least 32.')
+}
+const WEAK_SECRETS = ['changeme', 'secret', 'password', 'default', 'proxyos']
+if (WEAK_SECRETS.includes(_secret.toLowerCase())) {
+  console.error('[FATAL] PROXYOS_SECRET is set to a known-weak value. Refusing to start.')
+  process.exit(1)
 }
 
-function secret(): string {
-  const s = process.env.PROXYOS_SECRET
-  if (!s) throw new Error('PROXYOS_SECRET environment variable must be set')
-  return s
+function detectSecure(req: Request): boolean {
+  const envOverride = process.env.PROXYOS_COOKIE_SECURE
+  if (envOverride === 'true') return true
+  if (envOverride === 'false') return false
+  const forwardedProto = req.headers.get('x-forwarded-proto')
+  if (forwardedProto) return forwardedProto === 'https'
+  try {
+    return new URL(req.url).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function buildCookie(name: string, value: string, maxAge: number, isSecure: boolean): string {
+  const parts = [`${name}=${value}`, 'HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAge}`]
+  if (isSecure) parts.push('Secure')
+  return parts.join('; ')
 }
 
 function b64url(str: string): string {
@@ -24,7 +48,7 @@ export function signToken(payload: { userId: string; role: string }): string {
   const now = Math.floor(Date.now() / 1000)
   const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const body = b64url(JSON.stringify({ userId: payload.userId, role: payload.role, iat: now, exp: now + EXPIRES_IN }))
-  const sig = createHmac('sha256', secret()).update(`${header}.${body}`).digest('base64url')
+  const sig = createHmac('sha256', _secret).update(`${header}.${body}`).digest('base64url')
   return `${header}.${body}.${sig}`
 }
 
@@ -35,7 +59,7 @@ export function verifyToken(token: string): { userId: string; role: string } | n
     const [header, body, sig] = parts as [string, string, string]
     const headerData = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'))
     if (headerData.alg !== 'HS256') return null
-    const expected = createHmac('sha256', secret()).update(`${header}.${body}`).digest('base64url')
+    const expected = createHmac('sha256', _secret).update(`${header}.${body}`).digest('base64url')
     if (!timingSafeEqual(Buffer.from(sig, 'base64url'), Buffer.from(expected, 'base64url'))) return null
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
     if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null
@@ -58,10 +82,10 @@ export function getTokenFromCookies(cookieHeader: string | null): string | null 
   return null
 }
 
-export function makeTokenCookie(token: string): string {
-  return buildCookie(TOKEN_COOKIE, token, EXPIRES_IN)
+export function makeTokenCookie(token: string, req: Request): string {
+  return buildCookie(TOKEN_COOKIE, token, EXPIRES_IN, detectSecure(req))
 }
 
-export function clearTokenCookie(): string {
-  return buildCookie(TOKEN_COOKIE, '', 0)
+export function clearTokenCookie(req: Request): string {
+  return buildCookie(TOKEN_COOKIE, '', 0, detectSecure(req))
 }
