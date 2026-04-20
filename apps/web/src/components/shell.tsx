@@ -226,29 +226,29 @@ function Sidebar() {
         {/* Right column: icon buttons on top, name + sub below */}
         <div className="proxyos-nav-label" style={{ flex: 1, minWidth: 0 }}>
           {/* Icon buttons row */}
-          <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginBottom: 5 }}>
+          <div style={{ display: 'inline-flex', gap: 1, alignItems: 'center', marginBottom: 5, border: '1px solid var(--border)', borderRadius: 8, padding: '3px 4px', background: 'var(--surf)' }}>
             <IconBtn onClick={() => router.push('/settings')} label="Settings">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.3" />
-                <path d="M7 1v1M7 12v1M1 7h1M12 7h1M2.5 2.5l.7.7M10.8 10.8l.7.7M2.5 11.5l.7-.7M10.8 3.2l.7-.7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M7.5 1v1.2M7.5 12.8V14M1 7.5h1.2M12.8 7.5H14M2.8 2.8l.85.85M11.35 11.35l.85.85M2.8 12.2l.85-.85M11.35 3.65l.85-.85" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
               </svg>
             </IconBtn>
             <IconBtn onClick={toggleTheme} label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
               {theme === 'dark' ? (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <circle cx="7" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.6 2.6l1 1M10.4 10.4l1 1M2.6 11.4l1-1M10.4 3.6l1-1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <path d="M13 8A5.5 5.5 0 1 1 7 2a4 4 0 0 0 6 6z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M12 7.5A5 5 0 1 1 6.5 2a3.5 3.5 0 0 0 5.5 5.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M2.9 2.9l1.05 1.05M11.05 11.05l1.05 1.05M2.9 12.1l1.05-1.05M11.05 3.95l1.05-1.05" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               )}
             </IconBtn>
             <IconBtn onClick={logout} label="Sign out">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M9 10v2H2V2h7v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M6 7h6M10 5l2 2-2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M9.5 10.5v2h-7v-10h7v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M6.5 7.5h7M11 5.5l2 2-2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </IconBtn>
           </div>

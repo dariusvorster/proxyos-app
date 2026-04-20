@@ -165,7 +165,7 @@ function AlertsSection() {
           <span style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--font-sans)' }}>Use TLS (port 465)</span>
         </div>
         {smtpMsg && <p style={{ fontSize: 11, color: smtpMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: 'var(--font-sans)', margin: 0 }}>{smtpMsg}</p>}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <Button
             variant="primary"
             disabled={saveSmtp.isPending}
