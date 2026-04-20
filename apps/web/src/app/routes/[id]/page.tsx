@@ -69,7 +69,6 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [hstsEnabled, setHstsEnabled] = useState(false)
   const [hstsSubdomains, setHstsSubdomains] = useState(false)
   const [http2Enabled, setHttp2Enabled] = useState(true)
-  const [trustUpstreamHeaders, setTrustUpstreamHeaders] = useState(false)
   const [sslMsg, setSslMsg] = useState('')
 
   const [geoMode, setGeoMode] = useState<'allowlist' | 'blocklist'>('blocklist')
@@ -116,7 +115,6 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
       setHstsEnabled(route.hstsEnabled ?? false)
       setHstsSubdomains(route.hstsSubdomains ?? false)
       setHttp2Enabled(route.http2Enabled ?? true)
-      setTrustUpstreamHeaders(route.trustUpstreamHeaders ?? false)
     }
   }, [route])
 
@@ -1267,7 +1265,6 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               { label: 'HSTS Enabled', desc: 'Add Strict-Transport-Security header (max-age 63072000)', value: hstsEnabled, set: setHstsEnabled, field: 'hstsEnabled' as const },
               { label: 'HSTS Subdomains', desc: 'Include "includeSubDomains" in the HSTS header', value: hstsSubdomains, set: setHstsSubdomains, field: 'hstsSubdomains' as const },
               { label: 'HTTP/2 Support', desc: 'Enable HTTP/2 for upstream connections', value: http2Enabled, set: setHttp2Enabled, field: 'http2Enabled' as const },
-              { label: 'Trust Upstream Forwarded Headers', desc: 'Set X-Forwarded-For, X-Forwarded-Proto, X-Real-IP on proxied requests', value: trustUpstreamHeaders, set: setTrustUpstreamHeaders, field: 'trustUpstreamHeaders' as const },
             ].map(({ label, desc, value, set, field }) => (
               <div key={field} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
                 <div>

@@ -133,14 +133,40 @@ describe('buildCaddyRoute', () => {
       expect(set['Host']).toBeDefined()
       expect(set['X-Forwarded-Host']).toBeDefined()
       expect(set['X-Forwarded-Proto']).toBeDefined()
-      expect(set['X-Forwarded-For']).toBeDefined()
       expect(set['X-Forwarded-Port']).toBeDefined()
       expect(set['X-Real-IP']).toBeDefined()
+      // X-Forwarded-For is in add (append), not set
+      expect(rp.headers.request.add['X-Forwarded-For']).toBeDefined()
     })
 
     it('Host header value is the Caddy request-host placeholder', () => {
       const rp = getReverseProxy(makeRoute())
       expect(rp.headers.request.set.Host[0]).toBe('{http.request.host}')
+    })
+
+    it('X-Forwarded-Proto uses fallback placeholder not hardcoded scheme', () => {
+      const rp = getReverseProxy(makeRoute())
+      expect(rp.headers.request.set['X-Forwarded-Proto'][0])
+        .toBe('{http.request.header.X-Forwarded-Proto:{http.request.scheme}}')
+    })
+
+    it('X-Forwarded-Host uses fallback placeholder', () => {
+      const rp = getReverseProxy(makeRoute())
+      expect(rp.headers.request.set['X-Forwarded-Host'][0])
+        .toBe('{http.request.header.X-Forwarded-Host:{http.request.host}}')
+    })
+
+    it('X-Forwarded-Port uses fallback placeholder', () => {
+      const rp = getReverseProxy(makeRoute())
+      expect(rp.headers.request.set['X-Forwarded-Port'][0])
+        .toBe('{http.request.header.X-Forwarded-Port:{http.request.port}}')
+    })
+
+    it('X-Forwarded-For uses add (append) not set (overwrite)', () => {
+      const rp = getReverseProxy(makeRoute())
+      expect(rp.headers.request.add['X-Forwarded-For'])
+        .toEqual(['{http.request.remote.host}'])
+      expect(rp.headers.request.set?.['X-Forwarded-For']).toBeUndefined()
     })
   })
 

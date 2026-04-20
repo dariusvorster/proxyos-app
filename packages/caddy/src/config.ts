@@ -257,11 +257,13 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
       request: {
         set: {
           'Host': ['{http.request.host}'],
-          'X-Forwarded-Host': ['{http.request.host}'],
-          'X-Forwarded-Proto': ['{http.request.scheme}'],
-          'X-Forwarded-For': ['{http.request.remote.host}'],
-          'X-Forwarded-Port': ['{http.request.port}'],
+          'X-Forwarded-Host': ['{http.request.header.X-Forwarded-Host:{http.request.host}}'],
+          'X-Forwarded-Proto': ['{http.request.header.X-Forwarded-Proto:{http.request.scheme}}'],
+          'X-Forwarded-Port': ['{http.request.header.X-Forwarded-Port:{http.request.port}}'],
           'X-Real-IP': ['{http.request.remote.host}'],
+        },
+        add: {
+          'X-Forwarded-For': ['{http.request.remote.host}'],
         },
       },
     },
