@@ -133,6 +133,9 @@ export default function ExposePage() {
       siteId: siteId ?? null,
       healthCheckEnabled: healthCheck,
       healthCheckPath: healthPath,
+      compressionEnabled: compression,
+      websocketEnabled: ws,
+      http3Enabled: http3,
     })
   }
 
