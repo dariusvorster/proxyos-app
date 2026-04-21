@@ -1,0 +1,14 @@
+/* ProxyOS brand colours for Starlight */
+:root {
+  --sl-color-accent-low: #2D2880;
+  --sl-color-accent: #7C6FF0;
+  --sl-color-accent-high: #D8D4FC;
+  --sl-color-white: #E8EDF5;
+  --sl-color-gray-1: #8892A4;
+  --sl-color-gray-2: #4A5568;
+  --sl-color-gray-3: #1E2738;
+  --sl-color-gray-4: #1C2333;
+  --sl-color-gray-5: #111520;
+  --sl-color-gray-6: #0B0E14;
+  --sl-color-black: #0B0E14;
+}

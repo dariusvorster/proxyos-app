@@ -1,0 +1,29 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "ProxyOS", "proxyos", "Caddy", "caddy", "xcaddy",
+    "cloudflared", "Cloudflare", "Tailscale", "tailscale",
+    "HSTS", "mTLS", "tRPC", "CGNAT", "CIDR", "CIDRs",
+    "sqlite", "SQLite", "better-sqlite3",
+    "s6", "s6-overlay", "logrotate",
+    "esbuild", "pnpm", "nextjs", "Next.js",
+    "homelab", "homelabs",
+    "bcrypt", "TOTP", "CSRF", "SSO", "WAF",
+    "Proxmox", "proxmox", "PBS",
+    "Coraza", "coraza",
+    "openssl", "openssl",
+    "healthcheck", "healthchecks",
+    "websocket", "WebSocket", "WebSockets",
+    "backoff", "backoffs",
+    "subpath", "subpaths",
+    "unfurl", "unfurling",
+    "dockee"
+  ],
+  "ignorePaths": [
+    "node_modules",
+    "docs-site",
+    ".next",
+    "dist"
+  ]
+}

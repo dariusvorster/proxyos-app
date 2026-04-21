@@ -1,0 +1,51 @@
+name: Deploy docs.proxyos.app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'docs-site/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      # Symlink not persisted by git — re-create so Astro resolves content
+      - name: Restore symlink
+        run: rm -rf docs-site/src/content/docs && ln -s ../../../docs docs-site/src/content/docs
+
+      - name: Install deps
+        working-directory: docs-site
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: docs-site
+        run: pnpm build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: proxyos-docs
+          directory: docs-site/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://docs\\.proxyos\\.app" },
+    { "pattern": "^https://github\\.com" },
+    { "pattern": "^https://cloudflare\\.com" },
+    { "pattern": "^http://localhost" },
+    { "pattern": "^http://.*\\.internal" }
+  ],
+  "aliveStatusCodes": [200, 206, 302, 304]
+}
