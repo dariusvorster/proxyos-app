@@ -23,4 +23,4 @@ packages/db/data
 *.log
 .DS_Store
 website
-docs
+docs-site
