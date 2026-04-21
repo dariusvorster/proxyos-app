@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import DocsSearch from './DocsSearch'
+import type { SearchEntry } from '../_lib/docs'
 
 interface NavItem { label: string; path: string }
 interface NavSection { section: string; items: NavItem[] }
@@ -95,7 +97,7 @@ const NAV_TREE: NavSection[] = [
   },
 ]
 
-export default function DocsSidebar() {
+export default function DocsSidebar({ index = [] }: { index?: SearchEntry[] }) {
   const pathname = usePathname()
 
   return (
@@ -112,6 +114,7 @@ export default function DocsSidebar() {
         gap: 0,
       }}
     >
+      <DocsSearch index={index} />
       <Link
         href="/docs"
         style={{
