@@ -266,15 +266,17 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
         {route && (
-          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {route.name} →{' '}
             <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
               {route.upstreams.map((u) => u.address).join(', ')}
             </span>
-            <span style={{ marginLeft: 8 }}>
+            <HelpLink href="/docs/features/routes/upstream-configuration" />
+            <span style={{ marginLeft: 2 }}>
               <Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>TLS: {route.tlsMode}</Badge>{' '}
               {route.ssoEnabled && <Badge tone="purple">SSO</Badge>}
             </span>
+            <HelpLink href="/docs/features/routes/tls-modes" />
           </div>
         )}
 
@@ -382,7 +384,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* Load balancing */}
         {route && (
-          <Card header={<span>Load balancing</span>}>
+          <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Load balancing <HelpLink href="/docs/features/routes/load-balancing" /></span>}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}>Policy</div>
               <Select
@@ -566,7 +568,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* mTLS — mutual TLS client authentication */}
         {route && (
-          <Card header={<span>mTLS — client certificate authentication</span>}>
+          <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>mTLS — client certificate authentication <HelpLink href="/docs/features/routes/tls-modes" /></span>}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
               <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
                 Require clients to present a valid certificate signed by your CA. Config is stored and applied on next Caddy reload.
@@ -674,7 +676,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* Blue-green deployment */}
         {route && (
-          <Card header={<span>Blue-green deployment</span>}>
+          <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Blue-green deployment <HelpLink href="/docs/features/routes/load-balancing" /></span>}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
               <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.5 }}>
                 Send a percentage of traffic to staging upstreams. Set to 0 to disable.
@@ -986,7 +988,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         )}
 
         {/* Health check history */}
-        <Card header={<span>Health check history — last {healthHistory.data?.length ?? 0} checks</span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Health check history — last {healthHistory.data?.length ?? 0} checks <HelpLink href="/docs/features/routes/health-checks" /></span>}>
           {(!healthHistory.data || healthHistory.data.length === 0) ? (
             <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text3)' }}>No health checks recorded yet.</div>
           ) : (
@@ -1106,7 +1108,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* §9.4 A/B traffic split */}
-        <Card header={<span>A/B traffic split</span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>A/B traffic split <HelpLink href="/docs/features/routes/load-balancing" /></span>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {abUpstreams.length === 0 && <div style={{ fontSize: 12, color: 'var(--text3)' }}>No upstreams configured. Add upstreams in the main settings.</div>}
             {abUpstreams.map((u, i) => (
@@ -1125,7 +1127,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* §9.5 Smart routing rules */}
-        <Card header={<span>Smart routing rules</span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Smart routing rules <HelpLink href="/docs/features/routes/creating-routes" /></span>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {routeRulesQuery.data && routeRulesQuery.data.length > 0 && (
               <DataTable>
@@ -1187,7 +1189,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* §9.6 Request/response transforms */}
-        <Card header={<span>Request &amp; response transforms</span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Request &amp; response transforms <HelpLink href="/docs/features/routes/headers" /></span>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Path rewrite</div>
@@ -1258,7 +1260,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* SSL / Security headers */}
-        <Card header={<span>SSL &amp; Security Headers</span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>SSL &amp; Security Headers <HelpLink href="/docs/features/routes/tls-modes" /></span>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0' }}>
             {[
               { label: 'Force SSL', desc: 'Redirect all HTTP traffic to HTTPS for this route', value: forceSSL, set: setForceSSL, field: 'forceSSL' as const },
@@ -1311,6 +1313,24 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
       </PageContent>
     </>
+  )
+}
+
+function HelpLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      title="Open documentation"
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 15, height: 15, borderRadius: '50%',
+        background: 'var(--surf2)', border: '1px solid var(--border)',
+        fontSize: 9, color: 'var(--text3)', textDecoration: 'none',
+        flexShrink: 0, fontFamily: 'var(--font-sans)', fontWeight: 600,
+      }}
+    >
+      ?
+    </a>
   )
 }
 
