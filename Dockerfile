@@ -65,6 +65,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV PROXYOS_DB_PATH=/data/proxyos/proxyos.db
+ENV PROXYOS_DOCS_PATH=/app/docs
 ENV PROXYOS_ACCESS_LOG=/data/proxyos/access.log
 ENV CADDY_BASE_CONFIG_PATH=/etc/caddy/base-config.json
 ENV CADDY_ADMIN_URL=http://localhost:2019
@@ -85,6 +86,9 @@ RUN mkdir -p /tmp/native && cd /tmp/native && \
     mkdir -p /app/apps/web/node_modules && \
     cp -r /tmp/native/node_modules/. /app/apps/web/node_modules/ && \
     rm -rf /tmp/native
+
+# Documentation — shipped with the image so docs match the running version
+COPY docs/ ./docs/
 
 # Caddy base config — stored OUTSIDE the named volume so it always comes from the image
 RUN mkdir -p /etc/caddy

@@ -34,7 +34,9 @@
     "react": "^19.0.0-rc-69d4b800-20241021",
     "react-dom": "^19.0.0-rc-69d4b800-20241021",
     "superjson": "^2.2.1",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

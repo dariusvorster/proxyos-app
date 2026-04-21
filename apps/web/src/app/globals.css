@@ -204,3 +204,23 @@ input:focus, select:focus, textarea:focus {
   .proxyos-shell { display: none !important; }
   .proxyos-splash { display: flex !important; }
 }
+
+/* ── Docs content ───────────────────────────────────────────────────────────── */
+.docs-content h1 { font-size: 22px; font-weight: 700; color: var(--text); margin: 0 0 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.docs-content h2 { font-size: 16px; font-weight: 600; color: var(--text); margin: 32px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.docs-content h3 { font-size: 13px; font-weight: 600; color: var(--text); margin: 20px 0 8px; }
+.docs-content p  { font-size: 13px; color: var(--text2); line-height: 1.75; margin: 0 0 12px; }
+.docs-content ul, .docs-content ol { font-size: 13px; color: var(--text2); line-height: 1.8; padding-left: 20px; margin: 0 0 12px; }
+.docs-content li { margin-bottom: 4px; }
+.docs-content strong { color: var(--text); font-weight: 600; }
+.docs-content a  { color: var(--accent-dark); text-decoration: none; }
+.docs-content a:hover { text-decoration: underline; }
+.docs-content code { font-family: var(--font-mono); font-size: 11.5px; background: rgba(99,102,241,0.1); color: var(--accent); padding: 1px 5px; border-radius: 4px; }
+.docs-content pre { font-family: var(--font-mono); font-size: 12px; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: var(--text); line-height: 1.7; margin: 0 0 16px; }
+.docs-content pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.docs-content blockquote { border-left: 3px solid var(--accent); background: rgba(99,102,241,0.06); padding: 8px 14px; border-radius: 0 8px 8px 0; margin: 0 0 16px; }
+.docs-content blockquote p { margin: 0; }
+.docs-content table { border-collapse: collapse; width: 100%; margin: 0 0 16px; font-size: 12px; }
+.docs-content th { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border2); color: var(--text); font-weight: 600; }
+.docs-content td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+.docs-content hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
