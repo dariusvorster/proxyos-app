@@ -16,7 +16,24 @@ export default function RoutesPage() {
   const utils = trpc.useUtils()
   const { siteId } = useSiteSelection()
   const list = trpc.routes.list.useQuery({ siteId })
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const del = trpc.routes.delete.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) => old?.filter((r) => r.id !== input.id) ?? [])
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setDeleteError(err.message)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -69,6 +86,12 @@ export default function RoutesPage() {
         title="Routes"
         actions={<Link href="/expose"><Button variant="primary">+ Expose service</Button></Link>}
       />
+      {deleteError && (
+        <div style={{ background: 'var(--red-subtle, rgba(239,68,68,0.1))', borderBottom: '1px solid var(--red-border, rgba(239,68,68,0.3))', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--red)' }}>
+          <span>Delete failed: {deleteError}</span>
+          <button onClick={() => setDeleteError(null)} style={{ marginLeft: 'auto', background: 'none', border: 0, cursor: 'pointer', color: 'var(--red)', fontSize: 14, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 4, padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surf)' }}>
         <button style={tabStyle(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>All</button>
         <button style={tabStyle(typeFilter === 'proxy')} onClick={() => setTypeFilter('proxy')}>Proxy</button>
@@ -297,8 +320,46 @@ function ChainNodes({ routeId }: { routeId: string }) {
 
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
-  const update = trpc.routes.update.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [panelDeleteError, setPanelDeleteError] = useState<string | null>(null)
+  const [panelUpdateError, setPanelUpdateError] = useState<string | null>(null)
+
+  const del = trpc.routes.delete.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) => old?.filter((r) => r.id !== input.id) ?? [])
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setPanelDeleteError(err.message)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
+
+  const update = trpc.routes.update.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) =>
+        old?.map((r) => r.id === input.id ? { ...r, ...input.patch, upstreams: input.patch?.upstreams ?? r.upstreams } : r) ?? []
+      )
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setPanelUpdateError(err.message)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 1440 }, { refetchInterval: 10_000 })
 
   const [editing, setEditing] = useState(false)
@@ -431,8 +492,8 @@ function RoutePanel({ route }: { route: Route }) {
           <Row k="Skip Upstream TLS Verify" v={<Toggle checked={skipTlsVerify} onChange={setSkipTlsVerify} />} />
         </Section>
 
-        {update.isError && (
-          <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error.message}</div>
+        {(update.isError || panelUpdateError) && (
+          <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error?.message ?? panelUpdateError}</div>
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -485,6 +546,9 @@ function RoutePanel({ route }: { route: Route }) {
       <Section title="Actions">
         {route.origin === 'central' && (
           <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>managed by central — read-only</div>
+        )}
+        {panelDeleteError && (
+          <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 4 }}>Delete failed: {panelDeleteError}</div>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
           {route.origin === 'local' && (
