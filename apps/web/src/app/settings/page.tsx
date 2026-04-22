@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useErrorHandler, type ReactNode } from 'react'
 import { Badge, Button, Card, Checkbox, Input, Select, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -383,7 +383,11 @@ function DangerSection() {
 function HttpBehaviourSection() {
   const utils = trpc.useUtils()
   const query = trpc.system.getForceHttps.useQuery()
-  const mut = trpc.system.setForceHttps.useMutation({ onSuccess: () => utils.system.getForceHttps.invalidate() })
+  const [handleError] = useErrorHandler()
+  const mut = trpc.system.setForceHttps.useMutation({
+    onSuccess: () => utils.system.getForceHttps.invalidate(),
+    onError: handleError,
+  })
   const enabled = query.data?.enabled ?? false
 
   return (
