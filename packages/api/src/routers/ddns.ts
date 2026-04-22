@@ -5,11 +5,15 @@ import { ddnsRecords, dnsProviders, nanoid } from '@proxyos/db'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 import type { Result } from '@proxyos/types'
 
-async function detectPublicIp(): Promise<string> {
-  const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
-  if (!res.ok) throw new Error(`IP detection failed: ${res.status}`)
-  const data = await res.json() as { ip: string }
-  return data.ip
+async function detectPublicIp(): Promise<Result<string, Error>> {
+  try {
+    const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return { ok: false, error: new Error(`IP detection failed: ${res.status}`) }
+    const data = await res.json() as { ip: string }
+    return { ok: true, value: data.ip }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) }
+  }
 }
 
 export const ddnsRouter = router({
@@ -82,14 +86,14 @@ export const ddnsRouter = router({
       const row = await ctx.db.select().from(ddnsRecords).where(eq(ddnsRecords.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
 
-      let ip: string
-      try {
-        ip = await detectPublicIp()
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err)
+      const ipResult = await detectPublicIp()
+      if (!ipResult.ok) {
+        const errMsg = ipResult.error.message
         await ctx.db.update(ddnsRecords).set({ lastError: errMsg }).where(eq(ddnsRecords.id, input.id))
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `IP detection failed: ${errMsg}` })
       }
+
+      const ip = ipResult.value
 
       if (ip === row.lastIp) {
         return { success: true, ip, changed: false }
@@ -100,13 +104,9 @@ export const ddnsRouter = router({
       if (!provider) throw new TRPCError({ code: 'NOT_FOUND', message: 'DNS provider not found' })
 
       const credentials = JSON.parse(provider.credentials) as Record<string, string>
-      let updateResult: Result<void, Error>
-
-      if (provider.type === 'cloudflare') {
-        updateResult = await updateCloudflare(credentials, row.zone, row.recordName, row.recordType, ip)
-      } else {
-        updateResult = { ok: false, error: new Error(`DNS provider type '${provider.type}' not yet supported for DDNS`) }
-      }
+      const updateResult = provider.type === 'cloudflare'
+        ? await updateCloudflare(credentials, row.zone, row.recordName, row.recordType, ip)
+        : { ok: false, error: new Error(`DNS provider type '${provider.type}' not yet supported for DDNS`) } as Result<undefined, Error>
 
       await ctx.db.update(ddnsRecords).set({
         lastIp: updateResult.ok ? ip : row.lastIp,
@@ -119,12 +119,8 @@ export const ddnsRouter = router({
     }),
 
   detectIp: publicProcedure.query(async () => {
-    try {
-      const ip = await detectPublicIp()
-      return { ip }
-    } catch {
-      return { ip: null }
-    }
+    const result = await detectPublicIp()
+    return { ip: result.ok ? result.value : null }
   }),
 })
 
@@ -134,7 +130,7 @@ async function updateCloudflare(
   name: string,
   type: string,
   ip: string,
-): Promise<Result<void, Error>> {
+): Promise<Result<undefined, Error>> {
   const token = creds.api_token ?? creds.token
   if (!token) return { ok: false, error: new Error('Missing Cloudflare api_token credential') }
 
