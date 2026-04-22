@@ -6,6 +6,7 @@ import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { useSiteSelection } from '~/lib/site-context'
+import { useErrorHandler } from '~/hooks/useErrorHandler'
 import type { Route } from '@proxyos/types'
 
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
@@ -17,6 +18,7 @@ export default function RoutesPage() {
   const { siteId } = useSiteSelection()
   const list = trpc.routes.list.useQuery({ siteId })
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [handleError] = useErrorHandler()
   const del = trpc.routes.delete.useMutation({
     onMutate: async (input) => {
       await utils.routes.list.cancel()
@@ -29,6 +31,7 @@ export default function RoutesPage() {
         utils.routes.list.setData(undefined, context.previousRoutes)
       }
       setDeleteError(err.message)
+      handleError(err)
     },
     onSettled: () => {
       utils.routes.list.invalidate()
@@ -322,6 +325,7 @@ function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const [panelDeleteError, setPanelDeleteError] = useState<string | null>(null)
   const [panelUpdateError, setPanelUpdateError] = useState<string | null>(null)
+  const [handleError] = useErrorHandler()
 
   const del = trpc.routes.delete.useMutation({
     onMutate: async (input) => {
@@ -335,6 +339,7 @@ function RoutePanel({ route }: { route: Route }) {
         utils.routes.list.setData(undefined, context.previousRoutes)
       }
       setPanelDeleteError(err.message)
+      handleError(err)
     },
     onSettled: () => {
       utils.routes.list.invalidate()
@@ -355,6 +360,7 @@ function RoutePanel({ route }: { route: Route }) {
         utils.routes.list.setData(undefined, context.previousRoutes)
       }
       setPanelUpdateError(err.message)
+      handleError(err)
     },
     onSettled: () => {
       utils.routes.list.invalidate()
