@@ -85,7 +85,7 @@ function LogsViewer({ providerId }: { providerId: string }) {
   return (
     <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'auto', maxHeight: 200, padding: '8px 10px' }}>
       {logs.data?.length === 0 && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>No logs.</span>}
-      {logs.data?.map((line, i) => (
+      {logs.data?.map((line: string, i: number) => (
         <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text2)', lineHeight: 1.5 }}>{line}</div>
       ))}
     </div>

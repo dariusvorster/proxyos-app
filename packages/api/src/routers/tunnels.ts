@@ -45,7 +45,7 @@ function tunnelServerName(type: string): string {
 function tunnelListenPorts(type: string): string[] {
   if (type === 'cloudflare') return [`:${TUNNEL_PORTS.cloudflare}`]
   if (type === 'ngrok') return [`:${TUNNEL_PORTS.ngrok}`]
-  return TUNNEL_PORTS.tailscale.map(p => `:${p}`)
+  return TUNNEL_PORTS.tailscale.map((p: number) => `:${p}`)
 }
 
 function tunnelLocalPort(type: string): number {

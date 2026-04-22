@@ -19,6 +19,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [lbPolicy, setLbPolicy] = useState<string>('round_robin')
   const [upstreams, setUpstreams] = useState<{ address: string; weight: number }[]>([])
   const [lbMsg, setLbMsg] = useState('')
+  const [saveVerifyPending, setSaveVerifyPending] = useState(false)
   const updateRoute = trpc.routes.update.useMutation()
 
   const healthHistory = trpc.healthChecks.listByRoute.useQuery({ routeId: id, limit: 50 })
@@ -443,7 +444,22 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             {lbMsg && (
-              <p style={{ fontSize: 11, color: lbMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: 'var(--font-sans)', margin: '0 0 8px' }}>{lbMsg}</p>
+              <div style={{ fontSize: 11, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                {!lbMsg.startsWith('Error') && !saveVerifyPending && route?.syncStatus === 'drift' ? (
+                  <>
+                    <span style={{ color: 'var(--amber, #f59e0b)' }}>Save drift detected</span>
+                    <button
+                      style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--amber, #f59e0b)', background: 'none', color: 'var(--amber, #f59e0b)', cursor: 'pointer' }}
+                      onClick={() => forceResync.mutate({ id }, { onSuccess: () => { setLbMsg('Repair initiated'); void routes.refetch() } })}
+                      disabled={forceResync.isPending}
+                    >{forceResync.isPending ? 'Repairing…' : 'Repair'}</button>
+                  </>
+                ) : (
+                  <span style={{ color: lbMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
+                    {saveVerifyPending && lbMsg === 'Saved ✓' ? 'Saved ✓ (verifying…)' : lbMsg}
+                  </span>
+                )}
+              </div>
             )}
 
             <div style={{ display: 'flex', gap: 8 }}>
@@ -459,8 +475,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                   updateRoute.mutate(
                     { id, patch: { upstreams: upstreams.map((u) => ({ address: u.address, weight: u.weight })), lbPolicy: lbPolicy as 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first' } },
                     {
-                      onSuccess: () => { setLbMsg('Saved'); routes.refetch() },
-                      onError: (e) => setLbMsg(`Error: ${e.message}`),
+                      onSuccess: () => {
+                        setLbMsg('Saved ✓')
+                        setSaveVerifyPending(true)
+                        void routes.refetch()
+                        setTimeout(() => { void routes.refetch(); setSaveVerifyPending(false) }, 2000)
+                      },
+                      onError: (e) => { setSaveVerifyPending(false); setLbMsg(`Error: ${e.message}`) },
                     },
                   )
                 }}

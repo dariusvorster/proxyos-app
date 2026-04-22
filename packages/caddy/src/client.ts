@@ -178,6 +178,13 @@ export class CaddyClient {
     if (!res.ok && res.status !== 404) throw new Error(`Caddy removeRoute failed: ${res.status} ${await res.text()}`)
   }
 
+  async getRoute(routeId: string): Promise<CaddyRoute> {
+    const url = `${this.baseUrl}/id/${caddyRouteId(routeId)}`
+    const res = await this.doRequest(url, 'GET')
+    if (!res.ok) throw new Error(`Caddy getRoute failed: ${res.status} ${await res.text()}`)
+    return JSON.parse(await res.text()) as CaddyRoute
+  }
+
   async verifyRoute(routeId: string, expected: CaddyRoute): Promise<VerifyResult> {
     const url = `${this.baseUrl}/id/${caddyRouteId(routeId)}`
     let res: AdminResponse
