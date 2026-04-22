@@ -73,8 +73,8 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
       if (baseConfig.logging) {
         await client.ensureLogging(baseConfig.logging)
       }
-    } catch {
-      logger.warn('Could not re-apply logging config — access log may be unavailable')
+    } catch (err) {
+      logger.warn({ err }, 'Could not re-apply logging config — access log may be unavailable')
     }
   }
 
@@ -82,16 +82,16 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   // so we must initialize the tls app explicitly every time.
   try {
     await client.ensureTlsAppExists()
-  } catch {
-    // Non-fatal: log and continue. upsertTlsPolicy will surface per-route errors.
+  } catch (err) {
+    logger.warn({ err }, 'Could not ensure TLS app exists — upsertTlsPolicy will surface per-route errors')
   }
 
   // Set trusted_proxies at the server level so Caddy natively handles X-Forwarded-* headers
   // from Cloudflare, LAN, Tailscale, and Docker networks.
   try {
     await client.setTrustedProxies(serverName, buildTrustedProxies())
-  } catch {
-    logger.warn('Could not set trusted_proxies — X-Forwarded-* headers may not be preserved correctly from upstream reverse proxies')
+  } catch (err) {
+    logger.warn({ err }, 'Could not set trusted_proxies — X-Forwarded-* headers may not be preserved correctly from upstream reverse proxies')
   }
 
   // If a Cloudflare API token is set, inject a catch-all DNS-01 policy so all
@@ -112,8 +112,8 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
           },
         ],
       })
-    } catch {
-      // Non-fatal: certs may fall back to HTTP-01.
+    } catch (err) {
+      logger.warn({ err }, 'Could not upsert Cloudflare DNS-01 TLS policy — certs may fall back to HTTP-01')
     }
   }
 
