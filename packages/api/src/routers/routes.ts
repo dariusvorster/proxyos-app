@@ -838,8 +838,18 @@ export const routesRouter = router({
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
-      await ctx.caddy.removeRoute(input.id)
-      await ctx.db.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, input.id))
+      const archivedRow = await withCaddySync(ctx.db, {
+        label: `archive route ${input.id}`,
+        dbOperation: async (tx) => {
+          await tx.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, input.id))
+          const [row2] = await tx.select().from(routes).where(eq(routes.id, input.id))
+          if (!row2) throw new TRPCError({ code: 'NOT_FOUND', message: `Route ${input.id} not found` })
+          return row2
+        },
+        caddyOperation: async () => {
+          await ctx.caddy.removeRoute(input.id)
+        },
+      })
 
       await ctx.db.insert(auditLog).values({
         id: nanoid(),
@@ -851,8 +861,6 @@ export const routesRouter = router({
         createdAt: now,
       })
 
-      const archivedRow = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!archivedRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after archive` })
       return { ok: true, route: rowToRoute(archivedRow) }
     }),
 
@@ -865,12 +873,20 @@ export const routesRouter = router({
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
-      await ctx.db.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
-      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!updated) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after unarchive` })
-      await syncRouteToCaddy(ctx, rowToRoute(updated))
+      const unarchivedRow = await withCaddySync(ctx.db, {
+        label: `unarchive route ${input.id}`,
+        dbOperation: async (tx) => {
+          await tx.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
+          const [row2] = await tx.select().from(routes).where(eq(routes.id, input.id))
+          if (!row2) throw new TRPCError({ code: 'NOT_FOUND', message: `Route ${input.id} not found` })
+          return row2
+        },
+        caddyOperation: async (row2) => {
+          await syncRouteToCaddy(ctx, rowToRoute(row2))
+        },
+      })
 
-      return { ok: true, route: rowToRoute(updated) }
+      return { ok: true, route: rowToRoute(unarchivedRow) }
     }),
 
   listStale: publicProcedure
