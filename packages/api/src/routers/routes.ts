@@ -276,32 +276,39 @@ export const routesRouter = router({
       updatedAt: now,
     }
 
-    await ctx.db.insert(routes).values({
-      id,
-      name: route.name,
-      domain: route.domain,
-      enabled: true,
-      upstreamType: route.upstreamType,
-      upstreams: JSON.stringify(route.upstreams),
-      lbPolicy: route.lbPolicy ?? 'round_robin',
-      tlsMode: route.tlsMode,
-      tlsDnsProviderId: route.tlsDnsProviderId,
-      ssoEnabled: route.ssoEnabled,
-      ssoProviderId: route.ssoProviderId,
-      healthCheckEnabled: route.healthCheckEnabled ?? true,
-      healthCheckPath: route.healthCheckPath ?? '/',
-      healthCheckInterval: route.healthCheckInterval ?? 30,
-      compressionEnabled: route.compressionEnabled ?? true,
-      websocketEnabled: true,
-      http2Enabled: true,
-      http3Enabled: true,
-      origin: input.siteId ? 'central' : 'local',
-      scope: 'exclusive',
-      configVersion: 1,
-      siteId: input.siteId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
+    try {
+      await ctx.db.insert(routes).values({
+        id,
+        name: route.name,
+        domain: route.domain,
+        enabled: true,
+        upstreamType: route.upstreamType,
+        upstreams: JSON.stringify(route.upstreams),
+        lbPolicy: route.lbPolicy ?? 'round_robin',
+        tlsMode: route.tlsMode,
+        tlsDnsProviderId: route.tlsDnsProviderId,
+        ssoEnabled: route.ssoEnabled,
+        ssoProviderId: route.ssoProviderId,
+        healthCheckEnabled: route.healthCheckEnabled ?? true,
+        healthCheckPath: route.healthCheckPath ?? '/',
+        healthCheckInterval: route.healthCheckInterval ?? 30,
+        compressionEnabled: route.compressionEnabled ?? true,
+        websocketEnabled: true,
+        http2Enabled: true,
+        http3Enabled: true,
+        origin: input.siteId ? 'central' : 'local',
+        scope: 'exclusive',
+        configVersion: 1,
+        siteId: input.siteId ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
+        throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
+      }
+      throw err
+    }
 
     if (!input.siteId) {
       try {
@@ -423,31 +430,38 @@ export const routesRouter = router({
       updatedAt: now,
     }
 
-    await ctx.db.insert(routes).values({
-      id,
-      name: route.name,
-      domain: route.domain,
-      enabled: true,
-      upstreamType: route.upstreamType,
-      upstreams: JSON.stringify(route.upstreams),
-      tlsMode: route.tlsMode,
-      tlsDnsProviderId: route.tlsDnsProviderId,
-      ssoEnabled: route.ssoEnabled,
-      ssoProviderId: route.ssoProviderId,
-      healthCheckEnabled: input.healthCheckEnabled,
-      healthCheckPath: input.healthCheckPath,
-      healthCheckInterval: 30,
-      compressionEnabled: input.compressionEnabled,
-      websocketEnabled: input.websocketEnabled,
-      http2Enabled: true,
-      http3Enabled: input.http3Enabled,
-      origin: input.siteId ? 'central' : 'local',
-      scope: 'exclusive',
-      configVersion: 1,
-      siteId: input.siteId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
+    try {
+      await ctx.db.insert(routes).values({
+        id,
+        name: route.name,
+        domain: route.domain,
+        enabled: true,
+        upstreamType: route.upstreamType,
+        upstreams: JSON.stringify(route.upstreams),
+        tlsMode: route.tlsMode,
+        tlsDnsProviderId: route.tlsDnsProviderId,
+        ssoEnabled: route.ssoEnabled,
+        ssoProviderId: route.ssoProviderId,
+        healthCheckEnabled: input.healthCheckEnabled,
+        healthCheckPath: input.healthCheckPath,
+        healthCheckInterval: 30,
+        compressionEnabled: input.compressionEnabled,
+        websocketEnabled: input.websocketEnabled,
+        http2Enabled: true,
+        http3Enabled: input.http3Enabled,
+        origin: input.siteId ? 'central' : 'local',
+        scope: 'exclusive',
+        configVersion: 1,
+        siteId: input.siteId ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
+        throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
+      }
+      throw err
+    }
 
     if (!input.siteId) {
       try {
@@ -890,31 +904,38 @@ export const routesRouter = router({
       const now = new Date()
       const id = nanoid()
 
-      await ctx.db.insert(routes).values({
-        id,
-        name: input.name,
-        domain: input.domain,
-        enabled: true,
-        upstreamType: 'http',
-        upstreams: JSON.stringify(input.upstreams),
-        lbPolicy: input.lbPolicy,
-        tlsMode: input.tlsMode,
-        tlsDnsProviderId: input.tlsDnsProviderId ?? null,
-        ssoEnabled: input.ssoEnabled,
-        ssoProviderId: input.ssoProviderId ?? null,
-        compressionEnabled: input.compressionEnabled,
-        healthCheckEnabled: input.healthCheckEnabled,
-        healthCheckPath: input.healthCheckPath,
-        healthCheckInterval: 30,
-        websocketEnabled: true,
-        http2Enabled: true,
-        http3Enabled: true,
-        origin: 'local',
-        scope: input.scope,
-        configVersion: 1,
-        createdAt: now,
-        updatedAt: now,
-      })
+      try {
+        await ctx.db.insert(routes).values({
+          id,
+          name: input.name,
+          domain: input.domain,
+          enabled: true,
+          upstreamType: 'http',
+          upstreams: JSON.stringify(input.upstreams),
+          lbPolicy: input.lbPolicy,
+          tlsMode: input.tlsMode,
+          tlsDnsProviderId: input.tlsDnsProviderId ?? null,
+          ssoEnabled: input.ssoEnabled,
+          ssoProviderId: input.ssoProviderId ?? null,
+          compressionEnabled: input.compressionEnabled,
+          healthCheckEnabled: input.healthCheckEnabled,
+          healthCheckPath: input.healthCheckPath,
+          healthCheckInterval: 30,
+          websocketEnabled: true,
+          http2Enabled: true,
+          http3Enabled: true,
+          origin: 'local',
+          scope: input.scope,
+          configVersion: 1,
+          createdAt: now,
+          updatedAt: now,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
+          throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
+        }
+        throw err
+      }
 
       const row = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
       if (!row) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Route not found after insert' })

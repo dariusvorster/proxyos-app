@@ -25,7 +25,9 @@ export interface DockerContainerSummary {
   NetworkSettings: { Networks: Record<string, { IPAddress: string }> }
 }
 
-export function dockerRequest<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
+const DOCKER_TRANSIENT_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ENOTCONN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH'])
+
+function dockerRequestOnce<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const bodyStr = body !== undefined ? JSON.stringify(body) : undefined
     const req = http.request(
@@ -43,7 +45,10 @@ export function dockerRequest<T>(socketPath: string, method: string, path: strin
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString('utf-8')
           if ((res.statusCode ?? 0) >= 400) {
-            reject(new Error(`Docker API ${method} ${path} → HTTP ${res.statusCode}: ${text}`))
+            const err = new Error(`[docker] ${method} ${path} → HTTP ${res.statusCode}: ${text}`) as NodeJS.ErrnoException
+            // 404/403 are permanent — don't mark as transient
+            if (res.statusCode === 404) err.code = 'ENOENT'
+            reject(err)
             return
           }
           if (!text) { resolve(null as T); return }
@@ -51,11 +56,29 @@ export function dockerRequest<T>(socketPath: string, method: string, path: strin
         })
       },
     )
-    req.setTimeout(5000, () => { req.destroy(); reject(new Error('Docker request timed out')) })
-    req.on('error', reject)
+    req.setTimeout(5000, () => { req.destroy(); reject(new Error('[docker] request timed out')) })
+    req.on('error', (err) => reject(new Error(`[docker] ${method} ${path} failed: ${err.message}`)))
     if (bodyStr) req.write(bodyStr)
     req.end()
   })
+}
+
+export async function dockerRequest<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
+  const maxAttempts = 3
+  const delays = [1000, 2000, 4000]
+  let lastErr: unknown
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await dockerRequestOnce<T>(socketPath, method, path, body)
+    } catch (err) {
+      lastErr = err
+      const code = (err as NodeJS.ErrnoException).code ?? ''
+      const isTransient = DOCKER_TRANSIENT_CODES.has(code) || (err instanceof Error && err.message.includes('timed out'))
+      if (!isTransient || attempt === maxAttempts - 1) throw err
+      await new Promise<void>((r) => setTimeout(r, delays[attempt]))
+    }
+  }
+  throw lastErr
 }
 
 async function getSelfContainerId(socketPath: string): Promise<string> {

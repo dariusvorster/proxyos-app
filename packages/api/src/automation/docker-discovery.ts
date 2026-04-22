@@ -2,6 +2,9 @@ import http from 'http'
 import { and, eq } from 'drizzle-orm'
 import { discoveryProviders, discoveredRoutes, nanoid } from '@proxyos/db'
 import type { Db } from '@proxyos/db'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 interface DockerContainer {
   Id: string
@@ -19,16 +22,21 @@ function fetchContainers(socketPath: string): Promise<DockerContainer[]> {
         const chunks: Buffer[] = []
         res.on('data', (c: Buffer) => chunks.push(c))
         res.on('end', () => {
+          const text = Buffer.concat(chunks).toString()
+          if ((res.statusCode ?? 0) >= 400) {
+            reject(new Error(`[docker] GET /containers/json returned HTTP ${res.statusCode}: ${text}`))
+            return
+          }
           try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString()) as DockerContainer[])
+            resolve(JSON.parse(text) as DockerContainer[])
           } catch (e) {
-            reject(e)
+            reject(new Error(`[docker] Failed to parse container list: ${(e as Error).message}`))
           }
         })
       },
     )
-    req.setTimeout(5000, () => { req.destroy(); reject(new Error('Docker request timed out')) })
-    req.on('error', reject)
+    req.setTimeout(5000, () => { req.destroy(); reject(new Error('[docker] GET /containers/json timed out')) })
+    req.on('error', (err) => reject(new Error(`[docker] Failed to reach Docker socket at ${socketPath}: ${err.message}`)))
     req.end()
   })
 }
@@ -100,8 +108,9 @@ export function startDockerDiscovery(db: Db): void {
       try {
         await syncDockerProvider(db, p.id, config)
         await db.update(discoveryProviders).set({ lastSyncAt: new Date() }).where(eq(discoveryProviders.id, p.id))
-      } catch {
-        // Docker socket may not be available — silent fail
+      } catch (err) {
+        // Docker socket may not be available — log but don't crash the poll loop
+        logger.warn({ providerId: p.id, err: err instanceof Error ? err.message : String(err) }, '[docker] discovery sync failed')
       }
     }
   }

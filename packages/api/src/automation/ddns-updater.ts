@@ -25,14 +25,16 @@ async function updateCloudflare(
 
   const zonesRes = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  if (!zonesRes.ok) throw new Error(`[cloudflare] Zones API returned ${zonesRes.status}`)
   const zonesData = await zonesRes.json() as { result?: Array<{ id: string }> }
   const zoneId = zonesData.result?.[0]?.id
-  if (!zoneId) throw new Error(`Zone '${zone}' not found`)
+  if (!zoneId) throw new Error(`[cloudflare] Zone '${zone}' not found`)
 
   const recordsRes = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${type}&name=${name}.${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  if (!recordsRes.ok) throw new Error(`[cloudflare] DNS records API returned ${recordsRes.status}`)
   const recordsData = await recordsRes.json() as { result?: Array<{ id: string }> }
   const existingId = recordsData.result?.[0]?.id
 
