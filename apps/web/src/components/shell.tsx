@@ -23,6 +23,7 @@ const navSections: NavSection[] = [
       { href: '/analytics', label: 'Analytics', icon: '▤' },
       { href: '/health', label: 'Upstream health', icon: '◉' },
       { href: '/certificates', label: 'Certificates', icon: '◼' },
+      { href: '/alerts', label: 'Alerts', icon: '◈' },
     ],
   },
   {
