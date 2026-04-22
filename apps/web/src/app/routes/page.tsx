@@ -421,7 +421,30 @@ function RoutePanel({ route }: { route: Route }) {
         trustUpstreamHeaders: trustHeaders,
         skipTlsVerify,
       },
-    }, { onSuccess: () => setEditing(false) })
+    }, {
+      onSuccess: (data) => {
+        // Update cache with server's authoritative record
+        utils.routes.list.setData(undefined, (old) =>
+          old?.map((r) => r.id === data.id ? data : r) ?? []
+        )
+        // Reset form to server-returned values (catches server-side normalization)
+        setName(data.name)
+        setUpstreams(data.upstreams.map((u) => u.address))
+        setLbPolicy(data.lbPolicy ?? 'round_robin')
+        setTlsMode(data.tlsMode as typeof tlsMode)
+        setSsoEnabled(data.ssoEnabled)
+        setCompression(!!data.compressionEnabled)
+        setWebsocket(!!data.websocketEnabled)
+        setHttp3(!!data.http3Enabled)
+        setHealthPath(data.healthCheckPath ?? '/')
+        setForceSSL(!!data.forceSSL)
+        setHstsEnabled(!!data.hstsEnabled)
+        setHstsSubdomains(!!data.hstsSubdomains)
+        setTrustHeaders(!!data.trustUpstreamHeaders)
+        setSkipTlsVerify(!!data.skipTlsVerify)
+        setEditing(false)
+      },
+    })
   }
 
   if (editing) {
