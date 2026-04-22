@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function TunnelsPage() {
+  const [handleError] = useErrorHandler()
   const providers = trpc.tunnelProviders.list.useQuery()
-  const createMut = trpc.tunnelProviders.create.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) } })
-  const deleteMut = trpc.tunnelProviders.delete.useMutation({ onSuccess: () => providers.refetch() })
-  const testMut = trpc.tunnelProviders.test.useMutation({ onSuccess: () => providers.refetch() })
+  const createMut = trpc.tunnelProviders.create.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) }, onError: handleError })
+  const deleteMut = trpc.tunnelProviders.delete.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
+  const testMut = trpc.tunnelProviders.test.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
 
   const [showForm, setForm] = useState(false)
   const [type, setType] = useState<'cloudflare' | 'tailscale' | 'ngrok'>('cloudflare')

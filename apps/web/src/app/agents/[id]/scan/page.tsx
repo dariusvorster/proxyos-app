@@ -4,16 +4,20 @@ import { use } from 'react'
 import { Badge, Button, Card, Dot } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function AgentScanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const results = trpc.scanner.getResults.useQuery({ agentId: id })
   const scanMut = trpc.scanner.scan.useMutation({
     onSuccess: () => utils.scanner.getResults.invalidate(),
+    onError: handleError,
   })
   const exposeMut = trpc.scanner.exposeContainer.useMutation({
     onSuccess: () => utils.scanner.getResults.invalidate(),
+    onError: handleError,
   })
 
   const containers = results.data?.results ?? []

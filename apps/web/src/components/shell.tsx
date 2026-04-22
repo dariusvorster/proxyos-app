@@ -8,6 +8,7 @@ import { useTheme } from './theme'
 import { getSession, clearSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
 import { useSiteSelection } from '~/lib/site-context'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type NavItem = { href: string; label: string; icon?: string }
 type NavSection = { label?: string; items: NavItem[] }
@@ -131,7 +132,8 @@ function Sidebar() {
     setSession_(getSession())
   }, [])
 
-  const logoutMut = trpc.users.logout.useMutation()
+  const [handleError] = useErrorHandler()
+  const logoutMut = trpc.users.logout.useMutation({ onError: handleError })
 
   function logout() {
     clearSession()

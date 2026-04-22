@@ -7,17 +7,19 @@ import { LogoMark } from '~/components/logo'
 import { Button, Input } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession } from '~/lib/session'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [handleError] = useErrorHandler()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [step, setStep] = useState<'credentials' | 'totp'>('credentials')
   const [error, setError] = useState<string | null>(null)
   const [diagMessage, setDiagMessage] = useState<string | null>(null)
-  const login = trpc.users.login.useMutation()
+  const login = trpc.users.login.useMutation({ onError: handleError })
 
   // Already logged in — skip to dashboard
   useEffect(() => {

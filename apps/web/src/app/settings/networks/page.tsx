@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, Toggle } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const HOMELAB_EDGE_COMPOSE = `services:
   my-app:
@@ -30,13 +31,14 @@ function statusLabel(status: string) {
 }
 
 export default function NetworksPage() {
+  const [handleError] = useErrorHandler()
   const socketStatus = trpc.networks.socketStatus.useQuery()
   const networks = trpc.networks.list.useQuery()
   const settings = trpc.networks.getSettings.useQuery()
-  const updateSettings = trpc.networks.updateSettings.useMutation({ onSuccess: () => settings.refetch() })
-  const excludeMut = trpc.networks.exclude.useMutation({ onSuccess: () => networks.refetch() })
-  const includeMut = trpc.networks.include.useMutation({ onSuccess: () => networks.refetch() })
-  const rescanMut = trpc.networks.rescanNow.useMutation({ onSuccess: () => networks.refetch() })
+  const updateSettings = trpc.networks.updateSettings.useMutation({ onSuccess: () => settings.refetch(), onError: handleError })
+  const excludeMut = trpc.networks.exclude.useMutation({ onSuccess: () => networks.refetch(), onError: handleError })
+  const includeMut = trpc.networks.include.useMutation({ onSuccess: () => networks.refetch(), onError: handleError })
+  const rescanMut = trpc.networks.rescanNow.useMutation({ onSuccess: () => networks.refetch(), onError: handleError })
 
   const [scanning, setScanning] = useState(false)
   const [copied, setCopied] = useState(false)

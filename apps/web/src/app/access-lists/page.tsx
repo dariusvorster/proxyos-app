@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Select, SidePanel, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type SatisfyMode = 'any' | 'all'
 
@@ -41,17 +42,18 @@ const emptyForm = (): FormState => ({
 })
 
 export default function AccessListsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.accessLists.list.useQuery()
-  const createMut = trpc.accessLists.create.useMutation({ onSuccess: () => { utils.accessLists.list.invalidate(); setPanel(null) } })
-  const updateMut = trpc.accessLists.update.useMutation({ onSuccess: () => { utils.accessLists.list.invalidate(); setPanel(null) } })
-  const deleteMut = trpc.accessLists.delete.useMutation({ onSuccess: () => utils.accessLists.list.invalidate() })
+  const createMut = trpc.accessLists.create.useMutation({ onSuccess: () => { utils.accessLists.list.invalidate(); setPanel(null) }, onError: handleError })
+  const updateMut = trpc.accessLists.update.useMutation({ onSuccess: () => { utils.accessLists.list.invalidate(); setPanel(null) }, onError: handleError })
+  const deleteMut = trpc.accessLists.delete.useMutation({ onSuccess: () => utils.accessLists.list.invalidate(), onError: handleError })
 
   const [panel, setPanel] = useState<'create' | { id: string } | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [testIp, setTestIp] = useState('')
   const [testResult, setTestResult] = useState<{ result: 'allow' | 'deny'; matchedRule: string | null } | null>(null)
-  const testIpMut = trpc.accessLists.testIp.useMutation({ onSuccess: (r) => setTestResult(r) })
+  const testIpMut = trpc.accessLists.testIp.useMutation({ onSuccess: (r) => setTestResult(r), onError: handleError })
 
   function openCreate() {
     setForm(emptyForm())

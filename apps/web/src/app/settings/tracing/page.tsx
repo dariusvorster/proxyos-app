@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { Button, Card, Input, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function TracingPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const config = trpc.observability.getTraceConfig.useQuery()
   const save = trpc.observability.setTraceConfig.useMutation({
     onSuccess: () => utils.observability.getTraceConfig.invalidate(),
+    onError: handleError,
   })
 
   const [enabled, setEnabled] = useState(false)

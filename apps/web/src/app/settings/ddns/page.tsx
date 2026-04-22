@@ -4,13 +4,15 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function DdnsPage() {
+  const [handleError] = useErrorHandler()
   const records = trpc.ddns.list.useQuery()
   const dnsProviders = trpc.dns.list.useQuery()
-  const createMut = trpc.ddns.create.useMutation({ onSuccess: () => { records.refetch(); setForm(false) } })
-  const deleteMut = trpc.ddns.delete.useMutation({ onSuccess: () => records.refetch() })
-  const triggerMut = trpc.ddns.triggerUpdate.useMutation({ onSuccess: () => records.refetch() })
+  const createMut = trpc.ddns.create.useMutation({ onSuccess: () => { records.refetch(); setForm(false) }, onError: handleError })
+  const deleteMut = trpc.ddns.delete.useMutation({ onSuccess: () => records.refetch(), onError: handleError })
+  const triggerMut = trpc.ddns.triggerUpdate.useMutation({ onSuccess: () => records.refetch(), onError: handleError })
   const detectIp = trpc.ddns.detectIp.useQuery()
 
   const [showForm, setForm] = useState(false)

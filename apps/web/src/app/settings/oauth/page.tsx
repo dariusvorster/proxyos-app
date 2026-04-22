@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const PROVIDER_LABELS: Record<string, string> = {
   github: 'GitHub',
@@ -20,9 +21,10 @@ const PROVIDER_HINTS: Record<string, string> = {
 }
 
 export default function OAuthPage() {
+  const [handleError] = useErrorHandler()
   const providers = trpc.oauthProviders.list.useQuery()
-  const createMut = trpc.oauthProviders.create.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) } })
-  const deleteMut = trpc.oauthProviders.delete.useMutation({ onSuccess: () => providers.refetch() })
+  const createMut = trpc.oauthProviders.create.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) }, onError: handleError })
+  const deleteMut = trpc.oauthProviders.delete.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
 
   const [showForm, setForm] = useState(false)
   const [type, setType] = useState<'github' | 'google' | 'microsoft' | 'oidc'>('github')

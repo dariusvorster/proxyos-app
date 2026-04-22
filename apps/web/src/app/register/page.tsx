@@ -7,15 +7,17 @@ import { LogoMark } from '~/components/logo'
 import { Button, Input } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession } from '~/lib/session'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const [handleError] = useErrorHandler()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const register = trpc.users.register.useMutation()
+  const register = trpc.users.register.useMutation({ onError: handleError })
 
   // Already logged in — skip to dashboard
   useEffect(() => {

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type BadgeTone = 'green' | 'amber' | 'red' | 'blue' | 'purple' | 'neutral'
 
@@ -17,12 +18,13 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 export default function SiteNodesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: siteId } = use(params)
+  const [handleError] = useErrorHandler()
 
   const { data: nodes, refetch } = trpc.nodes.list.useQuery({ siteId }, { refetchInterval: 5000 })
   const { data: connectedIds } = trpc.nodes.connectedIds.useQuery(undefined, { refetchInterval: 5000 })
-  const createTokenMutation = trpc.nodes.createEnrollmentToken.useMutation()
-  const revokeMutation = trpc.nodes.revoke.useMutation({ onSuccess: () => refetch() })
-  const pingMutation = trpc.nodes.ping.useMutation()
+  const createTokenMutation = trpc.nodes.createEnrollmentToken.useMutation({ onError: handleError })
+  const revokeMutation = trpc.nodes.revoke.useMutation({ onSuccess: () => refetch(), onError: handleError })
+  const pingMutation = trpc.nodes.ping.useMutation({ onError: handleError })
 
   const [showForm, setShowForm] = useState(false)
   const [expiresInHours, setExpiresInHours] = useState(24)

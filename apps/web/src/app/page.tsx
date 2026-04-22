@@ -4,14 +4,16 @@ import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Dot, StatCard, td, th } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function DashboardPage() {
+  const [handleError] = useErrorHandler()
   const routes = trpc.routes.list.useQuery()
   const certs = trpc.certificates.list.useQuery()
   const caddy = trpc.system.caddyStatus.useQuery(undefined, { refetchInterval: 5000 })
   const drift = trpc.drift.list.useQuery(undefined, { refetchInterval: 30000 })
   const stale = trpc.routes.listStale.useQuery({ days: 30 })
-  const archiveMut = trpc.routes.archive.useMutation({ onSuccess: () => stale.refetch() })
+  const archiveMut = trpc.routes.archive.useMutation({ onSuccess: () => stale.refetch(), onError: handleError })
 
   const activeRoutes = routes.data?.length ?? 0
   const expiringCerts = certs.data?.filter((c) => {

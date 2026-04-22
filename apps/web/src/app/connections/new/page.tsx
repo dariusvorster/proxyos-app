@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button, Card, Input } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 interface AdapterMeta {
   type: string
@@ -209,12 +210,14 @@ const ADAPTERS: { category: string; items: AdapterMeta[] }[] = [
 
 export default function NewConnectionPage() {
   const router = useRouter()
+  const [handleError] = useErrorHandler()
   const [selected, setSelected] = useState<AdapterMeta | null>(null)
   const [name, setName] = useState('')
   const [creds, setCreds] = useState<Record<string, string>>({})
 
   const createMut = trpc.connections.create.useMutation({
     onSuccess: () => router.push('/connections'),
+    onError: handleError,
   })
 
   function handleSelect(adapter: AdapterMeta) {

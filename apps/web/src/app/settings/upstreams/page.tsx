@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 interface FormState {
   name: string
@@ -24,10 +25,11 @@ const emptyForm = (): FormState => ({
 })
 
 export default function UpstreamsPage() {
+  const [handleError] = useErrorHandler()
   const upstreams = trpc.upstreams.list.useQuery()
-  const createMut = trpc.upstreams.create.useMutation({ onSuccess: () => { upstreams.refetch(); setEditing(null) } })
-  const updateMut = trpc.upstreams.update.useMutation({ onSuccess: () => { upstreams.refetch(); setEditing(null) } })
-  const deleteMut = trpc.upstreams.delete.useMutation({ onSuccess: () => upstreams.refetch() })
+  const createMut = trpc.upstreams.create.useMutation({ onSuccess: () => { upstreams.refetch(); setEditing(null) }, onError: handleError })
+  const updateMut = trpc.upstreams.update.useMutation({ onSuccess: () => { upstreams.refetch(); setEditing(null) }, onError: handleError })
+  const deleteMut = trpc.upstreams.delete.useMutation({ onSuccess: () => upstreams.refetch(), onError: handleError })
 
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())

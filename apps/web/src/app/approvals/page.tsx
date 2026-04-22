@@ -4,17 +4,19 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Toggle, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function ApprovalsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const config = trpc.approvals.getConfig.useQuery()
   const list = trpc.approvals.list.useQuery({ status: 'pending' })
   const history = trpc.approvals.list.useQuery({ status: 'all' })
 
-  const saveConfig = trpc.approvals.setConfig.useMutation({ onSuccess: () => utils.approvals.getConfig.invalidate() })
-  const approve = trpc.approvals.approve.useMutation({ onSuccess: () => { utils.approvals.list.invalidate() } })
-  const reject = trpc.approvals.reject.useMutation({ onSuccess: () => { utils.approvals.list.invalidate() } })
-  const purge = trpc.approvals.purgeExpired.useMutation({ onSuccess: () => utils.approvals.list.invalidate() })
+  const saveConfig = trpc.approvals.setConfig.useMutation({ onSuccess: () => utils.approvals.getConfig.invalidate(), onError: handleError })
+  const approve = trpc.approvals.approve.useMutation({ onSuccess: () => { utils.approvals.list.invalidate() }, onError: handleError })
+  const reject = trpc.approvals.reject.useMutation({ onSuccess: () => { utils.approvals.list.invalidate() }, onError: handleError })
+  const purge = trpc.approvals.purgeExpired.useMutation({ onSuccess: () => utils.approvals.list.invalidate(), onError: handleError })
 
   const [enabled, setEnabled] = useState(config.data?.enabled ?? false)
   const [approvers, setApprovers] = useState(config.data?.requiredApprovers?.toString() ?? '1')

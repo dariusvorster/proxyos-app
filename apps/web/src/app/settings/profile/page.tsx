@@ -7,8 +7,10 @@ import { Button, Card, Input } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession, avatarInitials, defaultAvatarColor, type Session } from '~/lib/session'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boolean; onToggled: () => void }) {
+  const [handleError] = useErrorHandler()
   const [step, setStep] = useState<'idle' | 'setup'>('idle')
   const [secret, setSecret] = useState('')
   const [uri, setUri] = useState('')
@@ -20,9 +22,9 @@ function TotpCard({ userId, enabled, onToggled }: { userId: string; enabled: boo
   const [disableCode, setDisableCode] = useState('')
   const [disableError, setDisableError] = useState<string | null>(null)
 
-  const setupTotp = trpc.users.setupTotp.useMutation()
-  const verifyAndEnable = trpc.users.verifyAndEnableTotp.useMutation()
-  const disableTotp = trpc.users.disableTotp.useMutation()
+  const setupTotp = trpc.users.setupTotp.useMutation({ onError: handleError })
+  const verifyAndEnable = trpc.users.verifyAndEnableTotp.useMutation({ onError: handleError })
+  const disableTotp = trpc.users.disableTotp.useMutation({ onError: handleError })
 
   async function startSetup() {
     setSetupError(null)
@@ -220,9 +222,10 @@ export default function ProfilePage() {
 }
 
 function ProfileForm({ session }: { session: Session }) {
+  const [handleError] = useErrorHandler()
   const profile = trpc.users.getProfile.useQuery({ id: session.id })
-  const updateProfile = trpc.users.updateProfile.useMutation()
-  const updatePassword = trpc.users.updatePassword.useMutation()
+  const updateProfile = trpc.users.updateProfile.useMutation({ onError: handleError })
+  const updatePassword = trpc.users.updatePassword.useMutation({ onError: handleError })
   const fileRef = useRef<HTMLInputElement>(null)
 
   const serverData = profile.data

@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Select, td, th, type BadgeTone } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,13 +69,14 @@ function FilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDateTo
 // ─── System logs tab ──────────────────────────────────────────────────────────
 
 function SystemLogsTab() {
+  const [handleError] = useErrorHandler()
   const [level, setLevel] = useState<Level | ''>('')
   const [category, setCategory] = useState<Category | ''>('')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const clearMut = trpc.systemLog.clear.useMutation()
+  const clearMut = trpc.systemLog.clear.useMutation({ onError: handleError })
 
   const list = trpc.systemLog.list.useQuery({
     level: level || undefined,

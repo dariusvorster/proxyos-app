@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertBanner, Badge, Button, Card, DataTable, Input, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const SCOPES = ['read', 'routes', 'agents', 'connections', 'admin'] as const
 type Scope = typeof SCOPES[number]
@@ -18,13 +19,16 @@ const SCOPE_DESC: Record<Scope, string> = {
 }
 
 export default function ApiKeysPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.apiKeys.list.useQuery()
   const create = trpc.apiKeys.create.useMutation({
     onSuccess: data => { utils.apiKeys.list.invalidate(); setNewKey(data.key); setShowForm(false); setName(''); setScopes([]); setExpiry('') },
+    onError: handleError,
   })
   const revoke = trpc.apiKeys.revoke.useMutation({
     onSuccess: () => utils.apiKeys.list.invalidate(),
+    onError: handleError,
   })
 
   const [showForm, setShowForm] = useState(false)

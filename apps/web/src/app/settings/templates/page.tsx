@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Input, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function TemplatesPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.templates.list.useQuery()
   const del = trpc.templates.delete.useMutation({
     onSuccess: () => utils.templates.list.invalidate(),
+    onError: handleError,
   })
 
   const [expanded, setExpanded] = useState<string | null>(null)
