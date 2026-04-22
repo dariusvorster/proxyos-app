@@ -122,6 +122,127 @@ This is included in the reference compose file. See [Cloudflared DNS Errors](../
 
 ---
 
+## Surviving ProxyOS container rebuilds
+
+### The Problem
+
+When you run `docker compose up --build` to rebuild ProxyOS, Docker destroys the old container and creates a new one. The new container gets a **new internal IP address**. If `cloudflared` is configured to point at the old IP — either explicitly, or because it resolved the container name at startup and cached the result — the tunnel breaks until `cloudflared` is restarted.
+
+Default bridge networks (`bridge`) do not guarantee that container names resolve via DNS inside other containers. This means `proxyos` as a hostname may not be reachable from a `cloudflared` container on the default network.
+
+### Why This Happens
+
+Docker assigns IPs from a pool. On the default bridge network:
+
+- Container names are **not** reliably resolvable by other containers (only `/etc/hosts` entries for linked containers, which is a legacy feature).
+- When a container restarts, its IP changes. Anything that resolved the old IP and cached it will point at a dead address.
+- `cloudflared`'s distroless base image has no shell, which causes Docker's built-in `healthcheck` to fail — the check executor can't run a command inside the container. This causes `cloudflared` to be permanently reported as `unhealthy`, which blocks dependent services from starting.
+
+### Solution: User-Defined Network + Container Names
+
+User-defined Docker networks enable **Docker's embedded DNS** (`127.0.0.11`). On a user-defined network, every container is reachable by its service name (container name), and Docker re-resolves that name on every connection. When ProxyOS is rebuilt and gets a new IP, the next connection from `cloudflared` resolves the new IP automatically — no restart needed.
+
+**Step 1 — Create a shared user-defined network**
+
+```yaml
+# docker-compose.yml (top-level networks block)
+networks:
+  proxy-net:
+    driver: bridge
+```
+
+**Step 2 — Attach both services to the shared network**
+
+```yaml
+services:
+  proxyos:
+    image: proxyos:latest
+    container_name: proxyos
+    networks:
+      - proxy-net
+    ports:
+      - "80:80"
+      - "443:443"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    networks:
+      - proxy-net
+    command: tunnel --no-autoupdate run
+    volumes:
+      - ~/.cloudflared:/etc/cloudflared:ro
+    restart: unless-stopped
+    # No healthcheck — cloudflared uses a distroless image with no shell.
+    # Docker healthchecks require a shell to exec into the container.
+    # Adding a healthcheck will cause the container to be permanently
+    # reported as unhealthy, which can block dependent services.
+
+networks:
+  proxy-net:
+    driver: bridge
+```
+
+**Step 3 — Point cloudflared at ProxyOS by container name**
+
+```yaml
+# ~/.cloudflared/config.yml
+tunnel: your-tunnel-id
+credentials-file: /etc/cloudflared/your-tunnel-id.json
+
+ingress:
+  - hostname: "*.yourdomain.com"
+    service: http://proxyos:80
+  - hostname: yourdomain.com
+    service: http://proxyos:80
+  - service: http_status:404
+```
+
+`proxyos` here is the container name. Docker's embedded DNS resolves it via `127.0.0.11` on every new connection. When ProxyOS is rebuilt, the next request from `cloudflared` automatically picks up the new IP — no `cloudflared` restart required.
+
+### Sidecar Alternative
+
+If you prefer to keep everything in one compose file and guarantee that `cloudflared` always shares the same network namespace as ProxyOS, run `cloudflared` as a sidecar:
+
+```yaml
+services:
+  proxyos:
+    image: proxyos:latest
+    container_name: proxyos
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    network_mode: "service:proxyos"   # shares ProxyOS network namespace
+    command: tunnel --no-autoupdate run
+    volumes:
+      - ~/.cloudflared:/etc/cloudflared:ro
+    restart: unless-stopped
+    depends_on:
+      - proxyos
+    # No healthcheck — distroless image, no shell available.
+```
+
+With `network_mode: "service:proxyos"`, `cloudflared` talks to ProxyOS via `localhost` instead of a container name. When ProxyOS is rebuilt, `cloudflared` must also be restarted (since it shares the same network namespace, which is destroyed with the ProxyOS container). Use this pattern only if you prefer `localhost` routing over inter-container DNS.
+
+For most homelab setups, the **user-defined network + container name** approach in the previous section is simpler and more resilient.
+
+### How ProxyOS Handles Its Own Upstreams
+
+ProxyOS (Task 4A) configures Caddy's `reverse_proxy` transport to use Docker's embedded DNS resolver (`127.0.0.11`) for all upstream lookups. This means:
+
+- Routes whose upstream is set to a **container name** (e.g., `http://my-app:3000`) will re-resolve on every request via Docker DNS.
+- When an upstream container is rebuilt and gets a new IP, ProxyOS continues routing correctly without any route reconfiguration.
+- This applies to all routes — you do not need to set per-route resolver options.
+
+To take advantage of this, set your route upstreams to container names, not IP addresses, and ensure all containers are on the same user-defined Docker network as ProxyOS.
+
+---
+
 ## Mixed content fix
 
 If your upstream services generate `http://` URLs when they should generate `https://`, force the `X-Forwarded-Proto` header on the route:
