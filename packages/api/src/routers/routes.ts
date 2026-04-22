@@ -1,6 +1,9 @@
 import { TRPCError } from '@trpc/server'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod'
+import { request as httpRequest } from 'http'
+import { request as httpsRequest } from 'https'
+import type { IncomingMessage } from 'http'
 import { applyDockerDns, buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
 import type { CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
@@ -194,6 +197,80 @@ function rowToSSOProvider(row: typeof ssoProviders.$inferSelect): SSOProvider {
     testStatus: row.testStatus as SSOProvider['testStatus'],
     createdAt: row.createdAt,
   }
+}
+
+type UpstreamErrorType = 'dns' | 'connection_refused' | 'timeout' | 'tls' | 'http_5xx' | 'http_4xx' | 'slow' | 'ok'
+
+interface ProbeResult {
+  ok: boolean
+  errorType: UpstreamErrorType
+  message: string
+  statusCode?: number
+}
+
+const TLS_ERROR_CODES = new Set([
+  'CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'SELF_SIGNED_CERT_IN_CHAIN', 'CERT_UNTRUSTED',
+])
+
+function probeUpstream(address: string): Promise<ProbeResult> {
+  let url: URL
+  try {
+    url = address.startsWith('http://') || address.startsWith('https://')
+      ? new URL(address)
+      : new URL(`http://${address}`)
+  } catch {
+    return Promise.resolve({ ok: false, errorType: 'dns', message: 'Invalid upstream address' })
+  }
+
+  const isHttps = url.protocol === 'https:'
+  const PROBE_TIMEOUT_MS = 5_000
+
+  return new Promise((resolve) => {
+    let settled = false
+    const settle = (result: ProbeResult) => { if (!settled) { settled = true; resolve(result) } }
+
+    const timer = setTimeout(() => {
+      req.destroy()
+      settle({ ok: false, errorType: 'slow', message: `No response within ${PROBE_TIMEOUT_MS}ms` })
+    }, PROBE_TIMEOUT_MS)
+
+    const onResponse = (res: IncomingMessage) => {
+      clearTimeout(timer)
+      res.resume()
+      const status = res.statusCode ?? 0
+      if (status >= 500) settle({ ok: false, errorType: 'http_5xx', message: `Upstream HTTP ${status}`, statusCode: status })
+      else if (status >= 400) settle({ ok: false, errorType: 'http_4xx', message: `Upstream HTTP ${status}`, statusCode: status })
+      else settle({ ok: true, errorType: 'ok', message: `Reachable (HTTP ${status})`, statusCode: status })
+    }
+
+    const opts = {
+      hostname: url.hostname,
+      port: url.port ? Number(url.port) : (isHttps ? 443 : 80),
+      path: url.pathname || '/',
+      method: 'GET',
+    }
+
+    const req = isHttps ? httpsRequest(opts, onResponse) : httpRequest(opts, onResponse)
+
+    req.on('error', (e: NodeJS.ErrnoException) => {
+      clearTimeout(timer)
+      const code = e.code ?? ''
+      if (code === 'ENOTFOUND' || code === 'EAI_NODATA' || code === 'EAI_AGAIN') {
+        settle({ ok: false, errorType: 'dns', message: `DNS lookup failed for ${url.hostname}` })
+      } else if (code === 'ECONNREFUSED') {
+        settle({ ok: false, errorType: 'connection_refused', message: `Connection refused at ${url.hostname}:${opts.port}` })
+      } else if (code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+        settle({ ok: false, errorType: 'timeout', message: 'Connection timed out' })
+      } else if (TLS_ERROR_CODES.has(code) || code.startsWith('ERR_TLS_') || e.message.includes('certificate')) {
+        settle({ ok: false, errorType: 'tls', message: `TLS error: ${e.message}` })
+      } else {
+        settle({ ok: false, errorType: 'timeout', message: e.message })
+      }
+    })
+
+    req.end()
+  })
 }
 
 export const routesRouter = router({
@@ -927,5 +1004,11 @@ export const routesRouter = router({
       }
 
       return route
+    }),
+
+  testUpstream: protectedProcedure
+    .input(z.object({ address: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      return probeUpstream(input.address)
     }),
 })

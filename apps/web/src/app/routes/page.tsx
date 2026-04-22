@@ -295,6 +295,31 @@ function ChainNodes({ routeId }: { routeId: string }) {
   )
 }
 
+type UpstreamErrorType = 'dns' | 'connection_refused' | 'timeout' | 'tls' | 'http_5xx' | 'http_4xx' | 'slow' | 'ok'
+type ProbeResult = { ok: boolean; errorType: UpstreamErrorType; message: string; statusCode?: number }
+
+const PROBE_CONFIG: Record<UpstreamErrorType, { tone: 'green' | 'amber' | 'red' | 'neutral'; label: string; detail: string }> = {
+  ok:                 { tone: 'green',   label: 'Reachable',  detail: '' },
+  dns:                { tone: 'red',     label: 'DNS failed', detail: 'Unknown hostname' },
+  connection_refused: { tone: 'red',     label: 'Refused',    detail: 'Port closed or service not running' },
+  timeout:            { tone: 'amber',   label: 'Timeout',    detail: 'Network partition or firewall' },
+  slow:               { tone: 'amber',   label: 'Slow',       detail: 'No response within 5s' },
+  tls:                { tone: 'red',     label: 'TLS error',  detail: 'Certificate or handshake failure' },
+  http_5xx:           { tone: 'amber',   label: '5xx',        detail: 'Upstream server error' },
+  http_4xx:           { tone: 'neutral', label: '4xx',        detail: 'Auth or path issue (upstream reachable)' },
+}
+
+function UpstreamProbeBadge({ result }: { result: ProbeResult }) {
+  const cfg = PROBE_CONFIG[result.errorType] ?? { tone: 'red' as const, label: result.errorType, detail: result.message }
+  const detail = result.statusCode ? `HTTP ${result.statusCode}` : (cfg.detail || result.message)
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Badge tone={cfg.tone}>{cfg.label}</Badge>
+      {detail && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{detail}</span>}
+    </span>
+  )
+}
+
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
@@ -315,6 +340,23 @@ function RoutePanel({ route }: { route: Route }) {
   const [hstsEnabled, setHstsEnabled] = useState(!!route.hstsEnabled)
   const [hstsSubdomains, setHstsSubdomains] = useState(!!route.hstsSubdomains)
   const [skipTlsVerify, setSkipTlsVerify] = useState(!!route.skipTlsVerify)
+  const [probeResults, setProbeResults] = useState<Record<string, ProbeResult>>({})
+  const [probing, setProbing] = useState(false)
+  const testUpstream = trpc.routes.testUpstream.useMutation()
+
+  async function testConnections() {
+    setProbing(true)
+    const next: Record<string, ProbeResult> = {}
+    for (const up of route.upstreams) {
+      try {
+        next[up.address] = await testUpstream.mutateAsync({ address: up.address })
+      } catch {
+        next[up.address] = { ok: false, errorType: 'timeout', message: 'Request error' }
+      }
+    }
+    setProbeResults(next)
+    setProbing(false)
+  }
 
   function startEdit() {
     setName(route.name)
@@ -445,7 +487,14 @@ function RoutePanel({ route }: { route: Route }) {
     <div style={{ display: 'grid', gap: 14 }}>
       <Section title="Upstream">
         <Row k="Targets" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.upstreams.map((u) => u.address).join(', ')}</span>} />
-        <Row k="Health" v={<Badge tone="green">healthy</Badge>} />
+        {Object.entries(probeResults).map(([addr, result]) => (
+          <Row key={addr} k={addr} v={<UpstreamProbeBadge result={result} />} />
+        ))}
+        <Row k="Connection" v={
+          <Button size="sm" variant="ghost" onClick={() => void testConnections()} disabled={probing}>
+            {probing ? 'Testing…' : Object.keys(probeResults).length > 0 ? 'Retest' : 'Test'}
+          </Button>
+        } />
       </Section>
       <Section title="TLS">
         <Row k="Mode" v={<Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>{route.tlsMode}</Badge>} />
