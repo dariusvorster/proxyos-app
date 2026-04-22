@@ -3,7 +3,7 @@ import type { CaddyRoute } from './types'
 export function applyDockerDns(route: CaddyRoute): CaddyRoute {
   return {
     ...route,
-    handle: route.handle.map((h) => {
+    handle: (route.handle ?? []).map((h) => {
       if ((h as Record<string, unknown>).handler !== 'reverse_proxy') return h
       const rp = h as Record<string, unknown>
       const existing = (rp.transport as Record<string, unknown> | undefined) ?? {}

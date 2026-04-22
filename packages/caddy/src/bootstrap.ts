@@ -116,7 +116,10 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   }
 
   const providers = opts.getProviders ? await opts.getProviders() : new Map<string, SSOProvider>()
-  const build = opts.buildRoute ?? ((r: Route) => applyDockerDns(buildCaddyRoute(r)))
+  const userBuild = opts.buildRoute
+  const build = userBuild
+    ? (r: Route, p: Map<string, SSOProvider>) => applyDockerDns(userBuild(r, p))
+    : (r: Route) => applyDockerDns(buildCaddyRoute(r))
   const routes = await opts.getRoutes()
 
   const built = routes
