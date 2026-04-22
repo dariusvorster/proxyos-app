@@ -116,63 +116,20 @@ describe('buildCaddyRoute — property tests', () => {
     }))
   })
 
-  it('P6: custom request headers appear in generated config without syntax errors', () => {
-    // Use routeArb base but override with headers
-    const routeWithHeaders = {
-      id: 'hdr-test',
-      name: 'Header Test',
-      domain: 'test.example.com',
-      enabled: true,
-      upstreamType: 'http',
-      upstreams: [{ address: '10.0.0.1:8080' }],
-      lbPolicy: 'round_robin',
-      tlsMode: 'auto',
-      ssoEnabled: false,
-      ssoProviderId: null,
-      tlsDnsProviderId: null,
-      rateLimit: null,
-      ipAllowlist: null,
-      basicAuth: null,
-      headers: { request: { set: { 'X-Custom-Header': ['my-value'] } } },
-      healthCheckEnabled: false,
-      healthCheckPath: '/',
-      healthCheckInterval: 30,
-      compressionEnabled: false,
-      websocketEnabled: true,
-      http2Enabled: true,
-      http3Enabled: false,
-      wafMode: 'off',
-      wafExclusions: null,
-      hstsEnabled: false,
-      hstsSubdomains: false,
-      skipTlsVerify: false,
-      tunnelProviderId: null,
-      oauthProxyProviderId: null,
-      oauthProxyAllowlist: null,
-      stagingUpstreams: null,
-      trafficSplitPct: null,
-      mirrorUpstream: null,
-      mirrorSampleRate: null,
-      accessosGroups: null,
-      accessosProviderId: null,
-      mxwatchDomain: null,
-      lastTrafficAt: null,
-      archivedAt: null,
-      rateLimitKey: null,
-      maintenanceMode: false,
-      maintenanceSavedUpstreams: null,
-      forceSSL: false,
-      trustUpstreamHeaders: false,
-      createdAt: new Date('2026-01-01'),
-      updatedAt: new Date('2026-01-01'),
-    } as Route
-
-    const result = buildCaddyRoute(routeWithHeaders)
-    const json = JSON.stringify(result)
-    // Valid JSON
-    expect(() => JSON.parse(json)).not.toThrow()
-    // No malformed placeholder syntax
-    const strings = json.match(/"([^"\\]|\\.)*"/g) ?? []
-    expect(strings.some(s => s.includes('{{') || s.includes('}}'))).toBe(false)
+  it('P6: all generated request header names and values have correct syntax', () => {
+    fc.assert(fc.property(routeArb, (route) => {
+      const result = buildCaddyRoute(route)
+      const rp = result.handle.find(h => (h as any).handler === 'reverse_proxy') as any
+      const headerSet = (rp?.headers?.request?.set ?? {}) as Record<string, string[]>
+      for (const [key, values] of Object.entries(headerSet)) {
+        // Valid HTTP header name: non-empty, letters/digits/hyphens only
+        expect(key).toMatch(/^[\w-]+$/)
+        // All values are non-empty strings (Caddy placeholders are strings)
+        for (const val of values) {
+          expect(typeof val).toBe('string')
+          expect(val.length).toBeGreaterThan(0)
+        }
+      }
+    }))
   })
 })
