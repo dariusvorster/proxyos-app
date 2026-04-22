@@ -67,7 +67,6 @@ describe('upstream URL save cycle', () => {
 
     // Step 1: initial route with plain HTTP upstream
     const route = makeRoute({ upstreams: [{ address: '10.0.0.1:8080' }] })
-    const initial = buildCaddyRoute(route)
     const initialRp = getReverseProxy(route)
     expect(initialRp.upstreams[0].dial).toBe('10.0.0.1:8080')
     expect(initialRp.transport).toBeUndefined()
@@ -75,11 +74,7 @@ describe('upstream URL save cycle', () => {
     // Step 2: simulate upstream URL change in "DB"
     const updated = { ...route, upstreams: [{ address: 'https://10.0.0.2:8443' }] }
 
-    // Step 3: verify DB has the new value (the updated object reflects what would be in DB)
-    expect(updated.upstreams[0].address).toBe('https://10.0.0.2:8443')
-
     // Step 4: rebuild Caddy config from updated route (simulates the push)
-    const rebuilt = buildCaddyRoute(updated)
     const updatedRp = getReverseProxy(updated)
 
     // Step 5: verify Caddy config has new dial (https:// stripped) with TLS transport
