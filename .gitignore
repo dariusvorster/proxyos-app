@@ -18,3 +18,4 @@ packages/*/src/**/*.js
 !packages/*/src/**/*.d.ts
 .playwright-mcp/
 missing.png
+.worktrees/
