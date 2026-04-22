@@ -24,6 +24,36 @@ jobs:
       - name: Run DB migration tests
         run: pnpm --filter @proxyos/db test
 
+  integration-test:
+    name: Caddy round-trip
+    runs-on: ubuntu-latest
+    services:
+      caddy:
+        image: caddy:2.9.1
+        ports:
+          - 2019:2019
+          - 8080:80
+        options: >-
+          --health-cmd "wget -qO- http://localhost:2019/config/ || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run Caddy round-trip tests
+        run: pnpm --filter @proxyos/caddy test
+        env:
+          CADDY_ADMIN_URL: http://localhost:2019
+          TEST_UPSTREAM_ADDR: localhost:8080
+
   typecheck:
     name: Type check
     runs-on: ubuntu-latest
