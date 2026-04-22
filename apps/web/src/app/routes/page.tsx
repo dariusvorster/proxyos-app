@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, useEffect, useRef, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { useSiteSelection } from '~/lib/site-context'
+import { useErrorHandler } from '~/hooks/useErrorHandler'
 import type { Route } from '@proxyos/types'
 
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
@@ -16,7 +17,26 @@ export default function RoutesPage() {
   const utils = trpc.useUtils()
   const { siteId } = useSiteSelection()
   const list = trpc.routes.list.useQuery({ siteId })
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [handleError] = useErrorHandler()
+  const del = trpc.routes.delete.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) => old?.filter((r) => r.id !== input.id) ?? [])
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setDeleteError(err.message)
+      handleError(err)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -69,6 +89,12 @@ export default function RoutesPage() {
         title="Routes"
         actions={<Link href="/expose"><Button variant="primary">+ Expose service</Button></Link>}
       />
+      {deleteError && (
+        <div style={{ background: 'var(--red-subtle, rgba(239,68,68,0.1))', borderBottom: '1px solid var(--red-border, rgba(239,68,68,0.3))', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--red)' }}>
+          <span>Delete failed: {deleteError}</span>
+          <button onClick={() => setDeleteError(null)} style={{ marginLeft: 'auto', background: 'none', border: 0, cursor: 'pointer', color: 'var(--red)', fontSize: 14, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 4, padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surf)' }}>
         <button style={tabStyle(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>All</button>
         <button style={tabStyle(typeFilter === 'proxy')} onClick={() => setTypeFilter('proxy')}>Proxy</button>
@@ -297,8 +323,72 @@ function ChainNodes({ routeId }: { routeId: string }) {
 
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
-  const update = trpc.routes.update.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [panelDeleteError, setPanelDeleteError] = useState<string | null>(null)
+  const [panelUpdateError, setPanelUpdateError] = useState<string | null>(null)
+  const [saveMsg, setSaveMsg] = useState<{ text: string; tone: 'green' | 'amber' | 'neutral' } | null>(null)
+  const [handleError] = useErrorHandler()
+  const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const scheduleTimeout = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms)
+    timerIds.current.push(id)
+    return id
+  }
+
+  useEffect(() => {
+    return () => { timerIds.current.forEach(clearTimeout) }
+  }, [])
+
+  useEffect(() => {
+    setSaveMsg(null)
+  }, [route.id])
+
+  const del = trpc.routes.delete.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) => old?.filter((r) => r.id !== input.id) ?? [])
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setPanelDeleteError(err.message)
+      handleError(err)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
+
+  const forceResync = trpc.routes.forceResync.useMutation({
+    onSuccess: () => {
+      setSaveMsg({ text: 'Repush initiated — verifying…', tone: 'neutral' })
+      scheduleTimeout(() => { utils.routes.list.invalidate(); setSaveMsg(null) }, 2000)
+    },
+  })
+
+  const update = trpc.routes.update.useMutation({
+    onMutate: async (input) => {
+      await utils.routes.list.cancel()
+      const previousRoutes = utils.routes.list.getData()
+      utils.routes.list.setData(undefined, (old) =>
+        old?.map((r) => r.id === input.id ? { ...r, ...input.patch, upstreams: input.patch?.upstreams ?? r.upstreams } : r) ?? []
+      )
+      return { previousRoutes }
+    },
+    onError: (err, _input, context) => {
+      if (context?.previousRoutes) {
+        utils.routes.list.setData(undefined, context.previousRoutes)
+      }
+      setPanelUpdateError(err.message)
+      handleError(err)
+    },
+    onSettled: () => {
+      utils.routes.list.invalidate()
+    },
+  })
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 1440 }, { refetchInterval: 10_000 })
 
   const [editing, setEditing] = useState(false)
@@ -354,7 +444,45 @@ function RoutePanel({ route }: { route: Route }) {
         trustUpstreamHeaders: trustHeaders,
         skipTlsVerify,
       },
-    }, { onSuccess: () => setEditing(false) })
+    }, {
+      onSuccess: (data) => {
+        // Update cache with server's authoritative record
+        utils.routes.list.setData(undefined, (old) =>
+          old?.map((r) => r.id === data.id ? data : r) ?? []
+        )
+        // Reset form to server-returned values (catches server-side normalization)
+        setName(data.name)
+        setUpstreams(data.upstreams.map((u) => u.address))
+        setLbPolicy(data.lbPolicy ?? 'round_robin')
+        setTlsMode(data.tlsMode as typeof tlsMode)
+        setSsoEnabled(data.ssoEnabled)
+        setCompression(!!data.compressionEnabled)
+        setWebsocket(!!data.websocketEnabled)
+        setHttp3(!!data.http3Enabled)
+        setHealthPath(data.healthCheckPath ?? '/')
+        setForceSSL(!!data.forceSSL)
+        setHstsEnabled(!!data.hstsEnabled)
+        setHstsSubdomains(!!data.hstsSubdomains)
+        setTrustHeaders(!!data.trustUpstreamHeaders)
+        setSkipTlsVerify(!!data.skipTlsVerify)
+        setEditing(false)
+        // Show sync status — verify fires async, refetch after delay to pick up result
+        setSaveMsg({ text: 'Saved — verifying…', tone: 'neutral' })
+        scheduleTimeout(() => {
+          utils.routes.list.refetch().then(() => {
+            const updated = utils.routes.list.getData()?.find((r) => r.id === data.id)
+            if (updated?.syncStatus === 'drift') {
+              setSaveMsg({ text: 'Drift detected — config may not have applied', tone: 'amber' })
+            } else if (updated?.syncStatus === 'synced') {
+              setSaveMsg({ text: 'Saved', tone: 'green' })
+              scheduleTimeout(() => setSaveMsg(null), 3000)
+            } else {
+              setSaveMsg(null)
+            }
+          })
+        }, 1500)
+      },
+    })
   }
 
   if (editing) {
@@ -431,8 +559,23 @@ function RoutePanel({ route }: { route: Route }) {
           <Row k="Skip Upstream TLS Verify" v={<Toggle checked={skipTlsVerify} onChange={setSkipTlsVerify} />} />
         </Section>
 
-        {update.isError && (
-          <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error.message}</div>
+        {(update.isError || panelUpdateError) && (
+          <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error?.message ?? panelUpdateError}</div>
+        )}
+
+        {saveMsg && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: saveMsg.tone === 'green' ? 'var(--green)' : saveMsg.tone === 'amber' ? 'var(--amber)' : 'var(--text-secondary)' }}>
+            <Dot tone={saveMsg.tone} />
+            <span style={{ flex: 1 }}>{saveMsg.text}</span>
+            {saveMsg.tone === 'amber' && (
+              <Button size="sm" variant="ghost" onClick={() => forceResync.mutate({ id: route.id })} disabled={forceResync.isPending}>
+                {forceResync.isPending ? 'Repairing…' : 'Repair'}
+              </Button>
+            )}
+            {saveMsg.tone !== 'neutral' && (
+              <button onClick={() => setSaveMsg(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>✕</button>
+            )}
+          </div>
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -447,6 +590,20 @@ function RoutePanel({ route }: { route: Route }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {saveMsg && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '6px 10px', borderRadius: 6, background: saveMsg.tone === 'green' ? 'rgba(34,197,94,0.1)' : saveMsg.tone === 'amber' ? 'rgba(245,158,11,0.1)' : 'rgba(120,120,140,0.1)', color: saveMsg.tone === 'green' ? 'var(--green)' : saveMsg.tone === 'amber' ? 'var(--amber)' : 'var(--text-secondary)' }}>
+          <Dot tone={saveMsg.tone} />
+          <span style={{ flex: 1 }}>{saveMsg.text}</span>
+          {saveMsg.tone === 'amber' && (
+            <Button size="sm" variant="ghost" onClick={() => forceResync.mutate({ id: route.id })} disabled={forceResync.isPending}>
+              {forceResync.isPending ? 'Repairing…' : 'Repair'}
+            </Button>
+          )}
+          {saveMsg.tone !== 'neutral' && (
+            <button onClick={() => setSaveMsg(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>✕</button>
+          )}
+        </div>
+      )}
       <Section title="Upstream">
         <Row k="Targets" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.upstreams.map((u) => u.address).join(', ')}</span>} />
         <Row k="Health" v={<Badge tone="green">healthy</Badge>} />
@@ -485,6 +642,9 @@ function RoutePanel({ route }: { route: Route }) {
       <Section title="Actions">
         {route.origin === 'central' && (
           <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>managed by central — read-only</div>
+        )}
+        {panelDeleteError && (
+          <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 4 }}>Delete failed: {panelDeleteError}</div>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
           {route.origin === 'local' && (

@@ -12,6 +12,7 @@ import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType 
 import { publicProcedure, operatorProcedure, protectedProcedure, router } from '../trpc'
 import { resolveEffectiveRole, canMutate } from '../rbac'
 import { insertRouteVersion } from './routeVersions'
+import { withCaddySync } from '../caddy-sync'
 
 const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
 
@@ -273,50 +274,57 @@ export const routesRouter = router({
       updatedAt: now,
     }
 
-    await ctx.db.insert(routes).values({
-      id,
-      name: route.name,
-      domain: route.domain,
-      enabled: true,
-      upstreamType: route.upstreamType,
-      upstreams: JSON.stringify(route.upstreams),
-      lbPolicy: route.lbPolicy ?? 'round_robin',
-      tlsMode: route.tlsMode,
-      tlsDnsProviderId: route.tlsDnsProviderId,
-      ssoEnabled: route.ssoEnabled,
-      ssoProviderId: route.ssoProviderId,
-      healthCheckEnabled: route.healthCheckEnabled ?? true,
-      healthCheckPath: route.healthCheckPath ?? '/',
-      healthCheckInterval: route.healthCheckInterval ?? 30,
-      compressionEnabled: route.compressionEnabled ?? true,
-      websocketEnabled: true,
-      http2Enabled: true,
-      http3Enabled: true,
-      origin: input.siteId ? 'central' : 'local',
-      scope: 'exclusive',
-      configVersion: 1,
-      siteId: input.siteId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
-
     if (!input.siteId) {
+      // Validate Caddy config before opening the transaction so we don't hold
+      // a DB write open during the HTTP round-trip to Caddy.
+      const generatedCreate = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+      const validationCreate = validateCaddyRoute(generatedCreate)
+      if (!validationCreate.valid) {
+        void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationCreate.issues })).catch(() => {})
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Route config validation failed:\n${formatValidation(validationCreate)}` })
+      }
+      for (const warn of validationCreate.issues.filter(i => i.severity === 'warning')) {
+        void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
+      }
+
       try {
-        const tlsPolicy = buildTlsPolicy(route, dnsProvider)
-        if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedCreate = buildCaddyRoute(route, { ssoProvider, dnsProvider })
-        const validationCreate = validateCaddyRoute(generatedCreate)
-        if (!validationCreate.valid) {
-          void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationCreate.issues })).catch(() => {})
-          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Route config validation failed:\n${formatValidation(validationCreate)}` })
-        }
-        for (const warn of validationCreate.issues.filter(i => i.severity === 'warning')) {
-          void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
-        }
-        await ctx.caddy.addRoute(generatedCreate)
-        void verifyAndPersist(ctx, route, generatedCreate, 'manual')
+        await withCaddySync(ctx.db, {
+          label: `create route ${input.domain}`,
+          dbOperation: async (tx) => {
+            await tx.insert(routes).values({
+              id,
+              name: route.name,
+              domain: route.domain,
+              enabled: true,
+              upstreamType: route.upstreamType,
+              upstreams: JSON.stringify(route.upstreams),
+              lbPolicy: route.lbPolicy ?? 'round_robin',
+              tlsMode: route.tlsMode,
+              tlsDnsProviderId: route.tlsDnsProviderId,
+              ssoEnabled: route.ssoEnabled,
+              ssoProviderId: route.ssoProviderId,
+              healthCheckEnabled: route.healthCheckEnabled ?? true,
+              healthCheckPath: route.healthCheckPath ?? '/',
+              healthCheckInterval: route.healthCheckInterval ?? 30,
+              compressionEnabled: route.compressionEnabled ?? true,
+              websocketEnabled: true,
+              http2Enabled: true,
+              http3Enabled: true,
+              origin: 'local',
+              scope: 'exclusive',
+              configVersion: 1,
+              siteId: null,
+              createdAt: now,
+              updatedAt: now,
+            })
+          },
+          caddyOperation: async () => {
+            const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+            if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
+            await ctx.caddy.addRoute(generatedCreate)
+          },
+        })
       } catch (err) {
-        await ctx.db.delete(routes).where(eq(routes.id, id))
         await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to push route "${input.domain}" to Caddy`, {
           domain: input.domain,
           tlsMode: input.tlsMode,
@@ -329,6 +337,34 @@ export const routesRouter = router({
           message: `Failed to push route to Caddy: ${(err as Error).message}`,
         })
       }
+      void verifyAndPersist(ctx, route, generatedCreate, 'manual')
+    } else {
+      await ctx.db.insert(routes).values({
+        id,
+        name: route.name,
+        domain: route.domain,
+        enabled: true,
+        upstreamType: route.upstreamType,
+        upstreams: JSON.stringify(route.upstreams),
+        lbPolicy: route.lbPolicy ?? 'round_robin',
+        tlsMode: route.tlsMode,
+        tlsDnsProviderId: route.tlsDnsProviderId,
+        ssoEnabled: route.ssoEnabled,
+        ssoProviderId: route.ssoProviderId,
+        healthCheckEnabled: route.healthCheckEnabled ?? true,
+        healthCheckPath: route.healthCheckPath ?? '/',
+        healthCheckInterval: route.healthCheckInterval ?? 30,
+        compressionEnabled: route.compressionEnabled ?? true,
+        websocketEnabled: true,
+        http2Enabled: true,
+        http3Enabled: true,
+        origin: 'central',
+        scope: 'exclusive',
+        configVersion: 1,
+        siteId: input.siteId,
+        createdAt: now,
+        updatedAt: now,
+      })
     }
 
     await ctx.db.insert(auditLog).values({
@@ -420,55 +456,61 @@ export const routesRouter = router({
       updatedAt: now,
     }
 
-    await ctx.db.insert(routes).values({
-      id,
-      name: route.name,
-      domain: route.domain,
-      enabled: true,
-      upstreamType: route.upstreamType,
-      upstreams: JSON.stringify(route.upstreams),
-      tlsMode: route.tlsMode,
-      tlsDnsProviderId: route.tlsDnsProviderId,
-      ssoEnabled: route.ssoEnabled,
-      ssoProviderId: route.ssoProviderId,
-      healthCheckEnabled: input.healthCheckEnabled,
-      healthCheckPath: input.healthCheckPath,
-      healthCheckInterval: 30,
-      compressionEnabled: input.compressionEnabled,
-      websocketEnabled: input.websocketEnabled,
-      http2Enabled: true,
-      http3Enabled: input.http3Enabled,
-      origin: input.siteId ? 'central' : 'local',
-      scope: 'exclusive',
-      configVersion: 1,
-      siteId: input.siteId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    })
-
     if (!input.siteId) {
+      await addStep(ctx.db, opId, { message: 'Building Caddy route config', status: 'info' })
+      const generatedExpose = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+      const validationExpose = validateCaddyRoute(generatedExpose)
+      if (!validationExpose.valid) {
+        void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationExpose.issues })).catch(() => {})
+        await addStep(ctx.db, opId, { message: `Route config validation failed: ${formatValidation(validationExpose)}`, status: 'error' })
+        await completeOperation(ctx.db, opId, 'error', 'Route config validation failed', opStart)
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Route config validation failed:\n${formatValidation(validationExpose)}` })
+      }
+      for (const warn of validationExpose.issues.filter(i => i.severity === 'warning')) {
+        void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
+        void addStep(ctx.db, opId, { message: `Warning: ${warn.message}`, status: 'warning' }).catch(() => {})
+      }
+
       try {
-        await addStep(ctx.db, opId, { message: 'Building Caddy route config', status: 'info' })
-        const tlsPolicy = buildTlsPolicy(route, dnsProvider)
-        if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedExpose = buildCaddyRoute(route, { ssoProvider, dnsProvider })
-        const validationExpose = validateCaddyRoute(generatedExpose)
-        if (!validationExpose.valid) {
-          void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationExpose.issues })).catch(() => {})
-          await addStep(ctx.db, opId, { message: `Route config validation failed: ${formatValidation(validationExpose)}`, status: 'error' })
-          await completeOperation(ctx.db, opId, 'error', 'Route config validation failed', opStart)
-          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Route config validation failed:\n${formatValidation(validationExpose)}` })
-        }
-        for (const warn of validationExpose.issues.filter(i => i.severity === 'warning')) {
-          void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'caddy', `Route ${route.domain}: ${warn.message}`, { field: warn.field })).catch(() => {})
-          void addStep(ctx.db, opId, { message: `Warning: ${warn.message}`, status: 'warning' }).catch(() => {})
-        }
         await addStep(ctx.db, opId, { message: 'Pushing route to Caddy', status: 'info' })
-        await ctx.caddy.addRoute(generatedExpose)
+        await withCaddySync(ctx.db, {
+          label: `expose route ${input.domain}`,
+          dbOperation: async (tx) => {
+            await tx.insert(routes).values({
+              id,
+              name: route.name,
+              domain: route.domain,
+              enabled: true,
+              upstreamType: route.upstreamType,
+              upstreams: JSON.stringify(route.upstreams),
+              tlsMode: route.tlsMode,
+              tlsDnsProviderId: route.tlsDnsProviderId,
+              ssoEnabled: route.ssoEnabled,
+              ssoProviderId: route.ssoProviderId,
+              healthCheckEnabled: input.healthCheckEnabled,
+              healthCheckPath: input.healthCheckPath,
+              healthCheckInterval: 30,
+              compressionEnabled: input.compressionEnabled,
+              websocketEnabled: input.websocketEnabled,
+              http2Enabled: true,
+              http3Enabled: input.http3Enabled,
+              origin: 'local',
+              scope: 'exclusive',
+              configVersion: 1,
+              siteId: null,
+              createdAt: now,
+              updatedAt: now,
+            })
+          },
+          caddyOperation: async () => {
+            const tlsPolicy = buildTlsPolicy(route, dnsProvider)
+            if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
+            await ctx.caddy.addRoute(generatedExpose)
+          },
+        })
         void verifyAndPersist(ctx, route, generatedExpose, 'manual')
         await addStep(ctx.db, opId, { message: `Route ${route.domain} active in Caddy`, status: 'success' })
       } catch (err) {
-        await ctx.db.delete(routes).where(eq(routes.id, id))
         await addStep(ctx.db, opId, { message: `Failed to push to Caddy: ${(err as Error).message}`, status: 'error' })
         await completeOperation(ctx.db, opId, 'error', (err as Error).message, opStart)
         await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to expose "${input.domain}" in Caddy`, {
@@ -483,6 +525,32 @@ export const routesRouter = router({
           message: `Failed to push route to Caddy: ${(err as Error).message}`,
         })
       }
+    } else {
+      await ctx.db.insert(routes).values({
+        id,
+        name: route.name,
+        domain: route.domain,
+        enabled: true,
+        upstreamType: route.upstreamType,
+        upstreams: JSON.stringify(route.upstreams),
+        tlsMode: route.tlsMode,
+        tlsDnsProviderId: route.tlsDnsProviderId,
+        ssoEnabled: route.ssoEnabled,
+        ssoProviderId: route.ssoProviderId,
+        healthCheckEnabled: input.healthCheckEnabled,
+        healthCheckPath: input.healthCheckPath,
+        healthCheckInterval: 30,
+        compressionEnabled: input.compressionEnabled,
+        websocketEnabled: input.websocketEnabled,
+        http2Enabled: true,
+        http3Enabled: input.http3Enabled,
+        origin: 'central',
+        scope: 'exclusive',
+        configVersion: 1,
+        siteId: input.siteId,
+        createdAt: now,
+        updatedAt: now,
+      })
     }
 
     await ctx.db.insert(auditLog).values({
@@ -499,14 +567,9 @@ export const routesRouter = router({
     void notifyFederationConfigChange(input.siteId ?? 'site_local')
     void completeOperation(ctx.db, opId, 'success', undefined, opStart).catch(() => {})
 
-    return {
-      success: true,
-      routeId: id,
-      domain: route.domain,
-      url: route.tlsMode === 'off' ? `http://${route.domain}` : `https://${route.domain}`,
-      ssoEnabled: route.ssoEnabled,
-      certStatus: route.tlsMode === 'off' ? 'none' : 'provisioning',
-    }
+    const exposedRow = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+    if (!exposedRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${id}' not found after insert` })
+    return { ok: true, route: rowToRoute(exposedRow) }
   }),
 
   get: publicProcedure
@@ -607,13 +670,20 @@ export const routesRouter = router({
       if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
       if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
 
-      await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
-
-      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      const route = rowToRoute(updated!)
+      let route: Route
       try {
         await addStep(ctx.db, updateOpId, { message: 'Syncing route to Caddy', status: 'info' })
-        await syncRouteToCaddy(ctx, route)
+        route = await withCaddySync(ctx.db, {
+          label: `update route ${input.id}`,
+          dbOperation: async (tx) => {
+            await tx.update(routes).set(update).where(eq(routes.id, input.id))
+            const updated = await tx.select().from(routes).where(eq(routes.id, input.id)).get()
+            return rowToRoute(updated!)
+          },
+          caddyOperation: async (updatedRoute) => {
+            await syncRouteToCaddy(ctx, updatedRoute)
+          },
+        })
         // Force SSL: manage the HTTP redirect server based on whether any enabled route needs it
         const allRows = await ctx.db.select().from(routes).all()
         const needsRedirect = allRows.some(r => r.enabled && r.forceSSL && r.tlsMode !== 'off')
@@ -626,9 +696,10 @@ export const routesRouter = router({
       } catch (err) {
         await addStep(ctx.db, updateOpId, { message: `Failed to sync to Caddy: ${(err as Error).message}`, status: 'error' })
         await completeOperation(ctx.db, updateOpId, 'error', (err as Error).message, updateOpStart)
-        await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to update route "${route.domain}" in Caddy`, {
-          domain: route.domain,
-          tlsMode: route.tlsMode,
+        const domain = row.domain
+        await ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Failed to update route "${domain}" in Caddy`, {
+          domain,
+          tlsMode: row.tlsMode,
           patch: input.patch,
           error: (err as Error).message,
           stack: (err as Error).stack,
@@ -659,13 +730,23 @@ export const routesRouter = router({
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
-      await ctx.db.update(routes).set({ enabled: input.enabled, updatedAt: new Date() }).where(eq(routes.id, input.id))
-      if (input.enabled) {
-        const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-        await syncRouteToCaddy(ctx, rowToRoute(updated!))
-      } else {
-        await ctx.caddy.removeRoute(input.id)
-      }
+      await withCaddySync(ctx.db, {
+        label: `toggle route ${input.id} enabled=${input.enabled}`,
+        dbOperation: async (tx) => {
+          await tx.update(routes).set({ enabled: input.enabled, updatedAt: new Date() }).where(eq(routes.id, input.id))
+          if (input.enabled) {
+            return tx.select().from(routes).where(eq(routes.id, input.id)).get()
+          }
+          return null
+        },
+        caddyOperation: async (updatedRow) => {
+          if (input.enabled && updatedRow) {
+            await syncRouteToCaddy(ctx, rowToRoute(updatedRow))
+          } else {
+            await ctx.caddy.removeRoute(input.id)
+          }
+        },
+      })
       await ctx.db.insert(auditLog).values({
         id: nanoid(),
         action: input.enabled ? 'route.enable' : 'route.disable',
@@ -675,7 +756,9 @@ export const routesRouter = router({
         actor: 'user',
         createdAt: new Date(),
       })
-      return { success: true }
+      const toggledRow = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!toggledRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after toggle` })
+      return { ok: true, route: rowToRoute(toggledRow) }
     }),
 
   test: operatorProcedure
@@ -713,9 +796,16 @@ export const routesRouter = router({
       const deleteOpStart = Date.now()
       await addStep(ctx.db, deleteOpId, { message: `Removing route ${row.domain} from Caddy`, status: 'info' })
 
-      await ctx.caddy.removeRoute(input.id)
+      await withCaddySync(ctx.db, {
+        label: `delete route ${input.id}`,
+        dbOperation: async (tx) => {
+          await tx.delete(routes).where(eq(routes.id, input.id))
+        },
+        caddyOperation: async () => {
+          await ctx.caddy.removeRoute(input.id)
+        },
+      })
       await addStep(ctx.db, deleteOpId, { message: 'Route removed from Caddy', status: 'success' })
-      await ctx.db.delete(routes).where(eq(routes.id, input.id))
 
       if (row.origin === 'local') {
         const { getFederationClient } = await import('@proxyos/federation/client').catch(() => ({ getFederationClient: null as unknown as typeof import('@proxyos/federation/client').getFederationClient }))
@@ -748,8 +838,18 @@ export const routesRouter = router({
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
-      await ctx.caddy.removeRoute(input.id)
-      await ctx.db.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, input.id))
+      const archivedRow = await withCaddySync(ctx.db, {
+        label: `archive route ${input.id}`,
+        dbOperation: async (tx) => {
+          await tx.update(routes).set({ enabled: false, archivedAt: now, updatedAt: now }).where(eq(routes.id, input.id))
+          const [row2] = await tx.select().from(routes).where(eq(routes.id, input.id))
+          if (!row2) throw new TRPCError({ code: 'NOT_FOUND', message: `Route ${input.id} not found` })
+          return row2
+        },
+        caddyOperation: async () => {
+          await ctx.caddy.removeRoute(input.id)
+        },
+      })
 
       await ctx.db.insert(auditLog).values({
         id: nanoid(),
@@ -761,7 +861,7 @@ export const routesRouter = router({
         createdAt: now,
       })
 
-      return { success: true }
+      return { ok: true, route: rowToRoute(archivedRow) }
     }),
 
   unarchive: protectedProcedure
@@ -773,11 +873,20 @@ export const routesRouter = router({
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
       const now = new Date()
-      await ctx.db.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
-      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      await syncRouteToCaddy(ctx, rowToRoute(updated!))
+      const unarchivedRow = await withCaddySync(ctx.db, {
+        label: `unarchive route ${input.id}`,
+        dbOperation: async (tx) => {
+          await tx.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
+          const [row2] = await tx.select().from(routes).where(eq(routes.id, input.id))
+          if (!row2) throw new TRPCError({ code: 'NOT_FOUND', message: `Route ${input.id} not found` })
+          return row2
+        },
+        caddyOperation: async (row2) => {
+          await syncRouteToCaddy(ctx, rowToRoute(row2))
+        },
+      })
 
-      return { success: true }
+      return { ok: true, route: rowToRoute(unarchivedRow) }
     }),
 
   listStale: publicProcedure
@@ -853,7 +962,9 @@ export const routesRouter = router({
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
       await syncRouteToCaddy(ctx, rowToRoute(row), 'drift-repair')
-      return { ok: true }
+      const resynced = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!resynced) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after resync` })
+      return { ok: true, route: rowToRoute(resynced) }
     }),
 
   createLocal: protectedProcedure
