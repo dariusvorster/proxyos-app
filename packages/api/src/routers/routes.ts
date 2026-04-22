@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import { buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
+import { applyDockerDns, buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
 import type { CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { resolveStaticUpstreams } from '../automation/static-upstreams'
@@ -136,7 +136,7 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
   const resolvedRoute = resolvedUpstreams !== route.upstreams ? { ...route, upstreams: resolvedUpstreams } : route
   const tlsPolicy = buildTlsPolicy(resolvedRoute, dnsProvider)
   if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-  const generated = buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig })
+  const generated = applyDockerDns(buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig }))
   const validation = validateCaddyRoute(generated)
   if (!validation.valid) {
     void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validation.issues })).catch(() => {})
@@ -304,7 +304,7 @@ export const routesRouter = router({
       try {
         const tlsPolicy = buildTlsPolicy(route, dnsProvider)
         if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedCreate = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+        const generatedCreate = applyDockerDns(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
         const validationCreate = validateCaddyRoute(generatedCreate)
         if (!validationCreate.valid) {
           void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationCreate.issues })).catch(() => {})
@@ -451,7 +451,7 @@ export const routesRouter = router({
         await addStep(ctx.db, opId, { message: 'Building Caddy route config', status: 'info' })
         const tlsPolicy = buildTlsPolicy(route, dnsProvider)
         if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedExpose = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+        const generatedExpose = applyDockerDns(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
         const validationExpose = validateCaddyRoute(generatedExpose)
         if (!validationExpose.valid) {
           void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationExpose.issues })).catch(() => {})
