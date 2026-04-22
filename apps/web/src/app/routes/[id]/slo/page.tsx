@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { AlertBanner, Badge, Button, Card, Input, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function RouteSLOPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
 
   const slo = trpc.intelligence.getSLO.useQuery({ routeId: id })
@@ -17,9 +19,11 @@ export default function RouteSLOPage({ params }: { params: Promise<{ id: string 
 
   const setSLO = trpc.intelligence.setSLO.useMutation({
     onSuccess: () => { utils.intelligence.getSLO.invalidate(); utils.intelligence.getSLOStatus.invalidate() },
+    onError: handleError,
   })
   const deleteSLO = trpc.intelligence.deleteSLO.useMutation({
     onSuccess: () => { utils.intelligence.getSLO.invalidate(); utils.intelligence.getSLOStatus.invalidate() },
+    onError: handleError,
   })
 
   const [p95, setP95] = useState(slo.data?.p95TargetMs?.toString() ?? '200')

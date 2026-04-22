@@ -1,5 +1,9 @@
 export * from './version'
 
+export type Result<T, E = Error> =
+  | { ok: true; value: T }
+  | { ok: false; error: E }
+
 export type UpstreamType = 'http' | 'tcp' | 'static' | 'redirect' | 'loadbalance'
 
 export type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'

@@ -7,17 +7,21 @@ import { LogoMark } from '~/components/logo'
 import { Button, Input } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
 import { getSession, setSession } from '~/lib/session'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [handleError] = useErrorHandler()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [step, setStep] = useState<'credentials' | 'totp'>('credentials')
   const [error, setError] = useState<string | null>(null)
   const [diagMessage, setDiagMessage] = useState<string | null>(null)
-  const login = trpc.users.login.useMutation()
+  const [showDiagLink, setShowDiagLink] = useState(false)
+  const [diagResult, setDiagResult] = useState<string | null>(null)
+  const login = trpc.users.login.useMutation({ onError: handleError })
 
   // Already logged in — skip to dashboard
   useEffect(() => {
@@ -48,8 +52,28 @@ function LoginForm() {
       setSession({ id: s.id!, email: s.email!, role: s.role!, displayName: s.displayName!, avatarColor: s.avatarColor! })
       router.push('/')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid credentials')
+      const msg = err instanceof Error ? err.message : 'Invalid credentials'
+      setError(msg)
+      // Show diagnosis link on auth-related failures
+      if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('not authenticated') || msg.toLowerCase().includes('invalid credentials') || msg.toLowerCase().includes('password')) {
+        setShowDiagLink(true)
+        setDiagResult(null)
+      }
     }
+  }
+
+  function runDiagnosis() {
+    setShowDiagLink(false)
+    fetch('/api/auth/diagnose')
+      .then(r => r.json())
+      .then((d: { authenticated: boolean; reason?: string; hint?: string; message?: string }) => {
+        if (!d.authenticated) {
+          setDiagResult(d.hint ?? d.reason ?? d.message ?? 'Could not determine auth state.')
+        } else {
+          setDiagResult('Your session appears valid. Try refreshing the page.')
+        }
+      })
+      .catch(() => { setDiagResult('Diagnosis request failed — check your network connection.') })
   }
 
   return (
@@ -143,6 +167,21 @@ function LoginForm() {
             {error && (
               <div style={{ background: 'var(--red-dim)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 12, color: 'var(--red)', fontFamily: 'var(--font-sans)' }}>
                 {error}
+              </div>
+            )}
+
+            {showDiagLink && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-sans)' }}>
+                Not sure why?{' '}
+                <button type="button" onClick={runDiagnosis} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>
+                  Run diagnosis
+                </button>
+              </div>
+            )}
+
+            {diagResult && (
+              <div style={{ background: 'var(--amber-dim, rgba(251,191,36,.1))', border: '1px solid var(--amber-border, rgba(251,191,36,.3))', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--font-sans)' }}>
+                {diagResult}
               </div>
             )}
 

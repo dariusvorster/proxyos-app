@@ -1,6 +1,9 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { CaddyClient } from '@proxyos/caddy'
 import { driftEvents, getDb, nanoid, routes } from '@proxyos/db'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 const POLL_MS = 30_000
 
@@ -107,7 +110,7 @@ async function poll(): Promise<void> {
 }
 
 export function startDriftDetector(): void {
-  const run = () => poll().catch((e: unknown) => console.warn('[drift-detector] poll error:', e))
+  const run = () => poll().catch((e: unknown) => logger.warn({ err: e }, 'drift-detector poll error'))
   setInterval(() => { void run() }, POLL_MS)
   void run()
 }

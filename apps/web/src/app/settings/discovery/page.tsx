@@ -5,14 +5,16 @@ import Link from 'next/link'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function DiscoveryPage() {
+  const [handleError] = useErrorHandler()
   const providers = trpc.discovery.listProviders.useQuery()
   const discovered = trpc.discovery.listDiscovered.useQuery({})
-  const createMut = trpc.discovery.createProvider.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) } })
-  const deleteMut = trpc.discovery.deleteProvider.useMutation({ onSuccess: () => providers.refetch() })
-  const promoteMut = trpc.discovery.promote.useMutation({ onSuccess: () => discovered.refetch() })
-  const unlinkMut = trpc.discovery.unlink.useMutation({ onSuccess: () => discovered.refetch() })
+  const createMut = trpc.discovery.createProvider.useMutation({ onSuccess: () => { providers.refetch(); setForm(false) }, onError: handleError })
+  const deleteMut = trpc.discovery.deleteProvider.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
+  const promoteMut = trpc.discovery.promote.useMutation({ onSuccess: () => discovered.refetch(), onError: handleError })
+  const unlinkMut = trpc.discovery.unlink.useMutation({ onSuccess: () => discovered.refetch(), onError: handleError })
 
   const [showForm, setForm] = useState(false)
   const [type, setType] = useState<'docker' | 'proxmox' | 'infraos'>('docker')

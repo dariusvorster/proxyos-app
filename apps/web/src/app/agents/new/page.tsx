@@ -5,14 +5,17 @@ import { useRouter } from 'next/navigation'
 import { Button, Card, Input, StepIndicator } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const STEPS = ['Details', 'Deploy', 'Confirm']
 
 export default function NewAgentPage() {
   const router = useRouter()
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const registerMutation = trpc.agents.register.useMutation({
     onSuccess: () => utils.agents.list.invalidate(),
+    onError: handleError,
   })
 
   const [step, setStep] = useState(0)

@@ -4,13 +4,16 @@ import { useState } from 'react'
 import { Badge, Button, Card, Dot } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function WebhookLogPage() {
+  const [handleError] = useErrorHandler()
   const [retrying, setRetrying] = useState<string | null>(null)
   const log = trpc.notifications.webhookLog.useQuery({ limit: 100 })
   const retry = trpc.notifications.retryWebhook.useMutation({
     onSuccess: () => { void log.refetch() },
     onSettled: () => setRetrying(null),
+    onError: handleError,
   })
 
   return (

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge, Button, Card, Dot } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 interface UpstreamResult {
   address: string
@@ -21,8 +22,9 @@ interface RouteHealth {
 }
 
 export default function HealthPage() {
+  const [handleError] = useErrorHandler()
   const routes = trpc.routes.list.useQuery()
-  const testRoute = trpc.routes.test.useMutation()
+  const testRoute = trpc.routes.test.useMutation({ onError: handleError })
   const [health, setHealth] = useState<Record<string, RouteHealth>>({})
   const [testingAll, setTestingAll] = useState(false)
 

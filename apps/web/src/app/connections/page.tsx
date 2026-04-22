@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Badge, Button, Card, Dot, td, th } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const TYPE_LABELS: Record<string, string> = {
   cloudflare:   'Cloudflare',
@@ -46,12 +47,15 @@ const TYPE_CATEGORY: Record<string, string> = {
 }
 
 export default function ConnectionsPage() {
+  const [handleError] = useErrorHandler()
   const list = trpc.connections.list.useQuery()
   const testMut = trpc.connections.test.useMutation({
     onSuccess: () => list.refetch(),
+    onError: handleError,
   })
   const deleteMut = trpc.connections.delete.useMutation({
     onSuccess: () => list.refetch(),
+    onError: handleError,
   })
 
   const connections = list.data ?? []

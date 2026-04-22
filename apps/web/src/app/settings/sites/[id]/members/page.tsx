@@ -4,6 +4,7 @@ import { use, useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type SiteRole = 'site_operator' | 'site_viewer'
 
@@ -14,11 +15,12 @@ const ROLE_TONE: Record<string, 'blue' | 'neutral'> = {
 
 export default function SiteMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: siteId } = use(params)
+  const [handleError] = useErrorHandler()
 
   const { data: members, refetch } = trpc.sites.listMembers.useQuery({ siteId })
   const { data: users } = trpc.users.list.useQuery()
-  const addMutation = trpc.sites.addMember.useMutation({ onSuccess: () => { void refetch(); setShowForm(false) } })
-  const removeMutation = trpc.sites.removeMember.useMutation({ onSuccess: () => refetch() })
+  const addMutation = trpc.sites.addMember.useMutation({ onSuccess: () => { void refetch(); setShowForm(false) }, onError: handleError })
+  const removeMutation = trpc.sites.removeMember.useMutation({ onSuccess: () => refetch(), onError: handleError })
 
   const [showForm, setShowForm] = useState(false)
   const [userId, setUserId] = useState('')

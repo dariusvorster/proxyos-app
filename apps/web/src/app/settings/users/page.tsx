@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Input, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const ROLES = ['admin', 'operator', 'viewer'] as const
 type Role = typeof ROLES[number]
@@ -16,14 +17,15 @@ const ROLE_DESC: Record<Role, string> = {
 }
 
 export default function UsersPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.users.list.useQuery()
   const ssoConfig = trpc.users.getDashboardSSO.useQuery()
-  const createUser = trpc.users.create.useMutation({ onSuccess: () => { utils.users.list.invalidate(); setShowForm(false); setEmail(''); setPassword('') } })
-  const updateRole = trpc.users.updateRole.useMutation({ onSuccess: () => utils.users.list.invalidate() })
-  const deleteUser = trpc.users.delete.useMutation({ onSuccess: () => utils.users.list.invalidate() })
-  const setSSO = trpc.users.setDashboardSSO.useMutation({ onSuccess: () => utils.users.getDashboardSSO.invalidate() })
-  const deleteSSO = trpc.users.deleteDashboardSSO.useMutation({ onSuccess: () => utils.users.getDashboardSSO.invalidate() })
+  const createUser = trpc.users.create.useMutation({ onSuccess: () => { utils.users.list.invalidate(); setShowForm(false); setEmail(''); setPassword('') }, onError: handleError })
+  const updateRole = trpc.users.updateRole.useMutation({ onSuccess: () => utils.users.list.invalidate(), onError: handleError })
+  const deleteUser = trpc.users.delete.useMutation({ onSuccess: () => utils.users.list.invalidate(), onError: handleError })
+  const setSSO = trpc.users.setDashboardSSO.useMutation({ onSuccess: () => utils.users.getDashboardSSO.invalidate(), onError: handleError })
+  const deleteSSO = trpc.users.deleteDashboardSSO.useMutation({ onSuccess: () => utils.users.getDashboardSSO.invalidate(), onError: handleError })
 
   const [showForm, setShowForm] = useState(false)
   const [email, setEmail] = useState('')

@@ -4,23 +4,25 @@ import { useState } from 'react'
 import { AlertBanner, Badge, Button, Card, Dot, Input, Select } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const HIGH_RISK_LABEL = 'CN, RU, KP, IR, BY, SY, CU, VE'
 
 export default function SecurityPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
 
   const bans = trpc.security.listBans.useQuery({ includeExpired: false })
   const rules = trpc.security.listFail2banRules.useQuery()
   const presets = trpc.security.getPresets.useQuery()
 
-  const unban = trpc.security.unbanIP.useMutation({ onSuccess: () => utils.security.listBans.invalidate() })
-  const deleteRule = trpc.security.deleteFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate() })
-  const toggleRule = trpc.security.toggleFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate() })
-  const addPreset = trpc.security.createFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate() })
-  const purge = trpc.security.purgeExpiredBans.useMutation({ onSuccess: () => utils.security.listBans.invalidate() })
+  const unban = trpc.security.unbanIP.useMutation({ onSuccess: () => utils.security.listBans.invalidate(), onError: handleError })
+  const deleteRule = trpc.security.deleteFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate(), onError: handleError })
+  const toggleRule = trpc.security.toggleFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate(), onError: handleError })
+  const addPreset = trpc.security.createFail2banRule.useMutation({ onSuccess: () => utils.security.listFail2banRules.invalidate(), onError: handleError })
+  const purge = trpc.security.purgeExpiredBans.useMutation({ onSuccess: () => utils.security.listBans.invalidate(), onError: handleError })
 
-  const banIP = trpc.security.banIP.useMutation({ onSuccess: () => { utils.security.listBans.invalidate(); setManualIp(''); setManualReason('') } })
+  const banIP = trpc.security.banIP.useMutation({ onSuccess: () => { utils.security.listBans.invalidate(); setManualIp(''); setManualReason('') }, onError: handleError })
 
   const [manualIp, setManualIp] = useState('')
   const [manualReason, setManualReason] = useState('')

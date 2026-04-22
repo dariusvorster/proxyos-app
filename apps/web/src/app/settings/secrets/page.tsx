@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const TYPE_LABELS: Record<string, string> = {
   lockboxos: 'LockBoxOS',
@@ -25,10 +26,11 @@ const TYPE_FIELDS: Record<string, Array<{ key: string; label: string; secret?: b
 }
 
 export default function SecretsPage() {
+  const [handleError] = useErrorHandler()
   const providers = trpc.secretsProviders.list.useQuery()
-  const createMut = trpc.secretsProviders.create.useMutation({ onSuccess: () => { providers.refetch(); resetForm() } })
-  const deleteMut = trpc.secretsProviders.delete.useMutation({ onSuccess: () => providers.refetch() })
-  const testMut = trpc.secretsProviders.test.useMutation({ onSuccess: () => providers.refetch() })
+  const createMut = trpc.secretsProviders.create.useMutation({ onSuccess: () => { providers.refetch(); resetForm() }, onError: handleError })
+  const deleteMut = trpc.secretsProviders.delete.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
+  const testMut = trpc.secretsProviders.test.useMutation({ onSuccess: () => providers.refetch(), onError: handleError })
 
   const [showForm, setForm] = useState(false)
   const [type, setType] = useState<'lockboxos' | 'vault' | 'env'>('lockboxos')

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Select, SidePanel, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type RedirectHost = {
   id: string
@@ -40,12 +41,13 @@ const defaultForm: FormState = {
 }
 
 export default function RedirectHostsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.redirectHosts.list.useQuery()
-  const createMut = trpc.redirectHosts.create.useMutation({ onSuccess: () => { utils.redirectHosts.list.invalidate(); closePanel() } })
-  const updateMut = trpc.redirectHosts.update.useMutation({ onSuccess: () => { utils.redirectHosts.list.invalidate(); closePanel() } })
-  const deleteMut = trpc.redirectHosts.delete.useMutation({ onSuccess: () => utils.redirectHosts.list.invalidate() })
-  const toggleMut = trpc.redirectHosts.toggle.useMutation({ onSuccess: () => utils.redirectHosts.list.invalidate() })
+  const createMut = trpc.redirectHosts.create.useMutation({ onSuccess: () => { utils.redirectHosts.list.invalidate(); closePanel() }, onError: handleError })
+  const updateMut = trpc.redirectHosts.update.useMutation({ onSuccess: () => { utils.redirectHosts.list.invalidate(); closePanel() }, onError: handleError })
+  const deleteMut = trpc.redirectHosts.delete.useMutation({ onSuccess: () => utils.redirectHosts.list.invalidate(), onError: handleError })
+  const toggleMut = trpc.redirectHosts.toggle.useMutation({ onSuccess: () => utils.redirectHosts.list.invalidate(), onError: handleError })
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)

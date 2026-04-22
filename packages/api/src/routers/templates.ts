@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, routeTemplates } from '@proxyos/db'
@@ -60,7 +61,7 @@ export const templatesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (BUILT_IN_TEMPLATES.some(t => t.id === input.id)) {
-        throw new Error('Cannot delete built-in templates')
+        throw new TRPCError({ code: 'CONFLICT', message: `Template '${input.id}' is a built-in template and cannot be deleted` })
       }
       await ctx.db.delete(routeTemplates).where(eq(routeTemplates.id, input.id))
       return { ok: true }

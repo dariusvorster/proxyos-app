@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Dot, Input, SidePanel, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type Protocol = 'tcp' | 'udp' | 'tcp+udp'
 
@@ -22,13 +23,14 @@ const defaultForm: StreamFormState = {
 }
 
 export default function StreamsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.streams.list.useQuery()
-  const createMut = trpc.streams.create.useMutation({ onSuccess: () => { utils.streams.list.invalidate(); setFormOpen(false); setForm(defaultForm) } })
-  const updateMut = trpc.streams.update.useMutation({ onSuccess: () => { utils.streams.list.invalidate(); setEditId(null); setForm(defaultForm) } })
-  const deleteMut = trpc.streams.delete.useMutation({ onSuccess: () => utils.streams.list.invalidate() })
-  const toggleMut = trpc.streams.toggle.useMutation({ onSuccess: () => utils.streams.list.invalidate() })
-  const checkMut = trpc.streams.checkUpstream.useMutation()
+  const createMut = trpc.streams.create.useMutation({ onSuccess: () => { utils.streams.list.invalidate(); setFormOpen(false); setForm(defaultForm) }, onError: handleError })
+  const updateMut = trpc.streams.update.useMutation({ onSuccess: () => { utils.streams.list.invalidate(); setEditId(null); setForm(defaultForm) }, onError: handleError })
+  const deleteMut = trpc.streams.delete.useMutation({ onSuccess: () => utils.streams.list.invalidate(), onError: handleError })
+  const toggleMut = trpc.streams.toggle.useMutation({ onSuccess: () => utils.streams.list.invalidate(), onError: handleError })
+  const checkMut = trpc.streams.checkUpstream.useMutation({ onError: handleError })
 
   const [formOpen, setFormOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)

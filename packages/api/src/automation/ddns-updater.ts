@@ -1,15 +1,17 @@
 import { eq } from 'drizzle-orm'
 import { ddnsRecords, dnsProviders } from '@proxyos/db'
 import type { Db } from '@proxyos/db'
+import type { Result } from '@proxyos/types'
 
-async function detectPublicIp(): Promise<string | null> {
+async function detectPublicIp(): Promise<Result<string, Error>> {
   try {
     const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
-    if (!res.ok) return null
+    if (!res.ok) return { ok: false, error: new Error(`IP detection service returned HTTP ${res.status}`) }
     const data = await res.json() as { ip?: string }
-    return data.ip ?? null
-  } catch {
-    return null
+    if (!data.ip) return { ok: false, error: new Error('IP detection service returned no ip field') }
+    return { ok: true, value: data.ip }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e : new Error(String(e)) }
   }
 }
 
@@ -25,14 +27,16 @@ async function updateCloudflare(
 
   const zonesRes = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  if (!zonesRes.ok) throw new Error(`[cloudflare] Zones API returned ${zonesRes.status}`)
   const zonesData = await zonesRes.json() as { result?: Array<{ id: string }> }
   const zoneId = zonesData.result?.[0]?.id
-  if (!zoneId) throw new Error(`Zone '${zone}' not found`)
+  if (!zoneId) throw new Error(`[cloudflare] Zone '${zone}' not found`)
 
   const recordsRes = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${type}&name=${name}.${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  if (!recordsRes.ok) throw new Error(`[cloudflare] DNS records API returned ${recordsRes.status}`)
   const recordsData = await recordsRes.json() as { result?: Array<{ id: string }> }
   const existingId = recordsData.result?.[0]?.id
 
@@ -57,7 +61,8 @@ export function startDdnsUpdater(db: Db): void {
   const poll = async () => {
     const now = Date.now()
     if (now - lastIpCheck > 60_000) {
-      lastIp = await detectPublicIp()
+      const ipResult = await detectPublicIp()
+      lastIp = ipResult.ok ? ipResult.value : null
       lastIpCheck = now
     }
     if (!lastIp) return

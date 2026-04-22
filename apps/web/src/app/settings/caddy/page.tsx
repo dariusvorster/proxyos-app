@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { Button, Card } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function CaddySettingsPage() {
+  const [handleError] = useErrorHandler()
   const config = trpc.caddy.config.useQuery(undefined, { refetchInterval: 10_000, retry: false })
   const status = trpc.caddy.status.useQuery(undefined, { refetchInterval: 5000 })
   const rootCA = trpc.caddy.rootCA.useQuery(undefined, { retry: false }) as { data?: { root_certificate?: string } }
   const utils = trpc.useUtils()
-  const reload = trpc.caddy.reload.useMutation({ onSuccess: () => { utils.caddy.config.invalidate() } })
+  const reload = trpc.caddy.reload.useMutation({ onSuccess: () => { utils.caddy.config.invalidate() }, onError: handleError })
 
   return (
     <>

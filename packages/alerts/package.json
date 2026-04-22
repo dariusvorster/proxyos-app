@@ -12,6 +12,7 @@
   "scripts": { "typecheck": "tsc --noEmit" },
   "dependencies": {
     "@proxyos/db": "workspace:*",
+    "@proxyos/logger": "workspace:*",
     "@proxyos/types": "workspace:*",
     "drizzle-orm": "^0.36.4",
     "nodemailer": "^6.9.16"

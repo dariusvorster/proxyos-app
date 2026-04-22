@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { eq, and, isNull } from 'drizzle-orm'
 import { router, protectedProcedure, adminProcedure } from '../trpc'
@@ -24,7 +25,7 @@ export const sitesRouter = router({
     .query(async ({ input }) => {
       const db = getDb()
       const [site] = await db.select().from(sites).where(eq(sites.id, input.id))
-      if (!site) throw new Error('Site not found')
+      if (!site) throw new TRPCError({ code: 'NOT_FOUND', message: `Site with ID '${input.id}' not found` })
       return site
     }),
 

@@ -1,4 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'crypto'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 const PREFIX_V1 = 'enc:v1:'
 const PREFIX_V2 = 'enc:v2:'
@@ -50,7 +53,7 @@ export function decrypt(value: string): string {
     return aesgcmDecrypt(deriveKeyV1(getSecret()), value.slice(PREFIX_V1.length))
   }
   // Plaintext fallback for values stored before encryption was added
-  console.warn('[crypto] decrypting unencrypted value — check migration state')
+  logger.warn('decrypting unencrypted value — check migration state')
   return value
 }
 

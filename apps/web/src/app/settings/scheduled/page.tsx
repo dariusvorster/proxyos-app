@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const ACTION_LABELS: Record<string, string> = {
   enable: 'Enable route',
@@ -20,10 +21,11 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'amber' | 'neutral'> = {
 }
 
 export default function ScheduledPage() {
+  const [handleError] = useErrorHandler()
   const pending = trpc.scheduledChanges.listPending.useQuery()
   const routes = trpc.routes.list.useQuery()
-  const cancelMut = trpc.scheduledChanges.cancel.useMutation({ onSuccess: () => pending.refetch() })
-  const createMut = trpc.scheduledChanges.create.useMutation({ onSuccess: () => { pending.refetch(); resetForm() } })
+  const cancelMut = trpc.scheduledChanges.cancel.useMutation({ onSuccess: () => pending.refetch(), onError: handleError })
+  const createMut = trpc.scheduledChanges.create.useMutation({ onSuccess: () => { pending.refetch(); resetForm() }, onError: handleError })
 
   const [showForm, setForm] = useState(false)
   const [routeId, setRouteId] = useState('')

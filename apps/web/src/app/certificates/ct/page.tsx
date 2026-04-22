@@ -5,19 +5,24 @@ import Link from 'next/link'
 import { AlertBanner, Badge, Button, Card, DataTable, Input, Toggle, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function CTMonitorPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const config = trpc.observability.getCTConfig.useQuery()
   const alerts = trpc.observability.listCTAlerts.useQuery({ includeAcknowledged: false })
   const setCfg = trpc.observability.setCTConfig.useMutation({
     onSuccess: () => utils.observability.getCTConfig.invalidate(),
+    onError: handleError,
   })
   const ack = trpc.observability.acknowledgeCTAlert.useMutation({
     onSuccess: () => utils.observability.listCTAlerts.invalidate(),
+    onError: handleError,
   })
   const check = trpc.observability.runCTCheck.useMutation({
     onSuccess: () => utils.observability.listCTAlerts.invalidate(),
+    onError: handleError,
   })
 
   const [domain, setDomain] = useState('')

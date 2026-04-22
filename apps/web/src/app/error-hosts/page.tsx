@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Select, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type PageType = 'default' | 'custom_html' | 'redirect'
 
@@ -26,12 +27,13 @@ const defaultForm: FormState = {
 }
 
 export default function ErrorHostsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.errorHosts.list.useQuery()
-  const create = trpc.errorHosts.create.useMutation({ onSuccess: () => { utils.errorHosts.list.invalidate(); setShowForm(false); setForm(defaultForm) } })
-  const update = trpc.errorHosts.update.useMutation({ onSuccess: () => { utils.errorHosts.list.invalidate(); setEditId(null); setForm(defaultForm) } })
-  const del = trpc.errorHosts.delete.useMutation({ onSuccess: () => utils.errorHosts.list.invalidate() })
-  const toggle = trpc.errorHosts.toggle.useMutation({ onSuccess: () => utils.errorHosts.list.invalidate() })
+  const create = trpc.errorHosts.create.useMutation({ onSuccess: () => { utils.errorHosts.list.invalidate(); setShowForm(false); setForm(defaultForm) }, onError: handleError })
+  const update = trpc.errorHosts.update.useMutation({ onSuccess: () => { utils.errorHosts.list.invalidate(); setEditId(null); setForm(defaultForm) }, onError: handleError })
+  const del = trpc.errorHosts.delete.useMutation({ onSuccess: () => utils.errorHosts.list.invalidate(), onError: handleError })
+  const toggle = trpc.errorHosts.toggle.useMutation({ onSuccess: () => utils.errorHosts.list.invalidate(), onError: handleError })
 
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)

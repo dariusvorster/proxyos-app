@@ -5,6 +5,7 @@ import { useState, useRef, type ChangeEvent } from 'react'
 import { Badge, Button, Card, Checkbox, Input, Select, StepIndicator, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 import type { ImportedRoute } from '@proxyos/importers'
 
 const STEPS = ['Source', 'Input', 'Preview', 'Options', 'Import']
@@ -21,10 +22,12 @@ const SOURCES: Array<{ id: Source; name: string; fidelity: 'perfect' | 'high' | 
 ]
 
 export default function ImportPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
-  const previewMut = trpc.importers.preview.useMutation()
+  const previewMut = trpc.importers.preview.useMutation({ onError: handleError })
   const commitMut  = trpc.importers.commit.useMutation({
     onSuccess: () => utils.routes.list.invalidate(),
+    onError: handleError,
   })
 
   const [step, setStep]         = useState(0)

@@ -5,8 +5,10 @@ import Link from 'next/link'
 import { Badge, Button, Card, Input, Toggle } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function IntegrationsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
 
   const infraConfig = trpc.integrations.getInfraOSConfig.useQuery()
@@ -16,9 +18,9 @@ export default function IntegrationsPage() {
   const backupReg = trpc.integrations.getBackupOSRegistration.useQuery()
   const agentVersions = trpc.integrations.listAgentVersions.useQuery()
 
-  const setInfra = trpc.integrations.setInfraOSConfig.useMutation({ onSuccess: () => utils.integrations.getInfraOSConfig.invalidate() })
-  const setLB = trpc.integrations.setLockBoxConfig.useMutation({ onSuccess: () => utils.integrations.getLockBoxConfig.invalidate() })
-  const setPatch = trpc.integrations.setPatchOSConfig.useMutation({ onSuccess: () => utils.integrations.getPatchOSConfig.invalidate() })
+  const setInfra = trpc.integrations.setInfraOSConfig.useMutation({ onSuccess: () => utils.integrations.getInfraOSConfig.invalidate(), onError: handleError })
+  const setLB = trpc.integrations.setLockBoxConfig.useMutation({ onSuccess: () => utils.integrations.getLockBoxConfig.invalidate(), onError: handleError })
+  const setPatch = trpc.integrations.setPatchOSConfig.useMutation({ onSuccess: () => utils.integrations.getPatchOSConfig.invalidate(), onError: handleError })
 
   const [infraUrl, setInfraUrl] = useState('')
   const [infraToken, setInfraToken] = useState('')

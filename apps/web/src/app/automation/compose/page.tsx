@@ -4,18 +4,23 @@ import { useState } from 'react'
 import { Badge, Button, Card, DataTable, Input, Toggle, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function ComposeWatcherPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.automation.listComposeWatchers.useQuery(undefined, { refetchInterval: 10_000 })
   const create = trpc.automation.createComposeWatcher.useMutation({
     onSuccess: () => { utils.automation.listComposeWatchers.invalidate(); setShowForm(false); setPath(''); setInterval_('30') },
+    onError: handleError,
   })
   const toggle = trpc.automation.toggleComposeWatcher.useMutation({
     onSuccess: () => utils.automation.listComposeWatchers.invalidate(),
+    onError: handleError,
   })
   const del = trpc.automation.deleteComposeWatcher.useMutation({
     onSuccess: () => utils.automation.listComposeWatchers.invalidate(),
+    onError: handleError,
   })
 
   const [showForm, setShowForm] = useState(false)

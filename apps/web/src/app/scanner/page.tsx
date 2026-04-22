@@ -5,18 +5,23 @@ import { Badge, Button, Card, Dot, Select, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { parseComposeFile } from '@proxyos/scanner'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function ScannerPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const agentList = trpc.agents.list.useQuery()
   const scanMut   = trpc.scanner.scan.useMutation({
     onSuccess: () => utils.scanner.getResults.invalidate(),
+    onError: handleError,
   })
   const exposeMut = trpc.scanner.exposeContainer.useMutation({
     onSuccess: () => utils.scanner.getResults.invalidate(),
+    onError: handleError,
   })
   const dismissMut = trpc.scanner.dismissContainer.useMutation({
     onSuccess: () => utils.scanner.getResults.invalidate(),
+    onError: handleError,
   })
 
   const [agentId, setAgentId]     = useState('')
@@ -27,6 +32,7 @@ export default function ScannerPage() {
   const autoWatch = trpc.scanner.getAutoWatch.useQuery({ agentId: agentId || undefined })
   const setAutoWatchMut = trpc.scanner.setAutoWatch.useMutation({
     onSuccess: () => autoWatch.refetch(),
+    onError: handleError,
   })
   const results = trpc.scanner.getResults.useQuery({ agentId: agentId || undefined })
   const containers = results.data?.results ?? []

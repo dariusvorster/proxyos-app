@@ -1,8 +1,12 @@
+import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { composeWatchers, nanoid } from '@proxyos/db'
 import { startWatcher, stopWatcher, activeWatcherIds } from '../automation/compose-watcher'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 export const automationRouter = router({
   listComposeWatchers: publicProcedure.query(async ({ ctx }) => {
@@ -36,7 +40,7 @@ export const automationRouter = router({
         autoApply: input.autoApply,
         watchInterval: input.watchInterval,
       }, (diff, path) => {
-        console.log(`[compose-watcher] ${path} changed:`, diff)
+        logger.info({ path, diff }, 'compose file changed')
         // In a full implementation, diffs would trigger route CRUD via the routes router
       })
       return { id }
@@ -46,7 +50,7 @@ export const automationRouter = router({
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(composeWatchers).where(eq(composeWatchers.id, input.id)).get()
-      if (!row) throw new Error('Watcher not found')
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Compose watcher with ID '${input.id}' not found` })
       await ctx.db.update(composeWatchers).set({ enabled: input.enabled }).where(eq(composeWatchers.id, input.id))
       if (input.enabled) {
         startWatcher(input.id, {
@@ -55,7 +59,7 @@ export const automationRouter = router({
           autoApply: row.autoApply,
           watchInterval: row.watchInterval,
         }, (diff, path) => {
-          console.log(`[compose-watcher] ${path} changed:`, diff)
+          logger.info({ path, diff }, 'compose file changed')
         })
       } else {
         stopWatcher(input.id)

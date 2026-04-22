@@ -30,7 +30,7 @@ export const trafficReplayRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
-      if (!route) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!route) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.routeId}' not found` })
       await ctx.db.insert(trafficReplayLogs).values({
         id: nanoid(),
         routeId: input.routeId,
@@ -53,7 +53,7 @@ export const trafficReplayRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const log = await ctx.db.select().from(trafficReplayLogs).where(eq(trafficReplayLogs.id, input.id)).get()
-      if (!log) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!log) throw new TRPCError({ code: 'NOT_FOUND', message: `Traffic replay log with ID '${input.id}' not found` })
       const headers = log.headers ? JSON.parse(log.headers) as Record<string, string> : {}
       // Strip hop-by-hop headers
       delete headers.host

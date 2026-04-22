@@ -1,3 +1,5 @@
+import type { Result } from '@proxyos/types'
+
 export interface LockBoxOSConfig {
   baseUrl: string
   token: string
@@ -9,7 +11,7 @@ export interface LockBoxOSCredentialRef {
 }
 
 // Fetch a credential from LockBoxOS at use time — never cached beyond call
-export async function fetchFromLockBox(cfg: LockBoxOSConfig, ref: LockBoxOSCredentialRef): Promise<string | null> {
+export async function fetchFromLockBox(cfg: LockBoxOSConfig, ref: LockBoxOSCredentialRef): Promise<Result<string, Error>> {
   try {
     const res = await fetch(
       `${cfg.baseUrl}/api/v1/vaults/${encodeURIComponent(ref.vaultId)}/secrets/${encodeURIComponent(ref.secretPath)}`,
@@ -18,11 +20,12 @@ export async function fetchFromLockBox(cfg: LockBoxOSConfig, ref: LockBoxOSCrede
         signal: AbortSignal.timeout(5_000),
       },
     )
-    if (!res.ok) return null
+    if (!res.ok) return { ok: false, error: new Error(`LockBoxOS returned HTTP ${res.status} for secret '${ref.secretPath}'`) }
     const data = await res.json() as { value?: string }
-    return data.value ?? null
-  } catch {
-    return null
+    if (data.value == null) return { ok: false, error: new Error(`LockBoxOS returned no value for secret '${ref.secretPath}'`) }
+    return { ok: true, value: data.value }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e : new Error(String(e)) }
   }
 }
 

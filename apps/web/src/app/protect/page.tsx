@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 type Step = 'route' | 'auth' | 'access' | 'waf' | 'review'
 
@@ -66,6 +67,7 @@ const inputStyle = {
 
 export default function ProtectPage() {
   const router = useRouter()
+  const [handleError] = useErrorHandler()
   const [step, setStep] = useState<Step>('route')
   const [cfg, setCfg] = useState<Config>(defaultConfig)
 
@@ -74,6 +76,7 @@ export default function ProtectPage() {
   const oauthProviders = trpc.oauthProviders.list.useQuery()
   const updateMut = trpc.routes.update.useMutation({
     onSuccess: () => router.push(`/routes/${cfg.routeId}`),
+    onError: handleError,
   })
 
   const patch = (partial: Partial<Config>) => setCfg(prev => ({ ...prev, ...partial }))

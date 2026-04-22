@@ -15,6 +15,7 @@
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@proxyos/logger": "workspace:*",
     "better-sqlite3": "^11.5.0",
     "drizzle-orm": "^0.36.4",
     "nanoid": "^5.0.9"

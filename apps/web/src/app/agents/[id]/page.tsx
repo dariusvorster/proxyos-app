@@ -5,6 +5,7 @@ import { use, useState, type CSSProperties, type ReactNode } from 'react'
 import { Badge, Button, Card, DataTable, Dot, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 function AgentRoutesTab({ agentId }: { agentId: string }) {
   const routes = trpc.routes.listByAgent.useQuery({ agentId })
@@ -63,11 +64,14 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const agent = trpc.agents.get.useQuery({ id })
   const health = trpc.agents.getHealth.useQuery({ id })
   const metrics = trpc.agents.getMetrics.useQuery({ id, range: 60 })
+  const [handleError] = useErrorHandler()
   const revokeMut = trpc.agents.revokeToken.useMutation({
     onSuccess: () => { void utils.agents.list.invalidate(); void agent.refetch() },
+    onError: handleError,
   })
   const deleteMut = trpc.agents.delete.useMutation({
     onSuccess: () => window.history.back(),
+    onError: handleError,
   })
   const [tab, setTab] = useState<Tab>('routes')
 

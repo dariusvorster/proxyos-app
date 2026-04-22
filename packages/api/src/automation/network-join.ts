@@ -2,6 +2,9 @@ import http from 'http'
 import { readFile } from 'fs/promises'
 import { eq } from 'drizzle-orm'
 import { getDb, discoveredNetworks, networkSyncEvents, systemSettings } from '@proxyos/db'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 const HOMELAB_EDGE = 'homelab-edge'
 const WELL_KNOWN_NAMES = new Set([HOMELAB_EDGE])
@@ -22,7 +25,9 @@ export interface DockerContainerSummary {
   NetworkSettings: { Networks: Record<string, { IPAddress: string }> }
 }
 
-export function dockerRequest<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
+const DOCKER_TRANSIENT_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ENOTCONN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH'])
+
+function dockerRequestOnce<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const bodyStr = body !== undefined ? JSON.stringify(body) : undefined
     const req = http.request(
@@ -40,7 +45,10 @@ export function dockerRequest<T>(socketPath: string, method: string, path: strin
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString('utf-8')
           if ((res.statusCode ?? 0) >= 400) {
-            reject(new Error(`Docker API ${method} ${path} → HTTP ${res.statusCode}: ${text}`))
+            const err = new Error(`[docker] ${method} ${path} → HTTP ${res.statusCode}: ${text}`) as NodeJS.ErrnoException
+            // 404/403 are permanent — don't mark as transient
+            if (res.statusCode === 404) err.code = 'ENOENT'
+            reject(err)
             return
           }
           if (!text) { resolve(null as T); return }
@@ -48,11 +56,26 @@ export function dockerRequest<T>(socketPath: string, method: string, path: strin
         })
       },
     )
-    req.setTimeout(5000, () => { req.destroy(); reject(new Error('Docker request timed out')) })
-    req.on('error', reject)
+    req.setTimeout(5000, () => { req.destroy(); reject(new Error('[docker] request timed out')) })
+    req.on('error', (err) => reject(new Error(`[docker] ${method} ${path} failed: ${err.message}`)))
     if (bodyStr) req.write(bodyStr)
     req.end()
   })
+}
+
+export async function dockerRequest<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
+  const maxAttempts = 3
+  const delays = [1000, 2000]
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await dockerRequestOnce<T>(socketPath, method, path, body)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? ''
+      const isTransient = DOCKER_TRANSIENT_CODES.has(code) || (err instanceof Error && err.message.includes('timed out'))
+      if (!isTransient || attempt === maxAttempts - 1) throw err
+      await new Promise<void>((r) => setTimeout(r, delays[attempt]))
+    }
+  }
 }
 
 async function getSelfContainerId(socketPath: string): Promise<string> {
@@ -114,10 +137,10 @@ async function ensureHomelabEdge(socketPath: string): Promise<void> {
         'proxyos.managed': 'true',
         'proxyos.purpose': 'shared-edge',
       })
-      console.log(`[discovery] created well-known network ${HOMELAB_EDGE} (${networkId.slice(0, 12)})`)
+      logger.info({ network: HOMELAB_EDGE, id: networkId.slice(0, 12) }, 'created well-known network')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      console.warn(`[discovery] failed to create ${HOMELAB_EDGE}: ${msg}`)
+      logger.warn({ network: HOMELAB_EDGE, err: msg }, 'failed to create well-known network')
       return
     }
   }
@@ -214,26 +237,25 @@ class NetworkDiscoveryService {
 
     try {
       this.selfContainerId = await getSelfContainerId(config.socketPath)
-      console.log(`[discovery] identified self as container ${this.selfContainerId.slice(0, 12)}`)
+      logger.info({ containerId: this.selfContainerId.slice(0, 12) }, 'identified self container')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      console.warn(`[discovery] cannot identify self container: ${msg}`)
-      console.warn('[discovery] auto-network-discovery disabled — mount /var/run/docker.sock to enable')
+      logger.warn({ err: msg }, 'cannot identify self container — auto-network-discovery disabled (mount /var/run/docker.sock to enable)')
       this.running = false
       return
     }
 
     await ensureHomelabEdge(config.socketPath).catch(e =>
-      console.warn(`[discovery] homelab-edge setup failed: ${e instanceof Error ? e.message : e}`),
+      logger.warn({ err: e instanceof Error ? e.message : e }, 'homelab-edge setup failed'),
     )
 
     await this.syncOnce().catch(e =>
-      console.error(`[discovery] initial sync failed: ${e instanceof Error ? e.message : e}`),
+      logger.error({ err: e instanceof Error ? e.message : e }, 'initial sync failed'),
     )
 
     this.timer = setInterval(() => {
       this.syncOnce().catch(e =>
-        console.error(`[discovery] sync failed: ${e instanceof Error ? e.message : e}`),
+        logger.error({ err: e instanceof Error ? e.message : e }, 'sync failed'),
       )
     }, this.intervalMs)
   }
@@ -271,20 +293,21 @@ class NetworkDiscoveryService {
     const toJoin = relevant.filter(n => !currentIds.has(n.Id))
     const toLeave = config.leaveEmpty ? currentlyJoined.filter(n => !desiredIds.has(n.Id)) : []
 
-    console.log(
-      `[discovery] scan: ${allNetworks.length} networks, ${relevant.length} relevant, ${currentlyJoined.length} already joined, ${toJoin.length} to join`,
+    logger.info(
+      { total: allNetworks.length, relevant: relevant.length, joined: currentlyJoined.length, toJoin: toJoin.length },
+      'network scan complete',
     )
 
     for (const net of toJoin) {
       try {
         await dockerRequest(config.socketPath, 'POST', `/networks/${net.Id}/connect`, { Container: this.selfContainerId })
         await recordEvent(net.Id, 'joined', `connected to network ${net.Name}`)
-        console.log(`[discovery] joined network ${net.Name} (${net.Id.slice(0, 12)})`)
+        logger.info({ network: net.Name, id: net.Id.slice(0, 12) }, 'joined network')
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes('already exists') || msg.includes('already attached')) continue
         await recordEvent(net.Id, 'failed', msg).catch(() => {})
-        console.warn(`[discovery] failed to join ${net.Name}: ${msg}`)
+        logger.warn({ network: net.Name, err: msg }, 'failed to join network')
       }
     }
 

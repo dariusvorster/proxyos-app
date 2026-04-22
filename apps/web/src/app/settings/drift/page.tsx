@@ -3,6 +3,7 @@
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const TYPE_LABELS: Record<string, string> = {
   missing_in_db: 'Missing in DB',
@@ -17,8 +18,9 @@ const TYPE_TONE: Record<string, 'red' | 'amber' | 'neutral'> = {
 }
 
 export default function DriftPage() {
+  const [handleError] = useErrorHandler()
   const events = trpc.drift.list.useQuery(undefined, { refetchInterval: 10000 })
-  const reconcileMut = trpc.drift.reconcile.useMutation({ onSuccess: () => events.refetch() })
+  const reconcileMut = trpc.drift.reconcile.useMutation({ onSuccess: () => events.refetch(), onError: handleError })
 
   const unresolved = events.data ?? []
 

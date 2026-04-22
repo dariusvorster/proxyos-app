@@ -5,15 +5,19 @@ import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Input, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 export default function MultiDomainCertsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.observability.listMultiDomainCerts.useQuery()
   const create = trpc.observability.createMultiDomainCert.useMutation({
     onSuccess: () => { utils.observability.listMultiDomainCerts.invalidate(); setShowForm(false); setDomains(''); setRoutes('') },
+    onError: handleError,
   })
   const del = trpc.observability.deleteMultiDomainCert.useMutation({
     onSuccess: () => utils.observability.listMultiDomainCerts.invalidate(),
+    onError: handleError,
   })
 
   const [showForm, setShowForm] = useState(false)

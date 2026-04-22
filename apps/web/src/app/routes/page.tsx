@@ -6,6 +6,7 @@ import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
 import { useSiteSelection } from '~/lib/site-context'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 import type { Route } from '@proxyos/types'
 
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
@@ -13,10 +14,11 @@ type SsoFilter = 'all' | 'on' | 'off'
 type TypeFilter = 'all' | 'proxy'
 
 export default function RoutesPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const { siteId } = useSiteSelection()
   const list = trpc.routes.list.useQuery({ siteId })
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate(), onError: handleError })
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -296,9 +298,10 @@ function ChainNodes({ routeId }: { routeId: string }) {
 }
 
 function RoutePanel({ route }: { route: Route }) {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
-  const update = trpc.routes.update.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate(), onError: handleError })
+  const update = trpc.routes.update.useMutation({ onSuccess: () => utils.routes.list.invalidate(), onError: handleError })
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 1440 }, { refetchInterval: 10_000 })
 
   const [editing, setEditing] = useState(false)

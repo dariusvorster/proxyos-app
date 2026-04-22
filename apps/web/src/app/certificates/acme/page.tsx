@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Input, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 const ACME_URLS: Record<string, string> = {
   letsencrypt: 'https://acme-v02.api.letsencrypt.org/directory',
@@ -19,13 +20,16 @@ const RATE_LIMIT: Record<string, number> = {
 }
 
 export default function AcmeAccountsPage() {
+  const [handleError] = useErrorHandler()
   const utils = trpc.useUtils()
   const list = trpc.observability.listAcmeAccounts.useQuery()
   const create = trpc.observability.createAcmeAccount.useMutation({
     onSuccess: () => { utils.observability.listAcmeAccounts.invalidate(); setShowForm(false); setEmail(''); setCustomUrl('') },
+    onError: handleError,
   })
   const del = trpc.observability.deleteAcmeAccount.useMutation({
     onSuccess: () => utils.observability.listAcmeAccounts.invalidate(),
+    onError: handleError,
   })
 
   const [showForm, setShowForm] = useState(false)
