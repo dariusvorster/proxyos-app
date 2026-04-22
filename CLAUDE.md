@@ -202,6 +202,25 @@ If you add a new flow that pushes routes to Caddy, it MUST set `syncSource` afte
             Locked: packages/caddy/src/verify.ts, Fix 4 entries in migrations.ts
             Policy: sync_source must be set by every route-push flow; classifyDrift
                     must be updated if a new sync_source value is introduced
+
+2026-04-22  Stability Engineering Initiative v0.1.0 (PRs #1–#4, spec: Specs/proxyos-stability-engineering-spec.md)
+            Phase 2: withCaddySync<T>() two-phase commit wraps all route mutations
+            Phase 3: all mutations return route; verifyRoute post-save; optimistic UI rollback; form reset
+            Phase 4: applyDockerDns() wrapper (NOT touching locked config.ts); WAL checkpoint;
+                     federation error clarity; rebuild smoke test
+            Phase 5: property-based tests (fast-check), migration tests, round-trip tests,
+                     tRPC mutation tests, Playwright E2E, CI workflow (.github/workflows/ci.yml)
+            Phase 6: routes.testUpstream probe (7 error categories); server-side pagination
+                     (routes.list limit/offset + routes.count); Caddy retry exponential backoff;
+                     removed dormant trustUpstreamHeaders UI toggle; browser compat doc
+            New files (NOT locked): packages/caddy/src/apply-docker-dns.ts,
+                     packages/caddy/src/__tests__/property.test.ts,
+                     packages/caddy/src/__tests__/round-trip.test.ts,
+                     packages/db/src/__tests__/migrations.test.ts,
+                     packages/api/src/__tests__/routes.test.ts,
+                     apps/web/tests/e2e/routes.spec.ts,
+                     .github/workflows/ci.yml,
+                     scripts/rebuild-smoke-test.sh
 ```
 
 When you update this file (with user approval), append a version row.
