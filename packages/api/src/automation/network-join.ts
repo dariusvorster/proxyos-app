@@ -65,20 +65,17 @@ function dockerRequestOnce<T>(socketPath: string, method: string, path: string, 
 
 export async function dockerRequest<T>(socketPath: string, method: string, path: string, body?: unknown): Promise<T> {
   const maxAttempts = 3
-  const delays = [1000, 2000, 4000]
-  let lastErr: unknown
+  const delays = [1000, 2000]
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await dockerRequestOnce<T>(socketPath, method, path, body)
     } catch (err) {
-      lastErr = err
       const code = (err as NodeJS.ErrnoException).code ?? ''
       const isTransient = DOCKER_TRANSIENT_CODES.has(code) || (err instanceof Error && err.message.includes('timed out'))
       if (!isTransient || attempt === maxAttempts - 1) throw err
       await new Promise<void>((r) => setTimeout(r, delays[attempt]))
     }
   }
-  throw lastErr
 }
 
 async function getSelfContainerId(socketPath: string): Promise<string> {

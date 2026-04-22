@@ -85,8 +85,9 @@ export const ddnsRouter = router({
       try {
         ip = await detectPublicIp()
       } catch (err) {
-        await ctx.db.update(ddnsRecords).set({ lastError: (err as Error).message }).where(eq(ddnsRecords.id, input.id))
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `IP detection failed: ${(err as Error).message}` })
+        const errMsg = err instanceof Error ? err.message : String(err)
+        await ctx.db.update(ddnsRecords).set({ lastError: errMsg }).where(eq(ddnsRecords.id, input.id))
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `IP detection failed: ${errMsg}` })
       }
 
       if (ip === row.lastIp) {
@@ -160,14 +161,20 @@ async function updateCloudflare(
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body,
     })
-    if (!r.ok) return `Cloudflare update failed: ${r.status}`
+    if (!r.ok) {
+      const cfBody = await r.text().catch(() => '')
+      return `Cloudflare update failed: ${r.status} ${cfBody}`
+    }
   } else {
     const r = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body,
     })
-    if (!r.ok) return `Cloudflare create failed: ${r.status}`
+    if (!r.ok) {
+      const cfBody = await r.text().catch(() => '')
+      return `Cloudflare create failed: ${r.status} ${cfBody}`
+    }
   }
 
   return null
