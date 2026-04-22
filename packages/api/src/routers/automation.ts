@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { composeWatchers, nanoid } from '@proxyos/db'
@@ -49,7 +50,7 @@ export const automationRouter = router({
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(composeWatchers).where(eq(composeWatchers.id, input.id)).get()
-      if (!row) throw new Error('Watcher not found')
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Compose watcher with ID '${input.id}' not found` })
       await ctx.db.update(composeWatchers).set({ enabled: input.enabled }).where(eq(composeWatchers.id, input.id))
       if (input.enabled) {
         startWatcher(input.id, {

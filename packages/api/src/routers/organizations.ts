@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { eq, and, isNull } from 'drizzle-orm'
 import { router, protectedProcedure, adminProcedure } from '../trpc'
@@ -20,7 +21,7 @@ export const organizationsRouter = router({
         .select()
         .from(organizations)
         .where(eq(organizations.id, input.id))
-      if (!org) throw new Error('Organization not found')
+      if (!org) throw new TRPCError({ code: 'NOT_FOUND', message: `Organization with ID '${input.id}' not found` })
       return org
     }),
 

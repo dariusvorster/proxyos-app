@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { lockboxRefs, nanoid, patchosVersions, routes, systemSettings } from '@proxyos/db'
@@ -137,10 +138,10 @@ export const integrationsRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const ref = await ctx.db.select().from(lockboxRefs).where(eq(lockboxRefs.id, input.id)).get()
-      if (!ref) throw new Error('Ref not found')
+      if (!ref) throw new TRPCError({ code: 'NOT_FOUND', message: `LockBox ref with ID '${input.id}' not found` })
       const cfgRow = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'lockboxos_config')).get()
       const cfg = parseLockBoxConfig(cfgRow?.value)
-      if (!cfg) throw new Error('LockBoxOS not configured')
+      if (!cfg) throw new TRPCError({ code: 'BAD_REQUEST', message: 'LockBoxOS is not configured — set baseUrl and token first' })
       const result = await fetchFromLockBox(cfg, { vaultId: ref.vaultId, secretPath: ref.secretPath })
       return { reachable: result.ok, hasValue: result.ok && result.value.length > 0 }
     }),

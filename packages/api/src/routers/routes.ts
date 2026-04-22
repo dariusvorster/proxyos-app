@@ -307,7 +307,7 @@ export const routesRouter = router({
       if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
         throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
       }
-      throw err
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `[db] Failed to insert route: ${(err as Error).message}` })
     }
 
     if (!input.siteId) {
@@ -460,7 +460,7 @@ export const routesRouter = router({
       if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
         throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
       }
-      throw err
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `[db] Failed to insert route: ${(err as Error).message}` })
     }
 
     if (!input.siteId) {
@@ -530,7 +530,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       return rowToRoute(row)
     }),
 
@@ -579,7 +579,7 @@ export const routesRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
       const updateOpId = await startOperation(ctx.db, 'route.update', row.domain)
@@ -934,7 +934,7 @@ export const routesRouter = router({
         if (err instanceof Error && err.message.includes('UNIQUE constraint failed')) {
           throw new TRPCError({ code: 'CONFLICT', message: `A route with domain '${input.domain}' already exists` })
         }
-        throw err
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `[db] Failed to insert local route: ${(err as Error).message}` })
       }
 
       const row = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()

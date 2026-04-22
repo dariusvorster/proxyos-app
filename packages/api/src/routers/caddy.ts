@@ -35,7 +35,7 @@ export const caddyRouter = router({
     }
     try {
       const res = await fetch(`${process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'}/pki/ca/local`)
-      if (!res.ok) throw new Error(String(res.status))
+      if (!res.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `[caddy] PKI CA endpoint returned HTTP ${res.status}` })
       const data = await res.json() as { id?: string; name?: string; root_certificate?: string; intermediate_certificate?: string }
       return data
     } catch (err) {

@@ -5,6 +5,10 @@ import { ddnsRecords, dnsProviders, nanoid } from '@proxyos/db'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 import type { Result } from '@proxyos/types'
 
+function toCaddyFetchError(err: Error): never {
+  throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `[cloudflare] Failed to reach API: ${err.message}` })
+}
+
 async function detectPublicIp(): Promise<Result<string, Error>> {
   try {
     const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
@@ -61,7 +65,7 @@ export const ddnsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(ddnsRecords).where(eq(ddnsRecords.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `DDNS record with ID '${input.id}' not found` })
       const update: Record<string, unknown> = {}
       const p = input.patch
       if (p.zone !== undefined) update.zone = p.zone
@@ -84,7 +88,7 @@ export const ddnsRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(ddnsRecords).where(eq(ddnsRecords.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `DDNS record with ID '${input.id}' not found` })
 
       const ipResult = await detectPublicIp()
       if (!ipResult.ok) {
@@ -137,7 +141,7 @@ async function updateCloudflare(
   // List zone IDs
   const zonesRes = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  }).catch(toCaddyFetchError)
   if (!zonesRes.ok) return { ok: false, error: new Error(`Cloudflare zones API returned ${zonesRes.status}`) }
   const zonesData = await zonesRes.json() as { result?: Array<{ id: string }> }
   const zoneId = zonesData.result?.[0]?.id
@@ -146,7 +150,7 @@ async function updateCloudflare(
   // List existing records
   const recordsRes = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${type}&name=${name}.${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
-  }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
+  }).catch(toCaddyFetchError)
   if (!recordsRes.ok) return { ok: false, error: new Error(`Cloudflare DNS records API returned ${recordsRes.status}`) }
   const recordsData = await recordsRes.json() as { result?: Array<{ id: string }> }
   const existingId = recordsData.result?.[0]?.id
