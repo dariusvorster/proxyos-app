@@ -11,7 +11,7 @@ function getTRPCErrorMessage(err: unknown): string {
       return serverMessage
     }
     switch (trpcErr.data?.code) {
-      case 'UNAUTHORIZED': return 'You must be logged in to do this'
+      case 'UNAUTHORIZED': return 'You must be logged in to do this. If you believe you are logged in, try logging out and back in.'
       case 'FORBIDDEN': return 'You do not have permission to do this'
       case 'NOT_FOUND': return 'The requested resource was not found'
       case 'CONFLICT': return 'This resource already exists'
