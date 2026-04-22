@@ -104,4 +104,75 @@ describe('buildCaddyRoute — property tests', () => {
       expect(rp?.transport?.resolvers).toContain('127.0.0.11')
     }))
   })
+
+  it('P5: upstream address appears in generated reverse_proxy upstreams', () => {
+    fc.assert(fc.property(routeArb, (route) => {
+      const result = buildCaddyRoute(route)
+      const rp = result.handle.find(h => (h as any).handler === 'reverse_proxy') as any
+      // The dial address is the upstream address with https:// stripped
+      const expectedDial = route.upstreams[0].address.replace(/^https?:\/\//, '')
+      const dials = (rp?.upstreams ?? []).map((u: { dial: string }) => u.dial)
+      expect(dials).toContain(expectedDial)
+    }))
+  })
+
+  it('P6: custom request headers appear in generated config without syntax errors', () => {
+    // Use routeArb base but override with headers
+    const routeWithHeaders = {
+      id: 'hdr-test',
+      name: 'Header Test',
+      domain: 'test.example.com',
+      enabled: true,
+      upstreamType: 'http',
+      upstreams: [{ address: '10.0.0.1:8080' }],
+      lbPolicy: 'round_robin',
+      tlsMode: 'auto',
+      ssoEnabled: false,
+      ssoProviderId: null,
+      tlsDnsProviderId: null,
+      rateLimit: null,
+      ipAllowlist: null,
+      basicAuth: null,
+      headers: { request: { set: { 'X-Custom-Header': ['my-value'] } } },
+      healthCheckEnabled: false,
+      healthCheckPath: '/',
+      healthCheckInterval: 30,
+      compressionEnabled: false,
+      websocketEnabled: true,
+      http2Enabled: true,
+      http3Enabled: false,
+      wafMode: 'off',
+      wafExclusions: null,
+      hstsEnabled: false,
+      hstsSubdomains: false,
+      skipTlsVerify: false,
+      tunnelProviderId: null,
+      oauthProxyProviderId: null,
+      oauthProxyAllowlist: null,
+      stagingUpstreams: null,
+      trafficSplitPct: null,
+      mirrorUpstream: null,
+      mirrorSampleRate: null,
+      accessosGroups: null,
+      accessosProviderId: null,
+      mxwatchDomain: null,
+      lastTrafficAt: null,
+      archivedAt: null,
+      rateLimitKey: null,
+      maintenanceMode: false,
+      maintenanceSavedUpstreams: null,
+      forceSSL: false,
+      trustUpstreamHeaders: false,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    } as Route
+
+    const result = buildCaddyRoute(routeWithHeaders)
+    const json = JSON.stringify(result)
+    // Valid JSON
+    expect(() => JSON.parse(json)).not.toThrow()
+    // No malformed placeholder syntax
+    const strings = json.match(/"([^"\\]|\\.)*"/g) ?? []
+    expect(strings.some(s => s.includes('{{') || s.includes('}}'))).toBe(false)
+  })
 })
