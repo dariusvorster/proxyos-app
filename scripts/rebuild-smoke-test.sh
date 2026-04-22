@@ -57,6 +57,10 @@ docker run -d \
 sleep 2
 
 UPSTREAM_IP_BEFORE=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$UPSTREAM_NAME")
+if [ -z "$UPSTREAM_IP_BEFORE" ]; then
+  fail "Could not determine upstream IP before rebuild — docker inspect returned empty"
+  exit 1
+fi
 echo "[info] Upstream IP before rebuild: $UPSTREAM_IP_BEFORE"
 
 if curl -sf --max-time "$CURL_TIMEOUT" "http://localhost:${TEST_UPSTREAM_PORT}/" >/dev/null 2>&1; then
@@ -159,8 +163,8 @@ fi
 # Step 6: Recreate the upstream container
 # ---------------------------------------------------------------------------
 step "6 — Recreate upstream container"
-docker stop "$UPSTREAM_NAME"
-docker rm   "$UPSTREAM_NAME"
+docker stop "$UPSTREAM_NAME" || true
+docker rm   "$UPSTREAM_NAME" || true
 
 docker run -d \
   --name "$UPSTREAM_NAME" \
@@ -171,6 +175,10 @@ docker run -d \
 sleep 2
 
 UPSTREAM_IP_AFTER=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$UPSTREAM_NAME")
+if [ -z "$UPSTREAM_IP_AFTER" ]; then
+  fail "Could not determine upstream IP after rebuild — docker inspect returned empty"
+  exit 1
+fi
 echo "[info] Upstream IP after rebuild: $UPSTREAM_IP_AFTER"
 
 if [ "$UPSTREAM_IP_BEFORE" != "$UPSTREAM_IP_AFTER" ]; then
