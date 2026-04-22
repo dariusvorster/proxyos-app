@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+:root {
+  --bg: #0A0A0A;
+  --bg2: #0F0F0F;
+  --surf: #141414;
+  --surf2: #1A1A1A;
+  --border: #242424;
+  --border2: #2E2E2E;
+  --fg: #EDEDED;
+  --fg-mute: #9A9A9A;
+  --fg-dim: #6B6B6B;
+  --fg-faint: #444444;
+  --accent: #7C6FF0;
+  --accent-fg: #FFFFFF;
+  --accent-dim: rgba(124, 111, 240, 0.12);
+  --accent-ring: rgba(124, 111, 240, 0.28);
+  --accent-deep: #534AB7;
+  --accent-light: #9D8FFF;
+  --mark-bg: #0D0D1A;
+  --ok: #00C896;
+  --ok-dim: rgba(0, 200, 150, 0.12);
+  --warn: #F5A623;
+  --warn-dim: rgba(245, 166, 35, 0.12);
+  --err: #E5484D;
+  --err-dim: rgba(229, 72, 77, 0.12);
+  --info: #4A9EFF;
+  --info-dim: rgba(74, 158, 255, 0.12);
+  --radius: 8px;
+}
+
+.light {
+  --bg: #FFFFFF;
+  --bg2: #F5F5F5;
+  --surf: #EFEFEF;
+  --surf2: #E5E5E5;
+  --border: #D9D9D9;
+  --border2: #C8C8C8;
+  --fg: #111111;
+  --fg-mute: #555555;
+  --fg-dim: #888888;
+  --fg-faint: #BBBBBB;
+  --accent: #6058D9;
+  --accent-dim: rgba(96, 88, 217, 0.10);
+  --accent-ring: rgba(96, 88, 217, 0.25);
+  --accent-deep: #4B43B8;
+  --accent-light: #7C75E8;
+  --mark-bg: #F0EFFE;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+code, pre {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+pre {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--fg-mute);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes sparkline-draw {
+  from { stroke-dashoffset: 300; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.18s ease-out forwards;
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}

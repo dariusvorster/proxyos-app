@@ -1,0 +1,13 @@
+<svg width="180" height="40" viewBox="0 0 180 40" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0, 8)">
+    <rect width="24" height="24" rx="8" fill="#0D0D1A"/>
+    <rect x="3"  y="3"  width="8" height="8" rx="1" fill="#7C6FF0"/>
+    <rect x="13" y="3"  width="8" height="8" rx="1" fill="#534AB7"/>
+    <rect x="3"  y="13" width="8" height="8" rx="1" fill="#534AB7"/>
+    <rect x="13" y="13" width="8" height="8" rx="1" fill="#9D8FFF"/>
+    <rect x="9"  y="9"  width="6" height="6" rx="1" fill="#F0EFFE"/>
+  </g>
+  <text x="36" y="26" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="500" letter-spacing="-0.16">
+    <tspan fill="#EDEDED">Proxy</tspan><tspan fill="#7C6FF0">OS</tspan>
+  </text>
+</svg>
