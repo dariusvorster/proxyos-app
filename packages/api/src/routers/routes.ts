@@ -371,7 +371,7 @@ export const routesRouter = router({
       await addStep(ctx.db, opId, { message: 'Caddy admin API not reachable', status: 'error' })
       await completeOperation(ctx.db, opId, 'error', 'Caddy admin API not reachable', opStart)
       throw new TRPCError({
-        code: 'SERVICE_UNAVAILABLE',
+        code: 'PRECONDITION_FAILED',
         message: 'Caddy admin API is not reachable. Start Caddy before exposing a service.',
       })
     }
@@ -673,7 +673,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
       await ctx.db.update(routes).set({ enabled: input.enabled, updatedAt: new Date() }).where(eq(routes.id, input.id))
@@ -699,7 +699,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const upstreams = JSON.parse(row.upstreams) as Array<{ address: string }>
       const results: Array<{ address: string; ok: boolean; status?: number; latencyMs: number; error?: string }> = []
       for (const u of upstreams) {
@@ -723,7 +723,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
       const deleteOpId = await startOperation(ctx.db, 'route.delete', row.domain)
@@ -760,7 +760,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
@@ -785,7 +785,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       const _role = await resolveEffectiveRole(ctx.session.userId, { siteId: (row as Record<string, unknown>).siteId as string | undefined })
       if (!canMutate(_role)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Insufficient permissions' })
 
@@ -868,7 +868,7 @@ export const routesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found` })
       await syncRouteToCaddy(ctx, rowToRoute(row), 'drift-repair')
       return { ok: true }
     }),
