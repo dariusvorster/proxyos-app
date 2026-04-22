@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, useEffect, useRef, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -327,6 +327,21 @@ function RoutePanel({ route }: { route: Route }) {
   const [panelUpdateError, setPanelUpdateError] = useState<string | null>(null)
   const [saveMsg, setSaveMsg] = useState<{ text: string; tone: 'green' | 'amber' | 'neutral' } | null>(null)
   const [handleError] = useErrorHandler()
+  const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const scheduleTimeout = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms)
+    timerIds.current.push(id)
+    return id
+  }
+
+  useEffect(() => {
+    return () => { timerIds.current.forEach(clearTimeout) }
+  }, [])
+
+  useEffect(() => {
+    setSaveMsg(null)
+  }, [route.id])
 
   const del = trpc.routes.delete.useMutation({
     onMutate: async (input) => {
@@ -350,7 +365,7 @@ function RoutePanel({ route }: { route: Route }) {
   const forceResync = trpc.routes.forceResync.useMutation({
     onSuccess: () => {
       setSaveMsg({ text: 'Repush initiated — verifying…', tone: 'neutral' })
-      setTimeout(() => { utils.routes.list.invalidate(); setSaveMsg(null) }, 2000)
+      scheduleTimeout(() => { utils.routes.list.invalidate(); setSaveMsg(null) }, 2000)
     },
   })
 
@@ -453,14 +468,14 @@ function RoutePanel({ route }: { route: Route }) {
         setEditing(false)
         // Show sync status — verify fires async, refetch after delay to pick up result
         setSaveMsg({ text: 'Saved — verifying…', tone: 'neutral' })
-        setTimeout(() => {
-          utils.routes.list.invalidate().then(() => {
+        scheduleTimeout(() => {
+          utils.routes.list.refetch().then(() => {
             const updated = utils.routes.list.getData()?.find((r) => r.id === data.id)
             if (updated?.syncStatus === 'drift') {
               setSaveMsg({ text: 'Drift detected — config may not have applied', tone: 'amber' })
             } else if (updated?.syncStatus === 'synced') {
               setSaveMsg({ text: 'Saved', tone: 'green' })
-              setTimeout(() => setSaveMsg(null), 3000)
+              scheduleTimeout(() => setSaveMsg(null), 3000)
             } else {
               setSaveMsg(null)
             }
@@ -551,11 +566,14 @@ function RoutePanel({ route }: { route: Route }) {
         {saveMsg && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: saveMsg.tone === 'green' ? 'var(--green)' : saveMsg.tone === 'amber' ? 'var(--amber)' : 'var(--text-secondary)' }}>
             <Dot tone={saveMsg.tone} />
-            <span>{saveMsg.text}</span>
+            <span style={{ flex: 1 }}>{saveMsg.text}</span>
             {saveMsg.tone === 'amber' && (
               <Button size="sm" variant="ghost" onClick={() => forceResync.mutate({ id: route.id })} disabled={forceResync.isPending}>
                 {forceResync.isPending ? 'Repairing…' : 'Repair'}
               </Button>
+            )}
+            {saveMsg.tone !== 'neutral' && (
+              <button onClick={() => setSaveMsg(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>✕</button>
             )}
           </div>
         )}
