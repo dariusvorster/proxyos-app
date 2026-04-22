@@ -98,6 +98,11 @@ export const routes = sqliteTable('routes', {
   syncDiff: text('sync_diff'),
   syncCheckedAt: integer('sync_checked_at', { mode: 'timestamp' }),
   syncSource: text('sync_source'),
+
+  // Tunnel exposure (spec: proxyos-tunnel-exposure-spec.md §9.3)
+  exposureMode: text('exposure_mode').notNull().default('direct'),
+  tunnelRouteId: text('tunnel_route_id'),
+  tunnelPublicUrl: text('tunnel_public_url'),
 })
 
 export const auditLog = sqliteTable('audit_log', {
@@ -844,7 +849,47 @@ export const tunnelProviders = sqliteTable('tunnel_providers', {
   status: text('status').notNull().default('disconnected'), // 'connected' | 'disconnected' | 'error'
   lastTestedAt: integer('last_tested_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  // Process tracking
+  processPid: integer('process_pid'),
+  processStatus: text('process_status'), // 'starting'|'running'|'crashed'|'stopped'|'degraded'
+  processStartedAt: integer('process_started_at', { mode: 'timestamp' }),
+  processRestartCount: integer('process_restart_count').notNull().default(0),
+  lastHealthCheckAt: integer('last_health_check_at', { mode: 'timestamp' }),
+  lastHealthStatus: text('last_health_status'),
+  lastHealthError: text('last_health_error'),
+  stateJson: text('state_json'), // provider runtime state (tunnelId, tsNodeId, etc.)
 })
+
+// §9.2 Tunnel routes — per-route tunnel provisioning state
+export const tunnelRoutes = sqliteTable('tunnel_routes', {
+  id: text('id').primaryKey(),
+  routeId: text('route_id').notNull().references(() => routes.id, { onDelete: 'cascade' }),
+  tunnelProviderId: text('tunnel_provider_id').notNull().references(() => tunnelProviders.id, { onDelete: 'cascade' }),
+  providerRouteRef: text('provider_route_ref').notNull(), // identifier at provider side
+  publicUrl: text('public_url').notNull(),
+  internalListenPort: integer('internal_listen_port').notNull(),
+  status: text('status').notNull().default('provisioning'), // 'provisioning'|'active'|'degraded'|'failed'|'removing'
+  provisionedAt: integer('provisioned_at', { mode: 'timestamp' }),
+  lastError: text('last_error'),
+  metaJson: text('meta_json'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+// §9.4 Tunnel events — audit + troubleshooting
+export const tunnelEvents = sqliteTable('tunnel_events', {
+  id: text('id').primaryKey(),
+  tunnelProviderId: text('tunnel_provider_id').references(() => tunnelProviders.id, { onDelete: 'cascade' }),
+  routeId: text('route_id').references(() => routes.id, { onDelete: 'set null' }),
+  eventType: text('event_type').notNull(), // 'process_start'|'process_crash'|'route_added'|'route_removed'|etc.
+  severity: text('severity').notNull().default('info'), // 'info'|'warn'|'error'|'critical'
+  message: text('message').notNull(),
+  detailsJson: text('details_json'),
+  occurredAt: integer('occurred_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type TunnelRouteRow = typeof tunnelRoutes.$inferSelect
+export type TunnelEventRow = typeof tunnelEvents.$inferSelect
 
 // §3.10 WAF events
 export const wafEvents = sqliteTable('waf_events', {

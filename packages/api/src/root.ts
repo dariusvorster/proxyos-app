@@ -42,7 +42,7 @@ import { accessLogSearchRouter } from './routers/accessLogSearch'
 import { tagsRouter } from './routers/tags'
 import { discoveryRouter } from './routers/discovery'
 import { ddnsRouter } from './routers/ddns'
-import { tunnelProvidersRouter } from './routers/tunnelProviders'
+import { tunnelsRouter } from './routers/tunnels'
 import { oauthProvidersRouter } from './routers/oauthProviders'
 import { wafRouter } from './routers/waf'
 import { secretsProvidersRouter } from './routers/secretsProviders'
@@ -110,7 +110,7 @@ export const appRouter = router({
   tags: tagsRouter,
   discovery: discoveryRouter,
   ddns: ddnsRouter,
-  tunnelProviders: tunnelProvidersRouter,
+  tunnels: tunnelsRouter,
   oauthProviders: oauthProvidersRouter,
   waf: wafRouter,
   secretsProviders: secretsProvidersRouter,

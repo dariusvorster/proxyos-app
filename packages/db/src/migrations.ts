@@ -1078,4 +1078,43 @@ export function ensureSchema(db: Database.Database): void {
   try { db.exec(`ALTER TABLE federation_nodes ADD COLUMN config_version_desired INTEGER DEFAULT 0`) } catch { /* already exists */ }
   // All routes are standalone-local — reset any 'central' origin to 'local'
   db.exec(`UPDATE routes SET origin = 'local' WHERE origin = 'central'`)
+  // Tunnel exposure spec (proxyos-tunnel-exposure-spec.md §9)
+  db.exec(`CREATE TABLE IF NOT EXISTS tunnel_routes (
+    id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    tunnel_provider_id TEXT NOT NULL REFERENCES tunnel_providers(id) ON DELETE CASCADE,
+    provider_route_ref TEXT NOT NULL,
+    public_url TEXT NOT NULL,
+    internal_listen_port INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'provisioning',
+    provisioned_at INTEGER,
+    last_error TEXT,
+    meta_json TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_routes_provider ON tunnel_routes(tunnel_provider_id)`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_routes_route ON tunnel_routes(route_id)`)
+  db.exec(`CREATE TABLE IF NOT EXISTS tunnel_events (
+    id TEXT PRIMARY KEY,
+    tunnel_provider_id TEXT REFERENCES tunnel_providers(id) ON DELETE CASCADE,
+    route_id TEXT REFERENCES routes(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'info',
+    message TEXT NOT NULL,
+    details_json TEXT,
+    occurred_at INTEGER NOT NULL
+  )`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_events_provider ON tunnel_events(tunnel_provider_id, occurred_at)`)
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN process_pid INTEGER`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN process_status TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN process_started_at INTEGER`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN process_restart_count INTEGER NOT NULL DEFAULT 0`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN last_health_check_at INTEGER`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN last_health_status TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN last_health_error TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE tunnel_providers ADD COLUMN state_json TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN exposure_mode TEXT NOT NULL DEFAULT 'direct'`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN tunnel_route_id TEXT`) } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE routes ADD COLUMN tunnel_public_url TEXT`) } catch { /* already exists */ }
 }

@@ -177,6 +177,10 @@ export interface Route extends RouteInput {
   syncDiff?: string | null
   syncCheckedAt?: Date | null
   syncSource?: string | null
+  // Tunnel exposure (spec: proxyos-tunnel-exposure-spec.md §9.3)
+  exposureMode?: 'direct' | 'tunnel'
+  tunnelRouteId?: string | null
+  tunnelPublicUrl?: string | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'

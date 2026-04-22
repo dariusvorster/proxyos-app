@@ -11,6 +11,7 @@ import type { Route } from '@proxyos/types'
 type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SsoFilter = 'all' | 'on' | 'off'
 type TypeFilter = 'all' | 'proxy'
+type ExposureFilter = 'all' | 'direct' | 'tunnel'
 
 export default function RoutesPage() {
   const utils = trpc.useUtils()
@@ -22,6 +23,7 @@ export default function RoutesPage() {
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
   const [ssoFilter, setSsoFilter] = useState<SsoFilter>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [exposureFilter, setExposureFilter] = useState<ExposureFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [panelId, setPanelId] = useState<string | null>(null)
 
@@ -31,9 +33,11 @@ export default function RoutesPage() {
       if (tlsFilter !== 'all' && r.tlsMode !== tlsFilter) return false
       if (ssoFilter === 'on' && !r.ssoEnabled) return false
       if (ssoFilter === 'off' && r.ssoEnabled) return false
+      if (exposureFilter === 'tunnel' && r.exposureMode !== 'tunnel') return false
+      if (exposureFilter === 'direct' && r.exposureMode === 'tunnel') return false
       return true
     })
-  }, [list.data, search, tlsFilter, ssoFilter])
+  }, [list.data, search, tlsFilter, ssoFilter, exposureFilter])
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -89,6 +93,11 @@ export default function RoutesPage() {
               <option value="all">All SSO</option>
               <option value="on">SSO on</option>
               <option value="off">SSO off</option>
+            </Select>
+            <Select value={exposureFilter} onChange={(e) => setExposureFilter(e.target.value as ExposureFilter)}>
+              <option value="all">All exposure</option>
+              <option value="direct">Direct</option>
+              <option value="tunnel">Tunnel</option>
             </Select>
             <Input placeholder="Search domain…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 240 }} />
             <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{filtered.length} / {list.data?.length ?? 0} routes</span>
@@ -181,7 +190,14 @@ function syncDot(status: string | null | undefined): { tone: 'green' | 'red' | '
   }
 }
 
-function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string; syncStatus?: string | null }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
+function tunnelBadge(exposureMode?: string, publicUrl?: string | null): { label: string; tone: 'purple' | 'blue' | 'green' } | null {
+  if (exposureMode !== 'tunnel' || !publicUrl) return null
+  if (publicUrl.includes('.ts.net')) return { label: 'TS', tone: 'blue' }
+  if (publicUrl.includes('ngrok')) return { label: 'ngrok', tone: 'green' }
+  return { label: 'CF', tone: 'purple' }
+}
+
+function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string; syncStatus?: string | null; exposureMode?: string; tunnelPublicUrl?: string | null }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 60 }, { refetchInterval: 30_000 })
   const last = summary.data?.buckets.slice(-1)[0]
   return (
@@ -192,6 +208,7 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
       <td style={td} role="button">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{route.domain}</span>
+          {(() => { const b = tunnelBadge(route.exposureMode, route.tunnelPublicUrl); return b ? <Badge tone={b.tone}>{b.label}</Badge> : null })()}
           <a
             href={`${route.tlsMode === 'off' ? 'http' : 'https'}://${route.domain}`}
             target="_blank"
@@ -292,6 +309,64 @@ function ChainNodes({ routeId }: { routeId: string }) {
         )
       })}
     </div>
+  )
+}
+
+function TunnelExposureSection({ route }: { route: Route }) {
+  const utils = trpc.useUtils()
+  const providers = trpc.tunnels.providers.list.useQuery()
+  const enableMut = trpc.tunnels.routes.enable.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const disableMut = trpc.tunnels.routes.disable.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [selectedProvider, setSelectedProvider] = useState<string>('')
+
+  const isTunnel = route.exposureMode === 'tunnel'
+
+  return (
+    <Section title="Tunnel exposure">
+      {isTunnel ? (
+        <>
+          <Row k="Mode" v={<Badge tone="purple">tunnel</Badge>} />
+          {route.tunnelPublicUrl && (
+            <Row k="Public URL" v={
+              <a href={route.tunnelPublicUrl} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 11, color: 'var(--purple)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                {route.tunnelPublicUrl}
+              </a>
+            } />
+          )}
+          <div style={{ marginTop: 6 }}>
+            <Button size="sm" variant="danger" onClick={() => { if (confirm('Disable tunnel exposure?')) disableMut.mutate({ routeId: route.id }) }} disabled={disableMut.isPending}>
+              {disableMut.isPending ? 'Disabling…' : 'Disable tunnel'}
+            </Button>
+          </div>
+          {disableMut.isError && <div style={{ fontSize: 11, color: 'var(--red)' }}>{disableMut.error.message}</div>}
+        </>
+      ) : (
+        <>
+          <Row k="Mode" v={<Badge tone="neutral">direct</Badge>} />
+          {providers.data && providers.data.length > 0 ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+              <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)}
+                style={{ flex: 1, padding: '5px 8px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', fontSize: 11 }}>
+                <option value="">Choose provider…</option>
+                {providers.data.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                ))}
+              </select>
+              <Button size="sm" variant="primary" disabled={!selectedProvider || enableMut.isPending}
+                onClick={() => enableMut.mutate({ routeId: route.id, providerId: selectedProvider })}>
+                {enableMut.isPending ? 'Enabling…' : 'Enable'}
+              </Button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+              No tunnel providers configured. Add one in Settings → Tunnels.
+            </div>
+          )}
+          {enableMut.isError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{enableMut.error.message}</div>}
+        </>
+      )}
+    </Section>
   )
 }
 
@@ -482,6 +557,7 @@ function RoutePanel({ route }: { route: Route }) {
           {summary.data?.requests ?? 0} req · {summary.data?.status5xx ?? 0} errors · avg {summary.data?.avgLatencyMs ?? 0}ms
         </div>
       </Section>
+      <TunnelExposureSection route={route} />
       <Section title="Actions">
         {route.origin === 'central' && (
           <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>managed by central — read-only</div>
