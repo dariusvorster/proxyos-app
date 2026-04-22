@@ -314,7 +314,6 @@ function RoutePanel({ route }: { route: Route }) {
   const [forceSSL, setForceSSL] = useState(!!route.forceSSL)
   const [hstsEnabled, setHstsEnabled] = useState(!!route.hstsEnabled)
   const [hstsSubdomains, setHstsSubdomains] = useState(!!route.hstsSubdomains)
-  const [trustHeaders, setTrustHeaders] = useState(!!route.trustUpstreamHeaders)
   const [skipTlsVerify, setSkipTlsVerify] = useState(!!route.skipTlsVerify)
 
   function startEdit() {
@@ -330,7 +329,6 @@ function RoutePanel({ route }: { route: Route }) {
     setForceSSL(!!route.forceSSL)
     setHstsEnabled(!!route.hstsEnabled)
     setHstsSubdomains(!!route.hstsSubdomains)
-    setTrustHeaders(!!route.trustUpstreamHeaders)
     setSkipTlsVerify(!!route.skipTlsVerify)
     setEditing(true)
   }
@@ -351,7 +349,6 @@ function RoutePanel({ route }: { route: Route }) {
         forceSSL,
         hstsEnabled,
         hstsSubdomains,
-        trustUpstreamHeaders: trustHeaders,
         skipTlsVerify,
       },
     }, { onSuccess: () => setEditing(false) })
@@ -427,7 +424,6 @@ function RoutePanel({ route }: { route: Route }) {
           <Row k="Force SSL" v={<Toggle checked={forceSSL} onChange={setForceSSL} />} />
           <Row k="HSTS" v={<Toggle checked={hstsEnabled} onChange={setHstsEnabled} />} />
           <Row k="HSTS Subdomains" v={<Toggle checked={hstsSubdomains} onChange={(v) => { setHstsSubdomains(v); if (v) setHstsEnabled(true) }} />} />
-          <Row k="Trust Upstream Headers" v={<Toggle checked={trustHeaders} onChange={setTrustHeaders} />} />
           <Row k="Skip Upstream TLS Verify" v={<Toggle checked={skipTlsVerify} onChange={setSkipTlsVerify} />} />
         </Section>
 
@@ -469,7 +465,6 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="Force SSL" v={<Toggle checked={!!route.forceSSL} onChange={() => {}} disabled />} />
         <Row k="HSTS" v={<Toggle checked={!!route.hstsEnabled} onChange={() => {}} disabled />} />
         <Row k="HSTS Subdomains" v={<Toggle checked={!!route.hstsSubdomains} onChange={() => {}} disabled />} />
-        <Row k="Trust Upstream Headers" v={<Toggle checked={!!route.trustUpstreamHeaders} onChange={() => {}} disabled />} />
         <Row k="Skip Upstream TLS Verify" v={<Toggle checked={!!route.skipTlsVerify} onChange={() => {}} disabled />} />
       </Section>
       <SecuritySection routeId={route.id} />
