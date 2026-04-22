@@ -8,7 +8,7 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'system' | 'access' | 'alerts' | 'caddy'
+type Tab = 'system' | 'access' | 'alerts' | 'caddy' | 'pino'
 type Level = 'info' | 'warn' | 'error'
 type Category = 'auth' | 'caddy' | 'system' | 'api' | 'user'
 
@@ -528,6 +528,113 @@ function CaddyLogsTab() {
   )
 }
 
+// ─── Pino logs tab ────────────────────────────────────────────────────────────
+
+const PINO_LEVEL_TONE: Record<string, BadgeTone> = { info: 'blue', warn: 'amber', error: 'red' }
+const PINO_LEVEL_DOT: Record<string, string> = { info: 'var(--blue)', warn: 'var(--amber)', error: 'var(--red)' }
+const KNOWN_SUBSYSTEMS = ['caddy', 'api', 'auth', 'system', 'db']
+
+function PinoLogsTab() {
+  const [subsystem, setSubsystem] = useState('')
+  const [level, setLevel] = useState<'info' | 'warn' | 'error' | ''>('')
+
+  const list = trpc.system.getLogs.useQuery(
+    {
+      subsystem: subsystem || undefined,
+      level: (level || undefined) as 'info' | 'warn' | 'error' | undefined,
+      limit: 200,
+    },
+    { refetchInterval: 5_000 },
+  )
+  const rows = list.data ?? []
+
+  function levelLabel(n: number): string {
+    if (n >= 50) return 'error'
+    if (n >= 40) return 'warn'
+    return 'info'
+  }
+
+  function downloadLogs() {
+    window.open('/api/logs/download')
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {(['info', 'warn', 'error'] as const).map(l => (
+          <button
+            key={l}
+            onClick={() => setLevel(prev => prev === l ? '' : l)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+              borderRadius: 6, border: `1px solid ${level === l ? PINO_LEVEL_DOT[l] : 'var(--border2)'}`,
+              background: level === l ? `color-mix(in srgb, ${PINO_LEVEL_DOT[l]} 12%, transparent)` : 'var(--surf)',
+              cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-mono)',
+              color: level === l ? PINO_LEVEL_DOT[l] : 'var(--text2)',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: PINO_LEVEL_DOT[l], flexShrink: 0 }} />
+            {l}
+          </button>
+        ))}
+        <Select value={subsystem} onChange={e => setSubsystem(e.target.value)} style={{ fontSize: 11, minWidth: 130 }}>
+          <option value="">All subsystems</option>
+          {KNOWN_SUBSYSTEMS.map(s => <option key={s} value={s}>{s}</option>)}
+        </Select>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <Button onClick={downloadLogs}>Download</Button>
+        </div>
+      </div>
+
+      <Card header={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          Pino structured logs
+          <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 400 }}>
+            {rows.length} entries · live (5s)
+          </span>
+        </span>
+      }>
+        <DataTable>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: '14%' }}>Time</th>
+              <th style={{ ...th, width: '8%' }}>Level</th>
+              <th style={{ ...th, width: '12%' }}>Subsystem</th>
+              <th style={th}>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ ...td, textAlign: 'center', color: 'var(--text3)', padding: '32px 12px' }}>
+                  {list.isFetching ? 'Loading…' : 'No log entries in memory yet.'}
+                </td>
+              </tr>
+            )}
+            {rows.map((r, i) => {
+              const lbl = levelLabel(r.level)
+              return (
+                <tr key={i} style={{ borderLeft: `2px solid ${PINO_LEVEL_DOT[lbl] ?? 'var(--border)'}` }}>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                    {new Date(r.time).toLocaleString()}
+                  </td>
+                  <td style={td}>
+                    <Badge tone={PINO_LEVEL_TONE[lbl] ?? 'neutral'}>{lbl}</Badge>
+                  </td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>
+                    {r.subsystem || '—'}
+                  </td>
+                  <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{r.msg}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </DataTable>
+      </Card>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
@@ -535,6 +642,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'access', label: 'Access logs' },
   { id: 'alerts', label: 'Alert events' },
   { id: 'caddy', label: 'Caddy logs' },
+  { id: 'pino', label: 'Pino logs' },
 ]
 
 export default function LogsPage() {
@@ -572,6 +680,7 @@ export default function LogsPage() {
         {tab === 'access' && <AccessLogsTab />}
         {tab === 'alerts' && <AlertEventsTab />}
         {tab === 'caddy' && <CaddyLogsTab />}
+        {tab === 'pino' && <PinoLogsTab />}
       </PageContent>
     </>
   )

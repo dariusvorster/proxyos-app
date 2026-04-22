@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { systemSettings } from '@proxyos/db'
 import { publicProcedure, adminProcedure, router } from '../trpc'
+import { getRecentLogs } from '@proxyos/logger'
 
 export const systemRouter = router({
   caddyStatus: publicProcedure.query(async ({ ctx }) => {
@@ -35,5 +36,22 @@ export const systemRouter = router({
         await ctx.caddy.removeHttpRedirectServer()
       }
       return { enabled: input.enabled }
+    }),
+
+  getLogs: adminProcedure
+    .input(z.object({
+      subsystem: z.string().optional(),
+      level: z.enum(['info', 'warn', 'error']).optional(),
+      limit: z.number().min(1).max(500).default(200),
+    }))
+    .query(({ input }) => {
+      const levelNums: Record<string, number> = { info: 30, warn: 40, error: 50 }
+      let logs = getRecentLogs()
+      if (input.subsystem) logs = logs.filter(l => l.subsystem === input.subsystem)
+      if (input.level) {
+        const levelNum = levelNums[input.level] ?? 0
+        logs = logs.filter(l => l.level >= levelNum)
+      }
+      return logs.slice(-input.limit)
     }),
 })
