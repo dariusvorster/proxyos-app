@@ -499,14 +499,9 @@ export const routesRouter = router({
     void notifyFederationConfigChange(input.siteId ?? 'site_local')
     void completeOperation(ctx.db, opId, 'success', undefined, opStart).catch(() => {})
 
-    return {
-      success: true,
-      routeId: id,
-      domain: route.domain,
-      url: route.tlsMode === 'off' ? `http://${route.domain}` : `https://${route.domain}`,
-      ssoEnabled: route.ssoEnabled,
-      certStatus: route.tlsMode === 'off' ? 'none' : 'provisioning',
-    }
+    const exposedRow = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+    if (!exposedRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${id}' not found after insert` })
+    return { ok: true, route: rowToRoute(exposedRow) }
   }),
 
   get: publicProcedure
@@ -675,7 +670,9 @@ export const routesRouter = router({
         actor: 'user',
         createdAt: new Date(),
       })
-      return { success: true }
+      const toggledRow = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!toggledRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after toggle` })
+      return { ok: true, route: rowToRoute(toggledRow) }
     }),
 
   test: operatorProcedure
@@ -761,7 +758,9 @@ export const routesRouter = router({
         createdAt: now,
       })
 
-      return { success: true }
+      const archivedRow = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!archivedRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after archive` })
+      return { ok: true, route: rowToRoute(archivedRow) }
     }),
 
   unarchive: protectedProcedure
@@ -775,9 +774,10 @@ export const routesRouter = router({
       const now = new Date()
       await ctx.db.update(routes).set({ enabled: true, archivedAt: null, updatedAt: now }).where(eq(routes.id, input.id))
       const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
-      await syncRouteToCaddy(ctx, rowToRoute(updated!))
+      if (!updated) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after unarchive` })
+      await syncRouteToCaddy(ctx, rowToRoute(updated))
 
-      return { success: true }
+      return { ok: true, route: rowToRoute(updated) }
     }),
 
   listStale: publicProcedure
@@ -853,7 +853,9 @@ export const routesRouter = router({
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
       await syncRouteToCaddy(ctx, rowToRoute(row), 'drift-repair')
-      return { ok: true }
+      const resynced = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!resynced) throw new TRPCError({ code: 'NOT_FOUND', message: `Route with ID '${input.id}' not found after resync` })
+      return { ok: true, route: rowToRoute(resynced) }
     }),
 
   createLocal: protectedProcedure
