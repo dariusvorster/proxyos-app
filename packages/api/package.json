@@ -11,7 +11,8 @@
     "./observability": "./src/observability/index.ts",
     "./apikeys": "./src/apikeys.ts",
     "./automation/network-join": "./src/automation/network-join.ts",
-    "./auth": "./src/auth.ts"
+    "./auth": "./src/auth.ts",
+    "./health-checks": "./src/health-checks.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
