@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest'
-import { buildCaddyRoute } from '../config'
+import { buildCaddyRoute, caddyRouteId } from '../config'
 import { CaddyClient } from '../client'
 import type { Route } from '@proxyos/types'
 
@@ -7,7 +7,7 @@ import type { Route } from '@proxyos/types'
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL
 const runIntegration = CADDY_ADMIN_URL ? it : it.skip
 
-const TEST_ROUTE_ID = 'proxyos-roundtrip-test'
+const TEST_ROUTE_ID = 'roundtrip-test'
 
 function makeTestRoute(): Route {
   return {
@@ -84,7 +84,7 @@ describe('Caddy config round-trip (integration)', () => {
     expect(result.status).not.toBe('missing')
     expect(result.status).not.toBe('error')
     const actual = result.actual as Record<string, unknown>
-    expect(actual['@id']).toBe(`proxyos-${TEST_ROUTE_ID}`)
+    expect(actual['@id']).toBe(caddyRouteId(TEST_ROUTE_ID))
   })
 
   runIntegration('RT3: fetched route has expected upstream dial', async () => {

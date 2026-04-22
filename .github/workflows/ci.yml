@@ -23,6 +23,8 @@ jobs:
         run: pnpm --filter @proxyos/caddy test
       - name: Run DB migration tests
         run: pnpm --filter @proxyos/db test
+      - name: Run API unit tests
+        run: pnpm --filter @proxyos/api test
 
   integration-test:
     name: Caddy round-trip
