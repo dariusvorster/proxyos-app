@@ -12,6 +12,9 @@ import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType 
 import { publicProcedure, operatorProcedure, protectedProcedure, router } from '../trpc'
 import { resolveEffectiveRole, canMutate } from '../rbac'
 import { insertRouteVersion } from './routeVersions'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 const lbPolicies = ['round_robin', 'least_conn', 'ip_hash', 'random', 'first'] as const
 
@@ -918,7 +921,7 @@ export const routesRouter = router({
       const route = rowToRoute(row)
 
       await syncRouteToCaddy(ctx, route).catch((e: unknown) =>
-        console.warn('[routes] local route caddy sync failed:', e)
+        logger.warn({ err: e }, 'local route caddy sync failed')
       )
 
       const { getFederationClient } = await import('@proxyos/federation/client').catch(() => ({ getFederationClient: null as unknown as typeof import('@proxyos/federation/client').getFederationClient }))

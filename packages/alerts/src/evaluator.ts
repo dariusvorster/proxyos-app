@@ -9,6 +9,9 @@ import {
 } from '@proxyos/db'
 import type { AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
 import { sendAlertNotifications } from './notify'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[alerts]')
 
 const DEFAULT_COOLDOWN_MINUTES = 15
 
@@ -24,7 +27,7 @@ export async function startEvaluator(intervalMs = 60_000): Promise<{ stop: () =>
     try {
       await evaluateOnce()
     } catch (err) {
-      console.warn('[proxyos] alert eval failed:', err)
+      logger.warn({ err }, 'alert eval failed')
     }
   }
   await tick()
@@ -69,9 +72,9 @@ export async function evaluateOnce(): Promise<EvalResult> {
       })
       await db.update(alertRules).set({ lastFiredAt: now }).where(eq(alertRules.id, rule.id))
       fired++
-      console.log(`[proxyos] alert fired: ${rule.name} — ${fire.message}`)
+      logger.info({ ruleName: rule.name, message: fire.message }, 'alert fired')
       void sendAlertNotifications({ ruleName: rule.name, message: fire.message, detail: fire.detail }).catch((err) => {
-        console.warn('[proxyos] alert notification failed:', err)
+        logger.warn({ err }, 'alert notification failed')
       })
     }
   }

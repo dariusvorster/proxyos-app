@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { composeWatchers, nanoid } from '@proxyos/db'
 import { startWatcher, stopWatcher, activeWatcherIds } from '../automation/compose-watcher'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 
 export const automationRouter = router({
   listComposeWatchers: publicProcedure.query(async ({ ctx }) => {
@@ -36,7 +39,7 @@ export const automationRouter = router({
         autoApply: input.autoApply,
         watchInterval: input.watchInterval,
       }, (diff, path) => {
-        console.log(`[compose-watcher] ${path} changed:`, diff)
+        logger.info({ path, diff }, 'compose file changed')
         // In a full implementation, diffs would trigger route CRUD via the routes router
       })
       return { id }
@@ -55,7 +58,7 @@ export const automationRouter = router({
           autoApply: row.autoApply,
           watchInterval: row.watchInterval,
         }, (diff, path) => {
-          console.log(`[compose-watcher] ${path} changed:`, diff)
+          logger.info({ path, diff }, 'compose file changed')
         })
       } else {
         stopWatcher(input.id)

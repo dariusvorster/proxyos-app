@@ -13,6 +13,7 @@
   "dependencies": {
     "@proxyos/billing": "workspace:*",
     "@proxyos/alerts": "workspace:*",
+    "@proxyos/logger": "workspace:*",
     "@proxyos/analytics": "workspace:*",
     "@proxyos/api": "workspace:*",
     "@proxyos/connect": "workspace:*",

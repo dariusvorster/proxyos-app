@@ -1,4 +1,7 @@
 import { getDb, connections } from '@proxyos/db'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 import {
   adapterRegistry, decryptCredentials,
   AuthentikAdapter, AutheliaAdapter, KeycloakAdapter, ZitadelAdapter,
@@ -31,7 +34,7 @@ export async function loadAdapters(): Promise<void> {
       // Skip — PROXYOS_SECRET may not be set in dev, or credentials corrupt
     }
   }
-  console.log(`[connect] Loaded ${adapterRegistry.all().length} adapter(s)`)
+  logger.info({ count: adapterRegistry.all().length }, 'adapters loaded')
 }
 
 function buildAdapter(type: string, connectionId: string, creds: Record<string, unknown>) {

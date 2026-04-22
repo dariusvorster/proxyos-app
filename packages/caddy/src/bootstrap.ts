@@ -5,6 +5,9 @@ import { buildCaddyRoute, buildHoldingPageHtml, buildTrustedProxies } from './co
 import { validateCaddyRoute, formatValidation } from './validate'
 import type { CaddyRoute } from './types'
 import type { Route, SSOProvider } from '@proxyos/types'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[caddy]')
 
 export interface BootstrapOptions {
   client?: CaddyClient
@@ -71,7 +74,7 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
         await client.ensureLogging(baseConfig.logging)
       }
     } catch {
-      console.warn('[caddy-bootstrap] Could not re-apply logging config — access log may be unavailable')
+      logger.warn('Could not re-apply logging config — access log may be unavailable')
     }
   }
 
@@ -88,7 +91,7 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   try {
     await client.setTrustedProxies(serverName, buildTrustedProxies())
   } catch {
-    console.warn('[caddy-bootstrap] Could not set trusted_proxies — X-Forwarded-* headers may not be preserved correctly from upstream reverse proxies')
+    logger.warn('Could not set trusted_proxies — X-Forwarded-* headers may not be preserved correctly from upstream reverse proxies')
   }
 
   // If a Cloudflare API token is set, inject a catch-all DNS-01 policy so all
@@ -127,9 +130,9 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
 
   const invalid = built.filter(b => !b.validation.valid)
   if (invalid.length > 0) {
-    console.error(`[caddy-bootstrap] ${invalid.length} route(s) failed validation — they will NOT be pushed:`)
+    logger.error({ count: invalid.length }, `${invalid.length} route(s) failed validation — they will NOT be pushed:`)
     for (const b of invalid) {
-      console.error(formatValidation(b.validation))
+      logger.error({ validation: formatValidation(b.validation) }, 'route validation failure')
     }
   }
 

@@ -1,4 +1,7 @@
 import { buildCaddyRoute, CaddyClient } from '@proxyos/caddy'
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
 import { bootstrapCaddy, type BootstrapResult } from '@proxyos/caddy/bootstrap'
 import { getDb, routes as routesTable, ssoProviders as ssoTable } from '@proxyos/db'
 import { inArray } from 'drizzle-orm'
@@ -15,7 +18,7 @@ import { networkDiscoveryService } from './automation/network-join'
 import { resolveStaticUpstreams } from './automation/static-upstreams'
 
 export async function bootstrapProxyOs(baseConfigPath: string): Promise<BootstrapResult> {
-  void loadAdapters().catch(err => console.error('[connect] Failed to load adapters:', err))
+  void loadAdapters().catch(err => logger.error({ err }, 'Failed to load adapters'))
   startDriftDetector()
   startHealthChecker()
   startTrafficTracker()
@@ -28,7 +31,7 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
   try {
     await networkDiscoveryService.start()
   } catch (e) {
-    console.warn('[proxyos] network discovery unavailable:', e instanceof Error ? e.message : e)
+    logger.warn({ err: e instanceof Error ? e.message : e }, 'network discovery unavailable')
   }
   const db = getDb()
   const result = await bootstrapCaddy({
@@ -93,7 +96,7 @@ export async function bootstrapProxyOs(baseConfigPath: string): Promise<Bootstra
   await caddyClient.upsertServer('dashboard', {
     listen: [`:${dashboardPort}`],
     routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: 'localhost:3000' }] }] }],
-  }).catch((e: unknown) => console.warn('[proxyos] dashboard route inject failed:', e))
+  }).catch((e: unknown) => logger.warn({ err: e }, 'dashboard route inject failed'))
 
   return result
 }

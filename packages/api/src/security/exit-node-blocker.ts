@@ -1,3 +1,7 @@
+import { createLogger } from '@proxyos/logger'
+
+const logger = createLogger('[api]')
+
 export interface ExitNodeBlockConfig {
   blockTor: boolean
   blockVPN: boolean
@@ -38,7 +42,7 @@ export async function refreshBlocklists(config: ExitNodeBlockConfig): Promise<vo
         if (ip && !ip.startsWith('#')) torExitNodes.add(ip)
       }
     } catch (e) {
-      console.warn('[exit-node-blocker] Failed to fetch Tor list:', e)
+      logger.warn({ err: e }, 'Failed to fetch Tor list')
     }
   }
 
@@ -50,12 +54,12 @@ export async function refreshBlocklists(config: ExitNodeBlockConfig): Promise<vo
         if (cidr && !cidr.startsWith('#')) vpnRanges.push(cidr)
       }
     } catch (e) {
-      console.warn('[exit-node-blocker] Failed to fetch VPN list:', e)
+      logger.warn({ err: e }, 'Failed to fetch VPN list')
     }
   }
 
   cache = { torExitNodes, vpnRanges, fetchedAt: now }
-  console.log(`[exit-node-blocker] Updated: ${torExitNodes.size} Tor exits, ${vpnRanges.length} VPN ranges`)
+  logger.info({ torExits: torExitNodes.size, vpnRanges: vpnRanges.length }, 'blocklists updated')
 }
 
 export function isBlocked(ip: string): boolean {
