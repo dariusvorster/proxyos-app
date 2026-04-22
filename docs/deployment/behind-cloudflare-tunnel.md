@@ -156,7 +156,7 @@ networks:
 ```yaml
 services:
   proxyos:
-    image: proxyos:latest
+    image: ghcr.io/proxyos/proxyos:1.0.0
     container_name: proxyos
     networks:
       - proxy-net
@@ -165,7 +165,7 @@ services:
       - "443:443"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2025.4.1
     container_name: cloudflared
     networks:
       - proxy-net
@@ -182,6 +182,10 @@ networks:
   proxy-net:
     driver: bridge
 ```
+
+> **Upgrade path:** To upgrade, change the image tag (e.g. `1.0.0` → `1.1.0`), pull the new image
+> (`docker compose pull`), and recreate the container (`docker compose up -d`). Check the
+> [ProxyOS changelog](https://github.com/proxyos/proxyos/releases) before upgrading.
 
 **Step 3 — Point cloudflared at ProxyOS by container name**
 
@@ -207,7 +211,7 @@ If you prefer to keep everything in one compose file and guarantee that `cloudfl
 ```yaml
 services:
   proxyos:
-    image: proxyos:latest
+    image: ghcr.io/proxyos/proxyos:1.0.0
     container_name: proxyos
     ports:
       - "80:80"
@@ -215,7 +219,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2025.4.1
     container_name: cloudflared
     network_mode: "service:proxyos"   # shares ProxyOS network namespace
     command: tunnel --no-autoupdate run
