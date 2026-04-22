@@ -72,6 +72,29 @@ jobs:
       - name: Typecheck db package
         run: pnpm --filter @proxyos/db typecheck
 
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    if: false  # TODO: enable when app server setup in CI is ready
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter @proxyos/web exec playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: pnpm --filter @proxyos/web exec playwright test
+        env:
+          BASE_URL: http://localhost:3000
+          E2E_EMAIL: admin@proxyos.local
+          E2E_PASSWORD: changeme
+
   lint:
     name: Shadow guard
     runs-on: ubuntu-latest
