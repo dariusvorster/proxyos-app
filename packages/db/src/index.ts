@@ -21,7 +21,8 @@ export function getDb() {
   sqlite.pragma('foreign_keys = ON')
 
   const integrityResult = sqlite.pragma('integrity_check') as Array<{ integrity_check: string }>
-  if (integrityResult.length !== 1 || integrityResult[0].integrity_check !== 'ok') {
+  const integrityRow = integrityResult[0]
+  if (integrityResult.length !== 1 || integrityRow?.integrity_check !== 'ok') {
     throw new Error(
       `[db] SQLite integrity check failed: ${JSON.stringify(integrityResult)}\n` +
       `Database at ${DB_PATH} is corrupt. Restore from backup or delete and let ProxyOS re-initialize.`

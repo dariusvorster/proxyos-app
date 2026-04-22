@@ -1,4 +1,4 @@
-import type { CaddyRoute } from './types'
+import type { CaddyRoute, CaddyHandler } from './types'
 
 export function applyDockerDns(route: CaddyRoute): CaddyRoute {
   return {
@@ -15,7 +15,7 @@ export function applyDockerDns(route: CaddyRoute): CaddyRoute {
           resolvers: ['127.0.0.11'],
           dial_timeout: '3s',
         },
-      }
+      } as unknown as CaddyHandler
     }),
   }
 }
