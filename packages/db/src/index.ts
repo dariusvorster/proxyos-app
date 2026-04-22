@@ -17,9 +17,29 @@ export function getDb() {
   mkdirSync(dirname(DB_PATH), { recursive: true })
   const sqlite = new Database(DB_PATH)
   sqlite.pragma('journal_mode = WAL')
+  sqlite.pragma('synchronous = NORMAL')
   sqlite.pragma('foreign_keys = ON')
+
+  const integrityResult = sqlite.pragma('integrity_check') as Array<{ integrity_check: string }>
+  if (integrityResult.length !== 1 || integrityResult[0].integrity_check !== 'ok') {
+    throw new Error(
+      `[db] SQLite integrity check failed: ${JSON.stringify(integrityResult)}\n` +
+      `Database at ${DB_PATH} is corrupt. Restore from backup or delete and let ProxyOS re-initialize.`
+    )
+  }
+
   ensureSchema(sqlite)
   _db = drizzle(sqlite, { schema })
+
+  const checkpointInterval = setInterval(() => {
+    try {
+      sqlite.pragma('wal_checkpoint(PASSIVE)')
+    } catch {
+      // Non-fatal: WAL file may grow but DB remains consistent
+    }
+  }, 5 * 60 * 1000)
+  checkpointInterval.unref() // Don't keep the process alive just for checkpointing
+
   return _db
 }
 
