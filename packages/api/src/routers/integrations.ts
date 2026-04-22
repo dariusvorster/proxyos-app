@@ -141,8 +141,8 @@ export const integrationsRouter = router({
       const cfgRow = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'lockboxos_config')).get()
       const cfg = parseLockBoxConfig(cfgRow?.value)
       if (!cfg) throw new Error('LockBoxOS not configured')
-      const value = await fetchFromLockBox(cfg, { vaultId: ref.vaultId, secretPath: ref.secretPath })
-      return { reachable: value !== null, hasValue: value !== null && value.length > 0 }
+      const result = await fetchFromLockBox(cfg, { vaultId: ref.vaultId, secretPath: ref.secretPath })
+      return { reachable: result.ok, hasValue: result.ok && result.value.length > 0 }
     }),
 
   // ── MxWatch ──────────────────────────────────────────────────────────────────

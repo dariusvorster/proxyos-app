@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { ddnsRecords, dnsProviders, nanoid } from '@proxyos/db'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import type { Result } from '@proxyos/types'
 
 async function detectPublicIp(): Promise<string> {
   const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
@@ -99,21 +100,21 @@ export const ddnsRouter = router({
       if (!provider) throw new TRPCError({ code: 'NOT_FOUND', message: 'DNS provider not found' })
 
       const credentials = JSON.parse(provider.credentials) as Record<string, string>
-      let updateError: string | null = null
+      let updateResult: Result<void, Error>
 
       if (provider.type === 'cloudflare') {
-        updateError = await updateCloudflare(credentials, row.zone, row.recordName, row.recordType, ip)
+        updateResult = await updateCloudflare(credentials, row.zone, row.recordName, row.recordType, ip)
       } else {
-        updateError = `DNS provider type '${provider.type}' not yet supported for DDNS`
+        updateResult = { ok: false, error: new Error(`DNS provider type '${provider.type}' not yet supported for DDNS`) }
       }
 
       await ctx.db.update(ddnsRecords).set({
-        lastIp: updateError ? row.lastIp : ip,
+        lastIp: updateResult.ok ? ip : row.lastIp,
         lastUpdatedAt: new Date(),
-        lastError: updateError,
+        lastError: updateResult.ok ? null : updateResult.error.message,
       }).where(eq(ddnsRecords.id, input.id))
 
-      if (updateError) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: updateError })
+      if (!updateResult.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: updateResult.error.message })
       return { success: true, ip, changed: true }
     }),
 
@@ -133,24 +134,24 @@ async function updateCloudflare(
   name: string,
   type: string,
   ip: string,
-): Promise<string | null> {
+): Promise<Result<void, Error>> {
   const token = creds.api_token ?? creds.token
-  if (!token) return 'Missing Cloudflare api_token credential'
+  if (!token) return { ok: false, error: new Error('Missing Cloudflare api_token credential') }
 
   // List zone IDs
   const zonesRes = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
   }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
-  if (!zonesRes.ok) return `Cloudflare zones API returned ${zonesRes.status}`
+  if (!zonesRes.ok) return { ok: false, error: new Error(`Cloudflare zones API returned ${zonesRes.status}`) }
   const zonesData = await zonesRes.json() as { result?: Array<{ id: string }> }
   const zoneId = zonesData.result?.[0]?.id
-  if (!zoneId) return `Zone '${zone}' not found in Cloudflare`
+  if (!zoneId) return { ok: false, error: new Error(`Zone '${zone}' not found in Cloudflare`) }
 
   // List existing records
   const recordsRes = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${type}&name=${name}.${zone}`, {
     headers: { Authorization: `Bearer ${token}` },
   }).catch((err: Error) => { throw new Error(`[cloudflare] Failed to reach API: ${err.message}`) })
-  if (!recordsRes.ok) return `Cloudflare DNS records API returned ${recordsRes.status}`
+  if (!recordsRes.ok) return { ok: false, error: new Error(`Cloudflare DNS records API returned ${recordsRes.status}`) }
   const recordsData = await recordsRes.json() as { result?: Array<{ id: string }> }
   const existingId = recordsData.result?.[0]?.id
 
@@ -163,7 +164,7 @@ async function updateCloudflare(
     })
     if (!r.ok) {
       const cfBody = await r.text().catch(() => '')
-      return `Cloudflare update failed: ${r.status} ${cfBody}`
+      return { ok: false, error: new Error(`Cloudflare update failed: ${r.status} ${cfBody}`) }
     }
   } else {
     const r = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
@@ -173,9 +174,9 @@ async function updateCloudflare(
     })
     if (!r.ok) {
       const cfBody = await r.text().catch(() => '')
-      return `Cloudflare create failed: ${r.status} ${cfBody}`
+      return { ok: false, error: new Error(`Cloudflare create failed: ${r.status} ${cfBody}`) }
     }
   }
 
-  return null
+  return { ok: true, value: undefined }
 }

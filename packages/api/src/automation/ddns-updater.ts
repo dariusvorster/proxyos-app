@@ -1,15 +1,17 @@
 import { eq } from 'drizzle-orm'
 import { ddnsRecords, dnsProviders } from '@proxyos/db'
 import type { Db } from '@proxyos/db'
+import type { Result } from '@proxyos/types'
 
-async function detectPublicIp(): Promise<string | null> {
+async function detectPublicIp(): Promise<Result<string, Error>> {
   try {
     const res = await fetch('https://api4.my-ip.io/ip.json', { signal: AbortSignal.timeout(5000) })
-    if (!res.ok) return null
+    if (!res.ok) return { ok: false, error: new Error(`IP detection service returned HTTP ${res.status}`) }
     const data = await res.json() as { ip?: string }
-    return data.ip ?? null
-  } catch {
-    return null
+    if (!data.ip) return { ok: false, error: new Error('IP detection service returned no ip field') }
+    return { ok: true, value: data.ip }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e : new Error(String(e)) }
   }
 }
 
@@ -59,7 +61,8 @@ export function startDdnsUpdater(db: Db): void {
   const poll = async () => {
     const now = Date.now()
     if (now - lastIpCheck > 60_000) {
-      lastIp = await detectPublicIp()
+      const ipResult = await detectPublicIp()
+      lastIp = ipResult.ok ? ipResult.value : null
       lastIpCheck = now
     }
     if (!lastIp) return
