@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, useEffect, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -12,11 +12,15 @@ type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SsoFilter = 'all' | 'on' | 'off'
 type TypeFilter = 'all' | 'proxy'
 
+const PAGE_SIZE = 50
+
 export default function RoutesPage() {
   const utils = trpc.useUtils()
   const { siteId } = useSiteSelection()
-  const list = trpc.routes.list.useQuery({ siteId })
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [page, setPage] = useState(0)
+  const list = trpc.routes.list.useQuery({ siteId, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+  const totalCount = trpc.routes.count.useQuery({ siteId })
+  const del = trpc.routes.delete.useMutation({ onSuccess: () => { void utils.routes.list.invalidate(); void utils.routes.count.invalidate() } })
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -24,6 +28,8 @@ export default function RoutesPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [panelId, setPanelId] = useState<string | null>(null)
+
+  useEffect(() => { setPage(0) }, [siteId])
 
   const filtered = useMemo(() => {
     return (list.data ?? []).filter((r) => {
@@ -91,7 +97,9 @@ export default function RoutesPage() {
               <option value="off">SSO off</option>
             </Select>
             <Input placeholder="Search domain…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 240 }} />
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{filtered.length} / {list.data?.length ?? 0} routes</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>
+              {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + (list.data?.length ?? 0)} of {totalCount.data?.total ?? '…'} routes
+            </span>
           </div>
         </Card>
 
@@ -147,6 +155,14 @@ export default function RoutesPage() {
             </tbody>
           </DataTable>
         </Card>
+
+        {(totalCount.data?.total ?? 0) > PAGE_SIZE && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+            <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Page {page + 1} of {Math.ceil((totalCount.data?.total ?? 1) / PAGE_SIZE)}</span>
+            <Button size="sm" variant="ghost" disabled={(page + 1) * PAGE_SIZE >= (totalCount.data?.total ?? 0)} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+          </div>
+        )}
       </PageContent>
 
       <SidePanel open={panelId !== null} onClose={() => setPanelId(null)} title={panelRoute?.domain ?? 'Route'}>

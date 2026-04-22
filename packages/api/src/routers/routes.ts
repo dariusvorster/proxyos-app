@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server'
-import { eq, inArray, isNull } from 'drizzle-orm'
+import { eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { request as httpRequest } from 'http'
 import { request as httpsRequest } from 'https'
@@ -275,12 +275,35 @@ function probeUpstream(address: string): Promise<ProbeResult> {
 
 export const routesRouter = router({
   list: publicProcedure
+    .input(z.object({
+      siteId: z.string().nullable().optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      offset: z.number().int().min(0).optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const siteFilter = input?.siteId ? eq(routes.siteId, input.siteId) : undefined
+      const lim = input?.limit
+      const off = input?.offset ?? 0
+      let rows: (typeof routes.$inferSelect)[]
+      if (siteFilter !== undefined && lim !== undefined) {
+        rows = await ctx.db.select().from(routes).where(siteFilter).limit(lim).offset(off)
+      } else if (siteFilter !== undefined) {
+        rows = await ctx.db.select().from(routes).where(siteFilter)
+      } else if (lim !== undefined) {
+        rows = await ctx.db.select().from(routes).limit(lim).offset(off)
+      } else {
+        rows = await ctx.db.select().from(routes)
+      }
+      return rows.map(rowToRoute)
+    }),
+
+  count: publicProcedure
     .input(z.object({ siteId: z.string().nullable().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const rows = input?.siteId
-        ? await ctx.db.select().from(routes).where(eq(routes.siteId, input.siteId))
-        : await ctx.db.select().from(routes)
-      return rows.map(rowToRoute)
+      const [result] = input?.siteId
+        ? await ctx.db.select({ total: sql<number>`count(*)` }).from(routes).where(eq(routes.siteId, input.siteId))
+        : await ctx.db.select({ total: sql<number>`count(*)` }).from(routes)
+      return { total: result?.total ?? 0 }
     }),
 
   listByAgent: publicProcedure
