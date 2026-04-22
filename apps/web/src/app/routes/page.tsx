@@ -325,6 +325,7 @@ function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const [panelDeleteError, setPanelDeleteError] = useState<string | null>(null)
   const [panelUpdateError, setPanelUpdateError] = useState<string | null>(null)
+  const [saveMsg, setSaveMsg] = useState<{ text: string; tone: 'green' | 'amber' | 'neutral' } | null>(null)
   const [handleError] = useErrorHandler()
 
   const del = trpc.routes.delete.useMutation({
@@ -343,6 +344,13 @@ function RoutePanel({ route }: { route: Route }) {
     },
     onSettled: () => {
       utils.routes.list.invalidate()
+    },
+  })
+
+  const forceResync = trpc.routes.forceResync.useMutation({
+    onSuccess: () => {
+      setSaveMsg({ text: 'Repush initiated — verifying…', tone: 'neutral' })
+      setTimeout(() => { utils.routes.list.invalidate(); setSaveMsg(null) }, 2000)
     },
   })
 
@@ -443,6 +451,21 @@ function RoutePanel({ route }: { route: Route }) {
         setTrustHeaders(!!data.trustUpstreamHeaders)
         setSkipTlsVerify(!!data.skipTlsVerify)
         setEditing(false)
+        // Show sync status — verify fires async, refetch after delay to pick up result
+        setSaveMsg({ text: 'Saved — verifying…', tone: 'neutral' })
+        setTimeout(() => {
+          utils.routes.list.invalidate().then(() => {
+            const updated = utils.routes.list.getData()?.find((r) => r.id === data.id)
+            if (updated?.syncStatus === 'drift') {
+              setSaveMsg({ text: 'Drift detected — config may not have applied', tone: 'amber' })
+            } else if (updated?.syncStatus === 'synced') {
+              setSaveMsg({ text: 'Saved', tone: 'green' })
+              setTimeout(() => setSaveMsg(null), 3000)
+            } else {
+              setSaveMsg(null)
+            }
+          })
+        }, 1500)
       },
     })
   }
@@ -525,6 +548,18 @@ function RoutePanel({ route }: { route: Route }) {
           <div style={{ fontSize: 11, color: 'var(--red)' }}>{update.error?.message ?? panelUpdateError}</div>
         )}
 
+        {saveMsg && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: saveMsg.tone === 'green' ? 'var(--green)' : saveMsg.tone === 'amber' ? 'var(--amber)' : 'var(--text-secondary)' }}>
+            <Dot tone={saveMsg.tone} />
+            <span>{saveMsg.text}</span>
+            {saveMsg.tone === 'amber' && (
+              <Button size="sm" variant="ghost" onClick={() => forceResync.mutate({ id: route.id })} disabled={forceResync.isPending}>
+                {forceResync.isPending ? 'Repairing…' : 'Repair'}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="primary" size="sm" onClick={save} disabled={update.isPending}>
             {update.isPending ? 'Saving…' : 'Save'}
@@ -537,6 +572,20 @@ function RoutePanel({ route }: { route: Route }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {saveMsg && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '6px 10px', borderRadius: 6, background: saveMsg.tone === 'green' ? 'rgba(34,197,94,0.1)' : saveMsg.tone === 'amber' ? 'rgba(245,158,11,0.1)' : 'rgba(120,120,140,0.1)', color: saveMsg.tone === 'green' ? 'var(--green)' : saveMsg.tone === 'amber' ? 'var(--amber)' : 'var(--text-secondary)' }}>
+          <Dot tone={saveMsg.tone} />
+          <span style={{ flex: 1 }}>{saveMsg.text}</span>
+          {saveMsg.tone === 'amber' && (
+            <Button size="sm" variant="ghost" onClick={() => forceResync.mutate({ id: route.id })} disabled={forceResync.isPending}>
+              {forceResync.isPending ? 'Repairing…' : 'Repair'}
+            </Button>
+          )}
+          {saveMsg.tone !== 'neutral' && (
+            <button onClick={() => setSaveMsg(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>✕</button>
+          )}
+        </div>
+      )}
       <Section title="Upstream">
         <Row k="Targets" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.upstreams.map((u) => u.address).join(', ')}</span>} />
         <Row k="Health" v={<Badge tone="green">healthy</Badge>} />
