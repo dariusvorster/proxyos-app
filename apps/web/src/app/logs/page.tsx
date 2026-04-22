@@ -69,7 +69,7 @@ function FilterBar({ search, setSearch, dateFrom, setDateFrom, dateTo, setDateTo
 // ─── System logs tab ──────────────────────────────────────────────────────────
 
 function SystemLogsTab() {
-  const [handleError] = useErrorHandler()
+  const [handleError, errorBanner] = useErrorHandler()
   const [level, setLevel] = useState<Level | ''>('')
   const [category, setCategory] = useState<Category | ''>('')
   const [search, setSearch] = useState('')
@@ -106,6 +106,7 @@ function SystemLogsTab() {
 
   return (
     <>
+      {errorBanner}
       {/* Level summary chips */}
       <div style={{ display: 'flex', gap: 6 }}>
         {(['info', 'warn', 'error'] as Level[]).map(l => (
