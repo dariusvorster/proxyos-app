@@ -12,7 +12,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "push": "drizzle-kit push",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "test": "vitest run"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "drizzle-kit": "^0.28.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
   }
 }
