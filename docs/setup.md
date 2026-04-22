@@ -14,7 +14,7 @@
 ```yaml
 services:
   proxyos:
-    image: ghcr.io/proxyos/proxyos:latest
+    image: ghcr.io/proxyos/proxyos:1.0.0
     container_name: proxyos
     restart: unless-stopped
     ports:
@@ -101,6 +101,10 @@ docker compose up -d
 ```
 
 Database migrations run automatically on startup. No manual schema changes are needed between versions.
+
+> **Upgrade path:** To upgrade, change the image tag (e.g. `1.0.0` → `1.1.0`), pull the new image
+> (`docker compose pull`), and recreate the container (`docker compose up -d`). Check the
+> [ProxyOS changelog](https://github.com/proxyos/proxyos/releases) before upgrading.
 
 ---
 

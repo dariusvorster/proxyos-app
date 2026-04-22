@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run unit tests
+        run: pnpm --filter @proxyos/caddy test
+      - name: Run DB migration tests
+        run: pnpm --filter @proxyos/db test
+      - name: Run API unit tests
+        run: pnpm --filter @proxyos/api test
+
+  integration-test:
+    name: Caddy round-trip
+    runs-on: ubuntu-latest
+    services:
+      caddy:
+        image: caddy:2.9.1
+        ports:
+          - 2019:2019
+          - 8080:80
+        options: >-
+          --health-cmd "wget -qO- http://localhost:2019/config/ || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run Caddy round-trip tests
+        run: pnpm --filter @proxyos/caddy test
+        env:
+          CADDY_ADMIN_URL: http://localhost:2019
+          TEST_UPSTREAM_ADDR: localhost:8080
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck caddy package
+        run: pnpm --filter @proxyos/caddy typecheck
+      - name: Typecheck db package
+        run: pnpm --filter @proxyos/db typecheck
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    if: false  # TODO: enable when app server setup in CI is ready
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter @proxyos/web exec playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: pnpm --filter @proxyos/web exec playwright test
+        env:
+          BASE_URL: http://localhost:3000
+          E2E_EMAIL: admin@proxyos.local
+          E2E_PASSWORD: changeme
+
+  lint:
+    name: Shadow guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check no JS shadows
+        run: bash scripts/check-no-js-shadows.sh

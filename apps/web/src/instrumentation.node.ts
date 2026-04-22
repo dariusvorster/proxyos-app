@@ -95,7 +95,12 @@ void (async () => {
       setFederationClient(client)
       console.log('[proxyos] federation client started')
     } catch (err) {
-      console.error('[proxyos] FATAL: federation client failed to start:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('Agent identity lost')) {
+        console.error('[proxyos] FATAL: agent identity lost — cannot start federation client.\n' + msg)
+      } else {
+        console.error('[proxyos] FATAL: federation client failed to start:', err)
+      }
       process.exit(1)
     }
   }

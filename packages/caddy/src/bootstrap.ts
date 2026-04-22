@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises'
 import { CaddyClient } from './client'
 import { waitForCaddyReady } from './wait-ready'
 import { buildCaddyRoute, buildHoldingPageHtml, buildTrustedProxies } from './config'
+import { applyDockerDns } from './apply-docker-dns'
 import { validateCaddyRoute, formatValidation } from './validate'
 import type { CaddyRoute } from './types'
 import type { Route, SSOProvider } from '@proxyos/types'
@@ -115,7 +116,10 @@ export async function bootstrapCaddy(opts: BootstrapOptions): Promise<BootstrapR
   }
 
   const providers = opts.getProviders ? await opts.getProviders() : new Map<string, SSOProvider>()
-  const build = opts.buildRoute ?? ((r: Route) => buildCaddyRoute(r))
+  const userBuild = opts.buildRoute
+  const build = userBuild
+    ? (r: Route, p: Map<string, SSOProvider>) => applyDockerDns(userBuild(r, p))
+    : (r: Route) => applyDockerDns(buildCaddyRoute(r))
   const routes = await opts.getRoutes()
 
   const built = routes
