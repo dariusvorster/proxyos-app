@@ -2,6 +2,44 @@
 
 ---
 
+## v0.1.0 — Stability Initiative (2026-04-22)
+
+Engineering hardening pass across 6 phases. No new user-facing features — this release makes existing features reliable.
+
+### Silent failure elimination (Phase 2)
+- All route mutations (`create`, `update`, `delete`, `expose`, `archive`, `unarchive`) now wrap DB writes and Caddy pushes atomically — a Caddy failure rolls back the DB write
+- Validation errors surface to the UI as structured errors instead of being swallowed
+- Federation sync failures log a clear error with recovery steps; exponential backoff prevents spin loops
+
+### Save integrity (Phase 3)
+- All mutations return the updated route record
+- UI only clears edit mode after Caddy confirms the pushed route (`verifyRoute`)
+- Optimistic UI rollback on error for all mutations
+- All form fields reset to fresh server data after save
+
+### Container rebuild resilience (Phase 4)
+- Caddy reverse_proxy transports now include Docker DNS resolver (`127.0.0.11`) and `dial_timeout: 3s` — upstream names survive container rebuilds
+- SQLite WAL checkpoints every 5 minutes; integrity check at startup
+- Clear "Agent identity lost" error with volume restore instructions
+- Rebuild smoke test script (`scripts/rebuild-smoke-test.sh`)
+
+### Test coverage (Phase 5)
+- Property-based tests for `buildCaddyRoute` and `applyDockerDns` (fast-check, 6 properties)
+- Migration integrity tests (in-memory SQLite, 7 tests)
+- Caddy round-trip integration tests (skip without live Caddy)
+- tRPC route mutation tests (5 tests: happy path, bad input, unauthorized, forbidden, conflict)
+- Playwright E2E test for route management flow
+- CI workflow: tests + typecheck + shadow guard on every PR
+
+### Edge cases and cleanup (Phase 6)
+- Upstream failure probe: "Test Connection" button shows distinct error per failure mode (DNS, refused, timeout, TLS, 5xx, 4xx, slow)
+- Routes list paginated server-side (50 routes/page, Prev/Next, live count)
+- Caddy admin retry upgraded from linear to exponential backoff (capped 10s)
+- Removed dormant "Trust Upstream Headers" UI toggle (Caddy builder never consumed it)
+- Browser compatibility documented (`docs/deployment/browser-compatibility.md`)
+
+---
+
 ## Phase 6 (current)
 
 ### Docker network auto-discovery
