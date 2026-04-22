@@ -26,7 +26,7 @@ mkdir proxyos && cd proxyos
 ```yaml
 services:
   proxyos:
-    image: proxyos:latest
+    image: ghcr.io/proxyos/proxyos:1.0.0
     container_name: proxyos
     restart: unless-stopped
     env_file:
@@ -58,6 +58,10 @@ volumes:
 ```
 
 > **Note:** The `PROXYOS_DASHBOARD_PORT` defaults to `3000` in the compose file itself but is commonly set to `3091` in `.env` to avoid conflicts. Set whatever port suits your setup.
+
+> **Upgrade path:** To upgrade, change the image tag (e.g. `1.0.0` → `1.1.0`), pull the new image
+> (`docker compose pull`), and recreate the container (`docker compose up -d`). Check the
+> [ProxyOS changelog](https://github.com/proxyos/proxyos/releases) before upgrading.
 
 ### 3. Create `.env`
 

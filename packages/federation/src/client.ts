@@ -58,7 +58,16 @@ export class FederationClient {
     this.identity = this.loadIdentity()
     if (!this.identity) {
       if (!this.config.agentToken) {
-        throw new Error('No identity.json and no PROXYOS_AGENT_TOKEN — cannot enroll')
+        throw new Error(
+          `Agent identity lost and cannot re-enroll.\n\n` +
+          `Identity file not found at: ${this.config.identityPath}\n` +
+          `No PROXYOS_AGENT_TOKEN provided for re-enrollment.\n\n` +
+          `Recovery options:\n` +
+          `  1. Restore the 'proxyos-data' Docker volume from backup, then restart.\n` +
+          `  2. Set PROXYOS_AGENT_TOKEN to a new enrollment token (generate one from the central dashboard),\n` +
+          `     then restart. A new agent identity will be created.\n\n` +
+          `If you intentionally reset this node, use option 2.`
+        )
       }
       this.identity = await this.enroll()
       this.saveIdentity(this.identity)

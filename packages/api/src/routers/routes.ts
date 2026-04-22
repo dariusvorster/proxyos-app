@@ -1,7 +1,10 @@
 import { TRPCError } from '@trpc/server'
-import { eq, inArray, isNull } from 'drizzle-orm'
+import { eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
+import { request as httpRequest } from 'http'
+import { request as httpsRequest } from 'https'
+import type { IncomingMessage } from 'http'
+import { applyDockerDns, buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
 import type { CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { resolveStaticUpstreams } from '../automation/static-upstreams'
@@ -136,7 +139,7 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
   const resolvedRoute = resolvedUpstreams !== route.upstreams ? { ...route, upstreams: resolvedUpstreams } : route
   const tlsPolicy = buildTlsPolicy(resolvedRoute, dnsProvider)
   if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-  const generated = buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig })
+  const generated = applyDockerDns(buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig }))
   const validation = validateCaddyRoute(generated)
   if (!validation.valid) {
     void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validation.issues })).catch(() => {})
@@ -196,14 +199,111 @@ function rowToSSOProvider(row: typeof ssoProviders.$inferSelect): SSOProvider {
   }
 }
 
+type UpstreamErrorType = 'dns' | 'connection_refused' | 'timeout' | 'tls' | 'http_5xx' | 'http_4xx' | 'slow' | 'ok'
+
+interface ProbeResult {
+  ok: boolean
+  errorType: UpstreamErrorType
+  message: string
+  statusCode?: number
+}
+
+const TLS_ERROR_CODES = new Set([
+  'CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'SELF_SIGNED_CERT_IN_CHAIN', 'CERT_UNTRUSTED',
+])
+
+function probeUpstream(address: string): Promise<ProbeResult> {
+  let url: URL
+  try {
+    url = address.startsWith('http://') || address.startsWith('https://')
+      ? new URL(address)
+      : new URL(`http://${address}`)
+  } catch {
+    return Promise.resolve({ ok: false, errorType: 'dns', message: 'Invalid upstream address' })
+  }
+
+  const isHttps = url.protocol === 'https:'
+  const PROBE_TIMEOUT_MS = 5_000
+
+  return new Promise((resolve) => {
+    let settled = false
+    const settle = (result: ProbeResult) => { if (!settled) { settled = true; resolve(result) } }
+
+    const timer = setTimeout(() => {
+      req.destroy()
+      settle({ ok: false, errorType: 'slow', message: `No response within ${PROBE_TIMEOUT_MS}ms` })
+    }, PROBE_TIMEOUT_MS)
+
+    const onResponse = (res: IncomingMessage) => {
+      clearTimeout(timer)
+      res.resume()
+      const status = res.statusCode ?? 0
+      if (status >= 500) settle({ ok: false, errorType: 'http_5xx', message: `Upstream HTTP ${status}`, statusCode: status })
+      else if (status >= 400) settle({ ok: false, errorType: 'http_4xx', message: `Upstream HTTP ${status}`, statusCode: status })
+      else settle({ ok: true, errorType: 'ok', message: `Reachable (HTTP ${status})`, statusCode: status })
+    }
+
+    const opts = {
+      hostname: url.hostname,
+      port: url.port ? Number(url.port) : (isHttps ? 443 : 80),
+      path: url.pathname || '/',
+      method: 'GET',
+    }
+
+    const req = isHttps ? httpsRequest(opts, onResponse) : httpRequest(opts, onResponse)
+
+    req.on('error', (e: NodeJS.ErrnoException) => {
+      clearTimeout(timer)
+      const code = e.code ?? ''
+      if (code === 'ENOTFOUND' || code === 'EAI_NODATA' || code === 'EAI_AGAIN') {
+        settle({ ok: false, errorType: 'dns', message: `DNS lookup failed for ${url.hostname}` })
+      } else if (code === 'ECONNREFUSED') {
+        settle({ ok: false, errorType: 'connection_refused', message: `Connection refused at ${url.hostname}:${opts.port}` })
+      } else if (code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+        settle({ ok: false, errorType: 'timeout', message: 'Connection timed out' })
+      } else if (TLS_ERROR_CODES.has(code) || code.startsWith('ERR_TLS_') || e.message.includes('certificate')) {
+        settle({ ok: false, errorType: 'tls', message: `TLS error: ${e.message}` })
+      } else {
+        settle({ ok: false, errorType: 'timeout', message: e.message })
+      }
+    })
+
+    req.end()
+  })
+}
+
 export const routesRouter = router({
   list: publicProcedure
+    .input(z.object({
+      siteId: z.string().nullable().optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      offset: z.number().int().min(0).optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const siteFilter = input?.siteId ? eq(routes.siteId, input.siteId) : undefined
+      const lim = input?.limit
+      const off = input?.offset ?? 0
+      let rows: (typeof routes.$inferSelect)[]
+      if (siteFilter !== undefined && lim !== undefined) {
+        rows = await ctx.db.select().from(routes).where(siteFilter).limit(lim).offset(off)
+      } else if (siteFilter !== undefined) {
+        rows = await ctx.db.select().from(routes).where(siteFilter)
+      } else if (lim !== undefined) {
+        rows = await ctx.db.select().from(routes).limit(lim).offset(off)
+      } else {
+        rows = await ctx.db.select().from(routes)
+      }
+      return rows.map(rowToRoute)
+    }),
+
+  count: publicProcedure
     .input(z.object({ siteId: z.string().nullable().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const rows = input?.siteId
-        ? await ctx.db.select().from(routes).where(eq(routes.siteId, input.siteId))
-        : await ctx.db.select().from(routes)
-      return rows.map(rowToRoute)
+      const [result] = input?.siteId
+        ? await ctx.db.select({ total: sql<number>`count(*)` }).from(routes).where(eq(routes.siteId, input.siteId))
+        : await ctx.db.select({ total: sql<number>`count(*)` }).from(routes)
+      return { total: result?.total ?? 0 }
     }),
 
   listByAgent: publicProcedure
@@ -304,7 +404,7 @@ export const routesRouter = router({
       try {
         const tlsPolicy = buildTlsPolicy(route, dnsProvider)
         if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedCreate = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+        const generatedCreate = applyDockerDns(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
         const validationCreate = validateCaddyRoute(generatedCreate)
         if (!validationCreate.valid) {
           void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationCreate.issues })).catch(() => {})
@@ -451,7 +551,7 @@ export const routesRouter = router({
         await addStep(ctx.db, opId, { message: 'Building Caddy route config', status: 'info' })
         const tlsPolicy = buildTlsPolicy(route, dnsProvider)
         if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-        const generatedExpose = buildCaddyRoute(route, { ssoProvider, dnsProvider })
+        const generatedExpose = applyDockerDns(buildCaddyRoute(route, { ssoProvider, dnsProvider }))
         const validationExpose = validateCaddyRoute(generatedExpose)
         if (!validationExpose.valid) {
           void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validationExpose.issues })).catch(() => {})
@@ -927,5 +1027,11 @@ export const routesRouter = router({
       }
 
       return route
+    }),
+
+  testUpstream: protectedProcedure
+    .input(z.object({ address: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      return probeUpstream(input.address)
     }),
 })

@@ -280,7 +280,7 @@ export class CaddyClient {
         lastError = e
         const code = (e as NodeJS.ErrnoException).code ?? ''
         if (!TRANSIENT_CODES.has(code) || attempt === this.maxRetries) throw e
-        await sleep(this.retryDelayMs * (attempt + 1))
+        await sleep(Math.min(this.retryDelayMs * Math.pow(2, attempt), 10_000))
       }
     }
     throw lastError

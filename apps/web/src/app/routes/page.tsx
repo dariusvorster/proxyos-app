@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, useEffect, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -12,11 +12,15 @@ type TlsFilter = 'all' | 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SsoFilter = 'all' | 'on' | 'off'
 type TypeFilter = 'all' | 'proxy'
 
+const PAGE_SIZE = 50
+
 export default function RoutesPage() {
   const utils = trpc.useUtils()
   const { siteId } = useSiteSelection()
-  const list = trpc.routes.list.useQuery({ siteId })
-  const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const [page, setPage] = useState(0)
+  const list = trpc.routes.list.useQuery({ siteId, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+  const totalCount = trpc.routes.count.useQuery({ siteId })
+  const del = trpc.routes.delete.useMutation({ onSuccess: () => { void utils.routes.list.invalidate(); void utils.routes.count.invalidate() } })
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -24,6 +28,8 @@ export default function RoutesPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [panelId, setPanelId] = useState<string | null>(null)
+
+  useEffect(() => { setPage(0) }, [siteId])
 
   const filtered = useMemo(() => {
     return (list.data ?? []).filter((r) => {
@@ -91,7 +97,9 @@ export default function RoutesPage() {
               <option value="off">SSO off</option>
             </Select>
             <Input placeholder="Search domain…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 240 }} />
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{filtered.length} / {list.data?.length ?? 0} routes</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>
+              {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + (list.data?.length ?? 0)} of {totalCount.data?.total ?? '…'} routes
+            </span>
           </div>
         </Card>
 
@@ -147,6 +155,14 @@ export default function RoutesPage() {
             </tbody>
           </DataTable>
         </Card>
+
+        {(totalCount.data?.total ?? 0) > PAGE_SIZE && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+            <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Page {page + 1} of {Math.ceil((totalCount.data?.total ?? 1) / PAGE_SIZE)}</span>
+            <Button size="sm" variant="ghost" disabled={(page + 1) * PAGE_SIZE >= (totalCount.data?.total ?? 0)} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+          </div>
+        )}
       </PageContent>
 
       <SidePanel open={panelId !== null} onClose={() => setPanelId(null)} title={panelRoute?.domain ?? 'Route'}>
@@ -295,6 +311,31 @@ function ChainNodes({ routeId }: { routeId: string }) {
   )
 }
 
+type UpstreamErrorType = 'dns' | 'connection_refused' | 'timeout' | 'tls' | 'http_5xx' | 'http_4xx' | 'slow' | 'ok'
+type ProbeResult = { ok: boolean; errorType: UpstreamErrorType; message: string; statusCode?: number }
+
+const PROBE_CONFIG: Record<UpstreamErrorType, { tone: 'green' | 'amber' | 'red' | 'neutral'; label: string; detail: string }> = {
+  ok:                 { tone: 'green',   label: 'Reachable',  detail: '' },
+  dns:                { tone: 'red',     label: 'DNS failed', detail: 'Unknown hostname' },
+  connection_refused: { tone: 'red',     label: 'Refused',    detail: 'Port closed or service not running' },
+  timeout:            { tone: 'amber',   label: 'Timeout',    detail: 'Network partition or firewall' },
+  slow:               { tone: 'amber',   label: 'Slow',       detail: 'No response within 5s' },
+  tls:                { tone: 'red',     label: 'TLS error',  detail: 'Certificate or handshake failure' },
+  http_5xx:           { tone: 'amber',   label: '5xx',        detail: 'Upstream server error' },
+  http_4xx:           { tone: 'neutral', label: '4xx',        detail: 'Auth or path issue (upstream reachable)' },
+}
+
+function UpstreamProbeBadge({ result }: { result: ProbeResult }) {
+  const cfg = PROBE_CONFIG[result.errorType] ?? { tone: 'red' as const, label: result.errorType, detail: result.message }
+  const detail = result.statusCode ? `HTTP ${result.statusCode}` : (cfg.detail || result.message)
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Badge tone={cfg.tone}>{cfg.label}</Badge>
+      {detail && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{detail}</span>}
+    </span>
+  )
+}
+
 function RoutePanel({ route }: { route: Route }) {
   const utils = trpc.useUtils()
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
@@ -314,8 +355,24 @@ function RoutePanel({ route }: { route: Route }) {
   const [forceSSL, setForceSSL] = useState(!!route.forceSSL)
   const [hstsEnabled, setHstsEnabled] = useState(!!route.hstsEnabled)
   const [hstsSubdomains, setHstsSubdomains] = useState(!!route.hstsSubdomains)
-  const [trustHeaders, setTrustHeaders] = useState(!!route.trustUpstreamHeaders)
   const [skipTlsVerify, setSkipTlsVerify] = useState(!!route.skipTlsVerify)
+  const [probeResults, setProbeResults] = useState<Record<string, ProbeResult>>({})
+  const [probing, setProbing] = useState(false)
+  const testUpstream = trpc.routes.testUpstream.useMutation()
+
+  async function testConnections() {
+    setProbing(true)
+    const next: Record<string, ProbeResult> = {}
+    for (const up of route.upstreams) {
+      try {
+        next[up.address] = await testUpstream.mutateAsync({ address: up.address })
+      } catch {
+        next[up.address] = { ok: false, errorType: 'timeout', message: 'Request error' }
+      }
+    }
+    setProbeResults(next)
+    setProbing(false)
+  }
 
   function startEdit() {
     setName(route.name)
@@ -330,7 +387,6 @@ function RoutePanel({ route }: { route: Route }) {
     setForceSSL(!!route.forceSSL)
     setHstsEnabled(!!route.hstsEnabled)
     setHstsSubdomains(!!route.hstsSubdomains)
-    setTrustHeaders(!!route.trustUpstreamHeaders)
     setSkipTlsVerify(!!route.skipTlsVerify)
     setEditing(true)
   }
@@ -351,7 +407,6 @@ function RoutePanel({ route }: { route: Route }) {
         forceSSL,
         hstsEnabled,
         hstsSubdomains,
-        trustUpstreamHeaders: trustHeaders,
         skipTlsVerify,
       },
     }, { onSuccess: () => setEditing(false) })
@@ -427,7 +482,6 @@ function RoutePanel({ route }: { route: Route }) {
           <Row k="Force SSL" v={<Toggle checked={forceSSL} onChange={setForceSSL} />} />
           <Row k="HSTS" v={<Toggle checked={hstsEnabled} onChange={setHstsEnabled} />} />
           <Row k="HSTS Subdomains" v={<Toggle checked={hstsSubdomains} onChange={(v) => { setHstsSubdomains(v); if (v) setHstsEnabled(true) }} />} />
-          <Row k="Trust Upstream Headers" v={<Toggle checked={trustHeaders} onChange={setTrustHeaders} />} />
           <Row k="Skip Upstream TLS Verify" v={<Toggle checked={skipTlsVerify} onChange={setSkipTlsVerify} />} />
         </Section>
 
@@ -449,7 +503,14 @@ function RoutePanel({ route }: { route: Route }) {
     <div style={{ display: 'grid', gap: 14 }}>
       <Section title="Upstream">
         <Row k="Targets" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.upstreams.map((u) => u.address).join(', ')}</span>} />
-        <Row k="Health" v={<Badge tone="green">healthy</Badge>} />
+        {Object.entries(probeResults).map(([addr, result]) => (
+          <Row key={addr} k={addr} v={<UpstreamProbeBadge result={result} />} />
+        ))}
+        <Row k="Connection" v={
+          <Button size="sm" variant="ghost" onClick={() => void testConnections()} disabled={probing}>
+            {probing ? 'Testing…' : Object.keys(probeResults).length > 0 ? 'Retest' : 'Test'}
+          </Button>
+        } />
       </Section>
       <Section title="TLS">
         <Row k="Mode" v={<Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>{route.tlsMode}</Badge>} />
@@ -469,7 +530,6 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="Force SSL" v={<Toggle checked={!!route.forceSSL} onChange={() => {}} disabled />} />
         <Row k="HSTS" v={<Toggle checked={!!route.hstsEnabled} onChange={() => {}} disabled />} />
         <Row k="HSTS Subdomains" v={<Toggle checked={!!route.hstsSubdomains} onChange={() => {}} disabled />} />
-        <Row k="Trust Upstream Headers" v={<Toggle checked={!!route.trustUpstreamHeaders} onChange={() => {}} disabled />} />
         <Row k="Skip Upstream TLS Verify" v={<Toggle checked={!!route.skipTlsVerify} onChange={() => {}} disabled />} />
       </Section>
       <SecuritySection routeId={route.id} />
