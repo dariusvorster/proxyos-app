@@ -1547,3 +1547,75 @@ The following packages were excluded from the §1F test-coverage inventory and a
 - **`packages/alerts/`** — Alert rule evaluator and notification dispatcher (`evaluator.ts`, `notify.ts`). No tests exist. Risk is P3: alert misfires are annoying but do not break routing or auth. Deferred because the evaluator loop is a background concern.
 
 Both packages should be added to the Phase 5 test-coverage sprint. Their absence from §1F does not change the P0/P1 priority rankings above.
+
+---
+
+## Resolution Summary — All Phases Complete
+
+*Updated: 2026-04-22*
+
+All six phases of the ProxyOS Stability Engineering Initiative have shipped. The table below maps Phase 1 findings to the phase that resolved them.
+
+### Phase 2 — Silent failures eliminated
+
+| Finding | Resolution |
+|---------|-----------|
+| Empty catch in `withCaddySync` callers (routes.ts mutations) | All create/update/delete/expose/archive/unarchive mutations wrapped in `withCaddySync<T>()` — DB + Caddy op inside one transaction; Caddy failure rolls back the DB write (Phase 2, commit series) |
+| `validateCaddyRoute` called but result not surfaced to user | Validation errors now thrown as `TRPCError` before any DB/Caddy write |
+| Caddy admin API errors swallowed after route push | `withCaddySync` propagates Caddy errors to the mutation caller; UI receives and displays them |
+| Federation sync errors logged but silently discarded | `federation/client.ts` exponential backoff with clear "Agent identity lost" error + recovery steps |
+| Missing `sync_source` after several route-push flows | All push flows now set `syncSource` after push |
+
+### Phase 3 — Save integrity guaranteed
+
+| Finding | Resolution |
+|---------|-----------|
+| Mutations returned `void`; UI couldn't distinguish success from partial success | All mutations return `{ ok: true, route }` (3A) |
+| DB write and Caddy push not atomic | `withCaddySync<T>()` two-phase commit wraps every route mutation (3B) |
+| UI showed success before Caddy confirmed the route | `verifyRoute()` called after each push; UI only clears edit mode on verified success (3E) |
+| Optimistic UI had no rollback on API error | `onMutate`/`onError` rollback on all mutations (3C) |
+| Form fields reset to stale data after save | All 13 form fields reset to fresh server data in `update.onSuccess` (3D) |
+| Timer leak in edit panel (setTimeout not cancelled on unmount) | `timerIds` ref + `scheduleTimeout` + cleanup `useEffect` (3E) |
+
+### Phase 4 — Container rebuild resilience
+
+| Finding | Resolution |
+|---------|-----------|
+| Docker DNS (`127.0.0.11`) not configured in Caddy reverse_proxy transport | `applyDockerDns()` wrapper post-processes every `buildCaddyRoute` output; applied at bootstrap and every mutation (4A) |
+| Agent identity lost on container rebuild | Already persisted to named volume; improved error message with explicit recovery steps (4C) |
+| SQLite WAL accumulation over time | `synchronous = NORMAL`, passive WAL checkpoint every 5 minutes, integrity check at startup (4D) |
+| No startup ordering documentation | `docs/architecture/startup-ordering.md` added; s6-overlay ordering audited (4E) |
+| Rebuild smoke test missing | `scripts/rebuild-smoke-test.sh` — 7-step test with upstream IP guards and safe docker stop/rm (4G) |
+
+### Phase 5 — Test coverage hardened
+
+| Finding | Resolution |
+|---------|-----------|
+| `buildCaddyRoute` had no property-based tests | 6 fast-check property tests: valid JSON (P1), rp handler present (P2), no malformed placeholders (P3), Docker DNS resolver (P4), upstream URL preserved (P5), header key/value syntax (P6) |
+| Migration runner had no tests | 7 migration integrity tests with in-memory SQLite: Fix 4 columns present, idempotency, data survival |
+| CaddyClient `upsertRoute`/`verifyRoute` had 0 integration tests | 3 round-trip tests (skip without `CADDY_ADMIN_URL`) wired into CI with Caddy service container |
+| All route mutations had 0 API tests | 5 tRPC mutation tests: happy path, invalid input, unauthorized, forbidden (viewer role), conflict |
+| No E2E tests | Playwright E2E: login → expose → verify in list → edit name → save → delete → verify gone |
+| No CI gate | `.github/workflows/ci.yml`: test, typecheck, shadow guard, integration-test on every PR |
+
+### Phase 6 — Edge cases and cleanup
+
+| Finding | Resolution |
+|---------|-----------|
+| All upstream errors shown as generic "fetch failed" | `routes.testUpstream` probe procedure + `UpstreamProbeBadge` — distinct badge/message per error type: dns, connection_refused, timeout, tls, http_5xx, http_4xx, slow, ok (6A) |
+| Browser compatibility undocumented | `docs/deployment/browser-compatibility.md` — matrix, tested paths, known limitations (6B) |
+| Caddy admin API retry was linear (thundering-herd risk) | Upgraded to exponential backoff (`delay * 2^attempt`, capped 10s) (6C) |
+| `trustUpstreamHeaders` UI toggle did nothing operationally | Removed from edit and view panels; DB field retained for forward compat (6D) |
+| Routes list loaded all rows into memory (OOM risk at 100+ routes) | `routes.list` now accepts `limit`/`offset`; `routes.count` added; routes page paginates at 50/page with Prev/Next controls (6F) |
+
+### Remaining open items
+
+The following items from the Phase 1 audit were deferred and remain open:
+
+| Item | Reason deferred |
+|------|----------------|
+| `healthCheckMaxFails` wiring into Caddy active health checks | Requires editing locked `packages/caddy/src/config.ts` — deferred until file is unlocked |
+| Tests for `packages/api/src/automation/` (drift-detector, docker-discovery, scheduled-changes) | P2 risk; scoped to Phase 5 but deferred — no timeline |
+| Tests for `packages/federation/` and `packages/alerts/` | P2/P3 risk; deferred — federation not yet enabled in production |
+| Nightly load tests (100+ routes, 10k+ req/day) | Infrastructure not yet wired; deferred to post-initiative |
+| TOTP test coverage | P0 risk; deferred — TOTP module is locked auth code |
