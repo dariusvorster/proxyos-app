@@ -99,7 +99,8 @@ COPY docker/s6-overlay/ /etc/s6-overlay/
 
 # Log rotation config
 COPY docker/logrotate/proxyos /etc/logrotate.d/proxyos
-RUN find /etc/s6-overlay/s6-rc.d -name run -o -name up -o -name finish \
+RUN chmod 644 /etc/logrotate.d/proxyos \
+ && find /etc/s6-overlay/s6-rc.d -name run -o -name up -o -name finish \
     | xargs chmod +x
 
 RUN mkdir -p /data/proxyos /data/caddy /config/caddy
