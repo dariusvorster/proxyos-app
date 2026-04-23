@@ -1,21 +1,10 @@
-import type { CaddyRoute, CaddyHandler } from './types'
+import type { CaddyRoute } from './types'
 
+// Caddy 2.11: Docker DNS is resolved automatically via container's
+// /etc/resolv.conf (which Docker populates with 127.0.0.11). The
+// per-route transport.resolvers field was rejected by Caddy 2.11
+// ("unknown field resolvers"). Keep the function as a no-op so
+// callers don't need to change.
 export function applyDockerDns(route: CaddyRoute): CaddyRoute {
-  return {
-    ...route,
-    handle: (route.handle ?? []).map((h) => {
-      if ((h as Record<string, unknown>).handler !== 'reverse_proxy') return h
-      const rp = h as Record<string, unknown>
-      const existing = (rp.transport as Record<string, unknown> | undefined) ?? {}
-      return {
-        ...rp,
-        transport: {
-          protocol: 'http',
-          ...existing,
-          resolvers: ['127.0.0.11'],
-          dial_timeout: '3s',
-        },
-      } as unknown as CaddyHandler
-    }),
-  }
+  return route
 }
