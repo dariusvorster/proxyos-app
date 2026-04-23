@@ -2,6 +2,12 @@ const NODE_BUILTINS = ['path', 'fs', 'fs/promises', 'readline', 'better-sqlite3'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['*'],
+      bodySizeLimit: '10mb',
+    },
+  },
   output: 'standalone',
   outputFileTracingRoot: '../../',
   transpilePackages: ['@proxyos/alerts', '@proxyos/analytics', '@proxyos/api', '@proxyos/caddy', '@proxyos/connect', '@proxyos/db', '@proxyos/federation', '@proxyos/importers', '@proxyos/scanner', '@proxyos/sso', '@proxyos/types'],
