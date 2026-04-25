@@ -1117,4 +1117,14 @@ export function ensureSchema(db: Database.Database): void {
   try { db.exec(`ALTER TABLE routes ADD COLUMN exposure_mode TEXT NOT NULL DEFAULT 'direct'`) } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE routes ADD COLUMN tunnel_route_id TEXT`) } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE routes ADD COLUMN tunnel_public_url TEXT`) } catch { /* already exists */ }
+
+  // V1.1 explicit upstream protocol + SNI override
+  const V11_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN upstream_protocol TEXT NOT NULL DEFAULT 'http'`,
+    `ALTER TABLE routes ADD COLUMN upstream_sni TEXT`,
+  ]
+  for (const stmt of V11_ALTERS) {
+    try { db.exec(stmt) } catch { /* already exists */ }
+  }
+  try { db.exec(`UPDATE routes SET upstream_protocol = 'https-insecure' WHERE skip_tls_verify = 1 AND upstream_protocol = 'http'`) } catch { /* ignore */ }
 }

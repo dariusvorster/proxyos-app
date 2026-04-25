@@ -10,6 +10,7 @@ import { useSiteSelection } from '~/lib/site-context'
 type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'
 type SourceMode = 'manual' | 'infraos' | 'scanner'
 type RoutingMode = 'direct' | 'cloudflare_tunnel' | 'tailscale'
+type UpstreamProtocol = 'http' | 'https-trusted' | 'https-insecure'
 
 const STEPS = ['Source', 'Domain', 'Routing', 'Access', 'Options', 'Monitoring', 'Review']
 
@@ -54,8 +55,16 @@ export default function ExposePage() {
   const [sourceMode, setSourceMode] = useState<SourceMode>('manual')
   const [ip, setIp] = useState('')
   const [port, setPort] = useState('')
-  const [protocol, setProtocol] = useState<'http' | 'https'>('http')
+  const [upstreamProtocol, setUpstreamProtocol] = useState<UpstreamProtocol>('http')
+  const [upstreamSni, setUpstreamSni] = useState('')
   const [name, setName] = useState('')
+  const [probeResult, setProbeResult] = useState<{ suggestion: UpstreamProtocol | null; error?: string; details?: { certCn?: string; certIssuer?: string; certExpiresAt?: string } } | null>(null)
+  const probeMut = trpc.routes.probe.useMutation({
+    onSuccess: (r) => {
+      setProbeResult(r as typeof probeResult)
+      if (r.suggestion) setUpstreamProtocol(r.suggestion as UpstreamProtocol)
+    },
+  })
 
   // Domain
   const [domain, setDomain] = useState('')
@@ -96,8 +105,6 @@ export default function ExposePage() {
   const [monitoringConnectionId, setMonitoringConnectionId] = useState('')
   const [monitorInterval, setMonitorInterval] = useState('60s')
 
-  const [skipTlsVerify, setSkipTlsVerify] = useState(false)
-
   // Custom config
   const [customJson, setCustomJson] = useState('')
   const [customJsonError, setCustomJsonError] = useState('')
@@ -110,8 +117,9 @@ export default function ExposePage() {
 
   const upstreamUrl = useMemo(() => {
     if (!ip || !port) return ''
-    return `${protocol}://${ip}:${port}`
-  }, [ip, port, protocol])
+    const scheme = upstreamProtocol === 'http' ? 'http' : 'https'
+    return `${scheme}://${ip}:${port}`
+  }, [ip, port, upstreamProtocol])
 
   const caddyReady = status.data?.reachable && status.data.hasMain
   const ssoProvider = ssoProviders.data?.find((p) => p.id === ssoProviderId)
@@ -136,6 +144,8 @@ export default function ExposePage() {
       compressionEnabled: compression,
       websocketEnabled: ws,
       http3Enabled: http3,
+      upstreamProtocol,
+      upstreamSni: upstreamProtocol === 'https-trusted' && upstreamSni ? upstreamSni : null,
     })
   }
 
@@ -234,16 +244,82 @@ export default function ExposePage() {
             {sourceMode === 'manual' && (
               <div style={{ display: 'grid', gap: 10 }}>
                 <Field label="Service name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="grafana" /></Field>
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 140px', gap: 8 }}>
-                  <Field label="Protocol">
-                    <Select value={protocol} onChange={(e) => setProtocol(e.target.value as 'http' | 'https')}>
-                      <option value="http">http</option>
-                      <option value="https">https</option>
-                    </Select>
-                  </Field>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8 }}>
                   <Field label="IP address"><Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.10" /></Field>
                   <Field label="Port"><Input value={port} onChange={(e) => setPort(e.target.value)} placeholder="3000" /></Field>
                 </div>
+
+                {/* Upstream protocol — three-way radio */}
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Upstream protocol</div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {([
+                      { value: 'http',           label: 'HTTP',                        desc: 'Plain HTTP — most common' },
+                      { value: 'https-trusted',  label: 'HTTPS (trusted certificate)', desc: 'Upstream uses a publicly-trusted cert' },
+                      { value: 'https-insecure', label: 'HTTPS (self-signed certificate)', desc: 'Proxmox, PBS, vCenter, IPMI, etc.' },
+                    ] as { value: UpstreamProtocol; label: string; desc: string }[]).map((opt) => (
+                      <label key={opt.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                        background: upstreamProtocol === opt.value ? 'rgba(124,111,240,0.1)' : 'var(--surface-2)',
+                        border: upstreamProtocol === opt.value ? '1px solid var(--pu-400)' : '0.5px solid var(--border)' }}>
+                        <input type="radio" name="upstreamProtocol" value={opt.value} checked={upstreamProtocol === opt.value}
+                          onChange={() => { setUpstreamProtocol(opt.value); setProbeResult(null) }}
+                          style={{ marginTop: 2, accentColor: 'var(--pu-400)' }} />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500 }}>{opt.label}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* SNI field — only when https-trusted */}
+                  {upstreamProtocol === 'https-trusted' && (
+                    <div style={{ marginTop: 8 }}>
+                      <Field label="SNI / server name (optional — only if cert CN differs from IP)" hint="Leave empty if the upstream cert matches its IP/hostname directly.">
+                        <Input value={upstreamSni} onChange={(e) => setUpstreamSni(e.target.value)} placeholder="pve.internal.example.com" />
+                      </Field>
+                    </div>
+                  )}
+
+                  {/* Detect for me */}
+                  <div style={{ marginTop: 8 }}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => ip && port && probeMut.mutate({ host: ip, port: parseInt(port, 10) })}
+                      disabled={!ip || !port || probeMut.isPending}
+                    >
+                      {probeMut.isPending ? 'Detecting…' : 'Detect for me'}
+                    </Button>
+                  </div>
+
+                  {/* Probe result */}
+                  {probeResult && (
+                    <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 6, fontSize: 11, lineHeight: 1.5,
+                      background: probeResult.suggestion ? 'var(--surface-2)' : 'rgba(220,60,60,0.08)',
+                      border: `0.5px solid ${probeResult.suggestion ? 'var(--border)' : 'var(--red)'}` }}>
+                      {probeResult.error && <div style={{ color: 'var(--red)' }}>{probeResult.error}</div>}
+                      {probeResult.suggestion && (
+                        <>
+                          <div style={{ color: 'var(--green)', marginBottom: 4 }}>
+                            ✓ Suggestion applied: <strong>{probeResult.suggestion}</strong>
+                          </div>
+                          {probeResult.suggestion === 'https-insecure' && probeResult.details?.certCn && (
+                            <div style={{ color: 'var(--amber)', padding: '6px 8px', background: 'rgba(220,140,0,0.08)', borderRadius: 4, marginTop: 4 }}>
+                              <div>ⓘ Self-signed certificate detected</div>
+                              <div style={{ color: 'var(--text-dim)', marginTop: 2 }}>
+                                Subject: CN={probeResult.details.certCn}<br />
+                                Issuer: CN={probeResult.details.certIssuer}<br />
+                                Expires: {probeResult.details.certExpiresAt}
+                              </div>
+                              <div style={{ marginTop: 4 }}>Caddy will skip certificate verification when proxying to this upstream. Normal for LAN appliances.</div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {upstreamUrl && (
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                     Upstream: <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--pu-400)' }}>{upstreamUrl}</code>
@@ -462,13 +538,6 @@ export default function ExposePage() {
                 <Field label="Health check path"><Input value={healthPath} onChange={(e) => setHealthPath(e.target.value)} /></Field>
               </div>
             )}
-            <ToggleRow label="Skip upstream TLS verification" checked={skipTlsVerify} onChange={setSkipTlsVerify} />
-            {skipTlsVerify && (
-              <div style={{ paddingLeft: 20, fontSize: 11, color: 'var(--amber)', lineHeight: 1.5 }}>
-                Upstream TLS certificate will not be verified. Use for self-signed certs (e.g. Proxmox, IPMI).
-              </div>
-            )}
-
             <div style={{ marginTop: 16, borderTop: '0.5px solid var(--border)', paddingTop: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Custom Caddy config</div>
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.5 }}>
@@ -567,6 +636,7 @@ export default function ExposePage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 }}>
               <div>
                 <ReviewItem k="Source" v={upstreamUrl} mono />
+                <ReviewItem k="Upstream protocol" v={<Badge tone={upstreamProtocol === 'http' ? 'neutral' : upstreamProtocol === 'https-trusted' ? 'green' : 'amber'}>{upstreamProtocol}</Badge>} />
                 <ReviewItem k="Domain" v={<><strong>{domain}</strong> · <Badge tone={tlsMode === 'off' ? 'red' : 'green'}>{tlsMode}</Badge></>} />
                 <ReviewItem k="Routing" v={<Badge tone="neutral">{routingMode.replace('_', ' ')}</Badge>} />
                 <ReviewItem k="SSO" v={ssoEnabled ? <><Badge tone="purple">{ssoProvider?.type}</Badge> <span style={{ color: 'var(--text-secondary)' }}>{ssoProvider?.name}</span></> : <span style={{ color: 'var(--text-dim)' }}>disabled</span>} />
