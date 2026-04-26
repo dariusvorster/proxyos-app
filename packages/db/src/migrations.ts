@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { builtInPresets } from '../seeds/service-presets'
 
 const DDL = [
   `CREATE TABLE IF NOT EXISTS routes (
@@ -1150,7 +1151,6 @@ export function ensureSchema(db: Database.Database): void {
   // Seed built-in presets once
   const presetCount = (db.prepare('SELECT COUNT(*) as n FROM service_presets').get() as { n: number }).n
   if (presetCount === 0) {
-    const { builtInPresets } = require('../seeds/service-presets') as typeof import('../seeds/service-presets')
     const insertPreset = db.prepare(`
       INSERT INTO service_presets
         (id, name, category, icon, default_port, upstream_protocol, websocket,
