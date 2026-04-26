@@ -129,6 +129,13 @@ export function rowToRoute(row: typeof routes.$inferSelect): Route {
     aliases: (row as Record<string, unknown>).aliases
       ? JSON.parse((row as Record<string, unknown>).aliases as string) as string[]
       : null,
+    pathRewrite: (row as Record<string, unknown>).pathRewrite
+      ? JSON.parse((row as Record<string, unknown>).pathRewrite as string) as Route['pathRewrite']
+      : null,
+    corsConfig: (row as Record<string, unknown>).corsConfig
+      ? JSON.parse((row as Record<string, unknown>).corsConfig as string) as Route['corsConfig']
+      : null,
+    slowRequestThresholdMs: ((row as Record<string, unknown>).slowRequestThresholdMs as number | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -629,6 +636,9 @@ export const routesRouter = router({
           upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).optional(),
           upstreamSni: z.string().nullable().optional(),
           aliases: z.array(z.string().min(1).max(253)).max(20).nullable().optional(),
+          pathRewrite: z.string().nullable().optional(),
+          corsConfig: z.string().nullable().optional(),
+          slowRequestThresholdMs: z.number().int().min(0).nullable().optional(),
         }),
       }),
     )
@@ -681,6 +691,9 @@ export const routesRouter = router({
       if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
       if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
       if (p.aliases !== undefined) update.aliases = p.aliases?.length ? JSON.stringify(p.aliases) : null
+      if (p.pathRewrite !== undefined) update.pathRewrite = p.pathRewrite
+      if (p.corsConfig !== undefined) update.corsConfig = p.corsConfig
+      if (p.slowRequestThresholdMs !== undefined) update.slowRequestThresholdMs = p.slowRequestThresholdMs
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 
