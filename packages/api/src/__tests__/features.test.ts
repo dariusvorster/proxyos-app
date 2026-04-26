@@ -638,3 +638,75 @@ describe('traffic replay', () => {
     expect(logs.length).toBe(0)
   })
 })
+
+// ── Public API write endpoints (routes:write scope) ────────────────────────────
+describe('public API write endpoints', () => {
+  function makeTokenCtx(scopes: string[]) {
+    return {
+      req: new Request('http://localhost'),
+      db: getDb(),
+      caddy: makeNullCaddy(),
+      session: { userId: TEST_USER_ID, role: 'admin' as const },
+      tokenScopes: scopes,
+      resHeaders: new Headers(),
+      clientIp: '127.0.0.1',
+    }
+  }
+
+  test('createRoute creates a route and returns id', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:write', 'routes:read']))
+    const domain = `api-write-${nanoid()}.test`
+    const result = await caller.publicApi.createRoute({
+      name: 'API Created', domain,
+      upstreams: [{ address: '10.0.0.1:8080', weight: 1 }],
+    })
+    expect(result.id).toBeTruthy()
+
+    const list = await caller.publicApi.routes()
+    expect(list.some(r => r.domain === domain)).toBe(true)
+  })
+
+  test('createRoute rejects duplicate domain', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:write']))
+    const domain = `api-dup-${nanoid()}.test`
+    await caller.publicApi.createRoute({ name: 'First', domain, upstreams: [{ address: '10.0.0.1:9000' }] })
+    await expect(caller.publicApi.createRoute({ name: 'Dup', domain, upstreams: [{ address: '10.0.0.2:9000' }] }))
+      .rejects.toMatchObject({ code: 'CONFLICT' })
+  })
+
+  test('updateRoute patches enabled and upstreams', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:write', 'routes:read']))
+    const domain = `api-update-${nanoid()}.test`
+    const { id } = await caller.publicApi.createRoute({ name: 'To Update', domain, upstreams: [{ address: 'old:8080' }] })
+
+    await caller.publicApi.updateRoute({ id, patch: { enabled: false, upstreams: [{ address: 'new:9090' }] } })
+
+    const list = await caller.publicApi.routes()
+    const updated = list.find(r => r.id === id)!
+    expect(updated.enabled).toBe(false)
+    expect(updated.upstreams[0]!.address).toBe('new:9090')
+  })
+
+  test('updateRoute returns NOT_FOUND for unknown id', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:write']))
+    await expect(caller.publicApi.updateRoute({ id: 'no-such-id', patch: { enabled: true } }))
+      .rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  test('deleteRoute removes the route', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:write', 'routes:read']))
+    const domain = `api-delete-${nanoid()}.test`
+    const { id } = await caller.publicApi.createRoute({ name: 'To Delete', domain, upstreams: [{ address: 'x:1' }] })
+
+    await caller.publicApi.deleteRoute({ id })
+
+    const list = await caller.publicApi.routes()
+    expect(list.some(r => r.id === id)).toBe(false)
+  })
+
+  test('missing scope throws UNAUTHORIZED', async () => {
+    const caller = appRouter.createCaller(makeTokenCtx(['routes:read']))
+    await expect(caller.publicApi.createRoute({ name: 'x', domain: 'x.test', upstreams: [{ address: 'x:1' }] }))
+      .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+})

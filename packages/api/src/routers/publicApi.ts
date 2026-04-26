@@ -1,9 +1,16 @@
-import { gte, sql } from 'drizzle-orm'
+import { TRPCError } from '@trpc/server'
+import { eq, gte, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { routes, certificates, trafficMetrics } from '@proxyos/db'
+import { routes, certificates, trafficMetrics, nanoid } from '@proxyos/db'
 import { tokenScopeProcedure, router } from '../trpc'
+import { rowToRoute, syncRouteToCaddy } from './routes'
 
 const PKG_VERSION = '0.2.0'
+
+const writeUpstreamSchema = z.object({
+  address: z.string().min(1),
+  weight: z.number().int().min(0).max(100).default(1),
+})
 
 export const publicApiRouter = router({
 
@@ -39,6 +46,88 @@ export const publicApiRouter = router({
       updatedAt: r.updatedAt,
     }))
   }),
+
+  /** routes:write — create a route */
+  createRoute: tokenScopeProcedure('routes:write')
+    .input(z.object({
+      name: z.string().min(1).max(100),
+      domain: z.string().min(1).max(253),
+      upstreams: z.array(writeUpstreamSchema).min(1),
+      tlsMode: z.enum(['auto', 'auto-staging', 'internal', 'off']).default('auto'),
+      compressionEnabled: z.boolean().default(true),
+      healthCheckEnabled: z.boolean().default(true),
+      healthCheckPath: z.string().default('/'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.select().from(routes).where(eq(routes.domain, input.domain)).get()
+      if (existing) throw new TRPCError({ code: 'CONFLICT', message: `Route for ${input.domain} already exists` })
+
+      const now = new Date()
+      const id = nanoid()
+      await ctx.db.insert(routes).values({
+        id,
+        name: input.name,
+        domain: input.domain,
+        upstreams: JSON.stringify(input.upstreams),
+        upstreamType: 'http',
+        lbPolicy: 'round_robin',
+        tlsMode: input.tlsMode,
+        compressionEnabled: input.compressionEnabled,
+        healthCheckEnabled: input.healthCheckEnabled,
+        healthCheckPath: input.healthCheckPath,
+        healthCheckInterval: 30,
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      } as typeof routes.$inferInsert)
+
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, id)).get()
+      if (row) void syncRouteToCaddy(ctx, rowToRoute(row), 'public-api').catch(() => {})
+      return { id }
+    }),
+
+  /** routes:write — update a route (enabled, upstreams, name) */
+  updateRoute: tokenScopeProcedure('routes:write')
+    .input(z.object({
+      id: z.string(),
+      patch: z.object({
+        name: z.string().min(1).max(100).optional(),
+        enabled: z.boolean().optional(),
+        upstreams: z.array(writeUpstreamSchema).min(1).optional(),
+        healthCheckEnabled: z.boolean().optional(),
+        healthCheckPath: z.string().optional(),
+        compressionEnabled: z.boolean().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+
+      const set: Record<string, unknown> = { updatedAt: new Date() }
+      const p = input.patch
+      if (p.name !== undefined) set.name = p.name
+      if (p.enabled !== undefined) set.enabled = p.enabled
+      if (p.upstreams !== undefined) set.upstreams = JSON.stringify(p.upstreams)
+      if (p.healthCheckEnabled !== undefined) set.healthCheckEnabled = p.healthCheckEnabled
+      if (p.healthCheckPath !== undefined) set.healthCheckPath = p.healthCheckPath
+      if (p.compressionEnabled !== undefined) set.compressionEnabled = p.compressionEnabled
+
+      await ctx.db.update(routes).set(set).where(eq(routes.id, input.id))
+      const updated = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (updated) void syncRouteToCaddy(ctx, rowToRoute(updated), 'public-api').catch(() => {})
+      return { ok: true }
+    }),
+
+  /** routes:write — delete a route */
+  deleteRoute: tokenScopeProcedure('routes:write')
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.id)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      await ctx.db.delete(routes).where(eq(routes.id, input.id))
+      await ctx.caddy.removeRoute(input.id).catch(() => {})
+      return { ok: true }
+    }),
 
   /** certs:read — certificate list with expiry */
   certs: tokenScopeProcedure('certs:read').query(async ({ ctx }) => {
