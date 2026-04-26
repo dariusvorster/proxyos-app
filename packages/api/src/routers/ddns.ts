@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server'
+import { createHash, createHmac } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { ddnsRecords, dnsProviders, nanoid } from '@proxyos/db'
@@ -102,6 +103,14 @@ export const ddnsRouter = router({
 
       if (provider.type === 'cloudflare') {
         updateError = await updateCloudflare(credentials, row.zone, row.recordName, row.recordType, ip)
+      } else if (provider.type === 'route53') {
+        updateError = await updateRoute53(credentials, row.zone, row.recordName, row.recordType, ip)
+      } else if (provider.type === 'porkbun') {
+        updateError = await updatePorkbun(credentials, row.zone, row.recordName, row.recordType, ip)
+      } else if (provider.type === 'digitalocean') {
+        updateError = await updateDigitalOcean(credentials, row.zone, row.recordName, row.recordType, ip)
+      } else if (provider.type === 'godaddy') {
+        updateError = await updateGoDaddy(credentials, row.zone, row.recordName, row.recordType, ip)
       } else {
         updateError = `DNS provider type '${provider.type}' not yet supported for DDNS`
       }
@@ -169,4 +178,158 @@ async function updateCloudflare(
   }
 
   return null
+}
+
+// ── Route53 (AWS SigV4) ───────────────────────────────────────────────────────
+function hmac(key: Buffer | string, data: string): Buffer {
+  return createHmac('sha256', key).update(data).digest()
+}
+function sha256Hex(data: string): string {
+  return createHash('sha256').update(data, 'utf8').digest('hex')
+}
+function signingKey(secret: string, date: string, region: string, service: string): Buffer {
+  return hmac(hmac(hmac(hmac('AWS4' + secret, date), region), service), 'aws4_request')
+}
+
+async function updateRoute53(
+  creds: Record<string, string>,
+  zone: string,
+  name: string,
+  type: string,
+  ip: string,
+): Promise<string | null> {
+  const accessKey = creds.access_key_id
+  const secretKey = creds.secret_access_key
+  const hostedZoneId = creds.hosted_zone_id
+  if (!accessKey || !secretKey || !hostedZoneId) return 'Missing Route53 credentials (access_key_id, secret_access_key, hosted_zone_id)'
+
+  const region = 'us-east-1'
+  const service = 'route53'
+  const host = 'route53.amazonaws.com'
+  const path = `/2013-04-01/hostedzone/${hostedZoneId}/rrset`
+  const body = `<?xml version="1.0" encoding="UTF-8"?><ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/"><ChangeBatch><Changes><Change><Action>UPSERT</Action><ResourceRecordSet><Name>${name}.${zone}</Name><Type>${type}</Type><TTL>60</TTL><ResourceRecords><ResourceRecord><Value>${ip}</Value></ResourceRecord></ResourceRecords></ResourceRecordSet></Change></Changes></ChangeBatch></ChangeResourceRecordSetsRequest>`
+  const bodyHash = sha256Hex(body)
+
+  const now = new Date()
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z'
+  const dateStamp = amzDate.slice(0, 8)
+
+  const canonicalHeaders = `content-type:application/xml\nhost:${host}\nx-amz-date:${amzDate}\n`
+  const signedHeaders = 'content-type;host;x-amz-date'
+  const canonicalRequest = `POST\n${path}\n\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${sha256Hex(canonicalRequest)}`
+  const signature = hmac(signingKey(secretKey, dateStamp, region, service), stringToSign).toString('hex')
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+
+  try {
+    const res = await fetch(`https://${host}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/xml', 'X-Amz-Date': amzDate, Authorization: authorization },
+      body,
+    })
+    if (!res.ok) return `Route53 update failed: ${res.status} ${await res.text()}`
+    return null
+  } catch (err) {
+    return `Route53 update error: ${(err as Error).message}`
+  }
+}
+
+// ── Porkbun ───────────────────────────────────────────────────────────────────
+async function updatePorkbun(
+  creds: Record<string, string>,
+  zone: string,
+  name: string,
+  type: string,
+  ip: string,
+): Promise<string | null> {
+  const apiKey = creds.api_key
+  const secretApiKey = creds.secret_api_key
+  if (!apiKey || !secretApiKey) return 'Missing Porkbun credentials (api_key, secret_api_key)'
+  const auth = { apikey: apiKey, secretapikey: secretApiKey }
+  try {
+    // Retrieve existing records to find the record ID
+    const listRes = await fetch(`https://porkbun.com/api/json/v3/dns/retrieveByNameType/${zone}/${type}/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth),
+    })
+    const listData = await listRes.json() as { status: string; records?: Array<{ id: string }> }
+    if (listData.status !== 'SUCCESS') return `Porkbun list failed: ${listData.status}`
+    const recordId = listData.records?.[0]?.id
+
+    if (recordId) {
+      const r = await fetch(`https://porkbun.com/api/json/v3/dns/edit/${zone}/${recordId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...auth, name, type, content: ip, ttl: '300' }),
+      })
+      const d = await r.json() as { status: string }
+      if (d.status !== 'SUCCESS') return `Porkbun update failed: ${d.status}`
+    } else {
+      const r = await fetch(`https://porkbun.com/api/json/v3/dns/create/${zone}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...auth, name, type, content: ip, ttl: '300' }),
+      })
+      const d = await r.json() as { status: string }
+      if (d.status !== 'SUCCESS') return `Porkbun create failed: ${d.status}`
+    }
+    return null
+  } catch (err) {
+    return `Porkbun error: ${(err as Error).message}`
+  }
+}
+
+// ── DigitalOcean ──────────────────────────────────────────────────────────────
+async function updateDigitalOcean(
+  creds: Record<string, string>,
+  zone: string,
+  name: string,
+  type: string,
+  ip: string,
+): Promise<string | null> {
+  const token = creds.token
+  if (!token) return 'Missing DigitalOcean credential (token)'
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  try {
+    const listRes = await fetch(`https://api.digitalocean.com/v2/domains/${zone}/records?type=${type}&name=${name}.${zone}`, { headers })
+    const listData = await listRes.json() as { domain_records?: Array<{ id: number }> }
+    const recordId = listData.domain_records?.[0]?.id
+    const body = JSON.stringify({ type, name, data: ip, ttl: 300 })
+    if (recordId) {
+      const r = await fetch(`https://api.digitalocean.com/v2/domains/${zone}/records/${recordId}`, { method: 'PUT', headers, body })
+      if (!r.ok) return `DigitalOcean update failed: ${r.status}`
+    } else {
+      const r = await fetch(`https://api.digitalocean.com/v2/domains/${zone}/records`, { method: 'POST', headers, body })
+      if (!r.ok) return `DigitalOcean create failed: ${r.status}`
+    }
+    return null
+  } catch (err) {
+    return `DigitalOcean error: ${(err as Error).message}`
+  }
+}
+
+// ── GoDaddy ───────────────────────────────────────────────────────────────────
+async function updateGoDaddy(
+  creds: Record<string, string>,
+  zone: string,
+  name: string,
+  type: string,
+  ip: string,
+): Promise<string | null> {
+  const apiKey = creds.api_key
+  const apiSecret = creds.api_secret
+  if (!apiKey || !apiSecret) return 'Missing GoDaddy credentials (api_key, api_secret)'
+  try {
+    const res = await fetch(`https://api.godaddy.com/v1/domains/${zone}/records/${type}/${name}`, {
+      method: 'PUT',
+      headers: { Authorization: `sso-key ${apiKey}:${apiSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([{ data: ip, ttl: 600 }]),
+    })
+    if (!res.ok) return `GoDaddy update failed: ${res.status} ${await res.text()}`
+    return null
+  } catch (err) {
+    return `GoDaddy error: ${(err as Error).message}`
+  }
 }
