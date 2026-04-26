@@ -2,7 +2,7 @@ export * from './version'
 
 export type UpstreamType = 'http' | 'tcp' | 'static' | 'redirect' | 'loadbalance'
 
-export type TlsMode = 'auto' | 'dns' | 'internal' | 'custom' | 'off'
+export type TlsMode = 'auto' | 'auto-staging' | 'dns' | 'internal' | 'custom' | 'off'
 
 export type LbPolicy = 'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first'
 

@@ -23,7 +23,7 @@ function makeNullCaddy(): CaddyClient {
   for (const key of Object.getOwnPropertyNames(proto)) {
     if (key === 'constructor') continue
     if (typeof proto[key] === 'function') {
-      ;(caddy as Record<string, unknown>)[key] = key === 'health' ? async () => true : async () => undefined
+      ;(caddy as unknown as Record<string, unknown>)[key] = key === 'health' ? async () => true : async () => undefined
     }
   }
   return caddy

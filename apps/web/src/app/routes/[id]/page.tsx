@@ -293,7 +293,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             </span>
             <HelpLink href="/docs/features/routes/upstream-configuration" />
             <span style={{ marginLeft: 2 }}>
-              <Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>TLS: {route.tlsMode}</Badge>{' '}
+              <Badge tone={route.tlsMode === 'off' ? 'red' : route.tlsMode === 'auto-staging' ? 'amber' : 'green'}>TLS: {route.tlsMode}</Badge>{' '}
               {route.ssoEnabled && <Badge tone="purple">SSO</Badge>}{' '}
               {presetQuery.data && <Badge tone="neutral">Preset: {presetQuery.data.name}</Badge>}
               {route.cloudflareRecordId && (
@@ -306,6 +306,14 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               )}
             </span>
             <HelpLink href="/docs/features/routes/tls-modes" />
+          </div>
+        )}
+        {route?.tlsMode === 'auto-staging' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, padding: '6px 10px', background: 'var(--amber-bg, rgba(245,158,11,0.1))', borderRadius: 6, border: '1px solid var(--amber-border, rgba(245,158,11,0.3))' }}>
+            <span style={{ fontSize: 11, color: 'var(--amber, #f59e0b)', fontWeight: 500 }}>STAGING CERT — browsers will show a security warning. Verify config then promote to production.</span>
+            <Button size="sm" variant="primary" onClick={() => updateRoute.mutate({ id, patch: { tlsMode: 'auto' } })} disabled={updateRoute.isPending}>
+              Promote to production
+            </Button>
           </div>
         )}
         {route?.aliases && route.aliases.length > 0 && (

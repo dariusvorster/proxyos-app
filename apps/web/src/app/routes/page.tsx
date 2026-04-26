@@ -229,7 +229,7 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
       <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', fontSize: 11 }}>
         {route.upstreams.map((u) => u.address).join(', ')}
       </td>
-      <td style={td}><Badge tone={route.tlsMode === 'off' ? 'red' : route.tlsMode === 'internal' ? 'amber' : 'green'}>{route.tlsMode}</Badge></td>
+      <td style={td}><Badge tone={route.tlsMode === 'off' ? 'red' : route.tlsMode === 'internal' || route.tlsMode === 'auto-staging' ? 'amber' : 'green'}>{route.tlsMode}</Badge></td>
       <td style={td}>{route.ssoEnabled ? <Badge tone="purple">ON</Badge> : <Badge tone="neutral">—</Badge>}</td>
       <td style={td}>
         {route.origin === 'local'
@@ -380,7 +380,7 @@ function RoutePanel({ route }: { route: Route }) {
   const [name, setName] = useState(route.name)
   const [upstreams, setUpstreams] = useState(route.upstreams.map((u) => u.address))
   const [lbPolicy, setLbPolicy] = useState<'round_robin' | 'least_conn' | 'ip_hash' | 'random' | 'first'>(route.lbPolicy ?? 'round_robin')
-  const [tlsMode, setTlsMode] = useState<'auto' | 'dns' | 'internal' | 'custom' | 'off'>(route.tlsMode as 'auto' | 'dns' | 'internal' | 'custom' | 'off')
+  const [tlsMode, setTlsMode] = useState<'auto' | 'auto-staging' | 'dns' | 'internal' | 'custom' | 'off'>(route.tlsMode as 'auto' | 'auto-staging' | 'dns' | 'internal' | 'custom' | 'off')
   const [ssoEnabled, setSsoEnabled] = useState(route.ssoEnabled)
   const [compression, setCompression] = useState(!!route.compressionEnabled)
   const [websocket, setWebsocket] = useState(!!route.websocketEnabled)
@@ -476,6 +476,7 @@ function RoutePanel({ route }: { route: Route }) {
             <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mode</span>
             <Select value={tlsMode} onChange={(e) => setTlsMode(e.target.value as typeof tlsMode)}>
               <option value="auto">auto</option>
+              <option value="auto-staging">auto-staging (LE staging)</option>
               <option value="dns">dns</option>
               <option value="internal">internal</option>
               <option value="custom">custom</option>
@@ -527,7 +528,7 @@ function RoutePanel({ route }: { route: Route }) {
         <Row k="Health" v={<Badge tone="green">healthy</Badge>} />
       </Section>
       <Section title="TLS">
-        <Row k="Mode" v={<Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>{route.tlsMode}</Badge>} />
+        <Row k="Mode" v={<Badge tone={route.tlsMode === 'off' ? 'red' : route.tlsMode === 'auto-staging' ? 'amber' : 'green'}>{route.tlsMode}</Badge>} />
         {route.tlsDnsProviderId && <Row k="DNS provider" v={<span style={{ fontFamily: 'var(--font-mono)' }}>{route.tlsDnsProviderId}</span>} />}
       </Section>
       <Section title="SSO">

@@ -373,6 +373,11 @@ export function buildTlsPolicy(route: Route, dnsProvider?: DnsProvider | null): 
           },
         ],
       }
+    case 'auto-staging':
+      return {
+        subjects: allDomains,
+        issuers: [{ module: 'acme', ca: 'https://acme-staging-v02.api.letsencrypt.org/directory' }],
+      }
     case 'auto':
     case 'custom':
     default:
