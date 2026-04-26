@@ -1,8 +1,10 @@
 import { TRPCError } from '@trpc/server'
-import { and, eq, gte } from 'drizzle-orm'
+import { and, eq, gte, lte } from 'drizzle-orm'
 import { z } from 'zod'
-import { scheduledChanges, routes, nanoid } from '@proxyos/db'
+import { scheduledChanges, routes, routeVersions, nanoid } from '@proxyos/db'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { rowToRoute, syncRouteToCaddy } from './routes'
+import type { Route } from '@proxyos/types'
 
 export const scheduledChangesRouter = router({
   listByRoute: publicProcedure
@@ -59,4 +61,62 @@ export const scheduledChangesRouter = router({
       await ctx.db.delete(scheduledChanges).where(eq(scheduledChanges.id, input.id))
       return { success: true }
     }),
+
+  executeDue: operatorProcedure.mutation(async ({ ctx }) => {
+    const now = new Date()
+    const due = await ctx.db
+      .select()
+      .from(scheduledChanges)
+      .where(and(eq(scheduledChanges.status, 'pending'), lte(scheduledChanges.scheduledAt, now)))
+
+    let executed = 0
+    let failed = 0
+
+    for (const change of due) {
+      try {
+        const routeRow = await ctx.db.select().from(routes).where(eq(routes.id, change.routeId)).get()
+        if (!routeRow) throw new Error('Route not found')
+
+        const payload = change.payload ? JSON.parse(change.payload) as Record<string, unknown> : {}
+
+        if (change.action === 'enable') {
+          await ctx.db.update(routes).set({ enabled: true }).where(eq(routes.id, change.routeId))
+          await syncRouteToCaddy(ctx, rowToRoute({ ...routeRow, enabled: true }), 'scheduled')
+        } else if (change.action === 'disable') {
+          await ctx.db.update(routes).set({ enabled: false }).where(eq(routes.id, change.routeId))
+          await syncRouteToCaddy(ctx, rowToRoute({ ...routeRow, enabled: false }), 'scheduled')
+        } else if (change.action === 'update_upstream') {
+          const upstreams = JSON.stringify(payload.upstreams ?? [])
+          await ctx.db.update(routes).set({ upstreams }).where(eq(routes.id, change.routeId))
+          const updated = await ctx.db.select().from(routes).where(eq(routes.id, change.routeId)).get()
+          await syncRouteToCaddy(ctx, rowToRoute(updated!), 'scheduled')
+        } else if (change.action === 'rollback') {
+          const versionId = String(payload.versionId ?? '')
+          const version = await ctx.db.select().from(routeVersions).where(eq(routeVersions.id, versionId)).get()
+          if (!version) throw new Error(`Version ${versionId} not found`)
+          const snapshot = JSON.parse(version.configSnapshotJson) as Route
+          await ctx.db.update(routes).set({
+            upstreams: JSON.stringify(snapshot.upstreams),
+            lbPolicy: snapshot.lbPolicy ?? 'round_robin',
+            tlsMode: snapshot.tlsMode,
+            enabled: snapshot.enabled,
+          }).where(eq(routes.id, change.routeId))
+          const updated = await ctx.db.select().from(routes).where(eq(routes.id, change.routeId)).get()
+          await syncRouteToCaddy(ctx, rowToRoute(updated!), 'scheduled-rollback')
+        }
+
+        await ctx.db.update(scheduledChanges)
+          .set({ status: 'done', executedAt: now })
+          .where(eq(scheduledChanges.id, change.id))
+        executed++
+      } catch (err) {
+        await ctx.db.update(scheduledChanges)
+          .set({ status: 'failed', error: err instanceof Error ? err.message : String(err) })
+          .where(eq(scheduledChanges.id, change.id))
+        failed++
+      }
+    }
+
+    return { executed, failed, total: due.length }
+  }),
 })

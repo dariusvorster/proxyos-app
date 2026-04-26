@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { Badge, Button, Card, DataTable, td, th } from '~/components/ui'
 import { trpc } from '~/lib/trpc'
@@ -24,6 +24,13 @@ export default function ScheduledPage() {
   const routes = trpc.routes.list.useQuery()
   const cancelMut = trpc.scheduledChanges.cancel.useMutation({ onSuccess: () => pending.refetch() })
   const createMut = trpc.scheduledChanges.create.useMutation({ onSuccess: () => { pending.refetch(); resetForm() } })
+  const executeDue = trpc.scheduledChanges.executeDue.useMutation({ onSuccess: () => pending.refetch() })
+
+  useEffect(() => {
+    executeDue.mutate()
+    const t = setInterval(() => executeDue.mutate(), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   const [showForm, setForm] = useState(false)
   const [routeId, setRouteId] = useState('')
@@ -39,7 +46,14 @@ export default function ScheduledPage() {
 
   return (
     <>
-      <Topbar title="Scheduled changes" actions={<Button variant="primary" onClick={() => setForm(true)}>+ Schedule change</Button>} />
+      <Topbar title="Scheduled changes" actions={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="ghost" onClick={() => executeDue.mutate()} disabled={executeDue.isPending}>
+            {executeDue.isPending ? 'Running…' : 'Run due'}
+          </Button>
+          <Button variant="primary" onClick={() => setForm(true)}>+ Schedule change</Button>
+        </div>
+      } />
       <PageContent>
         <PageHeader
           title="Scheduled route changes"
