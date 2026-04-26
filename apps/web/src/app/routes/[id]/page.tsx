@@ -24,6 +24,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
 
   const healthHistory = trpc.healthChecks.listByRoute.useQuery({ routeId: id, limit: 50 })
   const runHealthCheck = trpc.healthChecks.run.useMutation({ onSuccess: () => healthHistory.refetch() })
+
+  const replayLogs = trpc.trafficReplay.listByRoute.useQuery({ routeId: id, limit: 100 })
+  const replayMut = trpc.trafficReplay.replay.useMutation()
+  const clearReplayMut = trpc.trafficReplay.clear.useMutation({ onSuccess: () => replayLogs.refetch() })
+  const [replayTarget, setReplayTarget] = useState('')
+  const [replayStatuses, setReplayStatuses] = useState<Record<string, { pending: boolean; status: number | null; ok: boolean; error?: string }>>({})
+  const [replayMsg, setReplayMsg] = useState('')
   const versionHistory = trpc.routeVersions.listByRoute.useQuery({ routeId: id })
   const rollbackMut = trpc.routeVersions.rollback.useMutation({
     onSuccess: () => { routes.refetch(); versionHistory.refetch() },
@@ -1492,6 +1499,86 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             {sslMsg && <div style={{ fontSize: 12, fontFamily: 'var(--font-sans)', color: sslMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{sslMsg}</div>}
           </div>
         </Card>
+        {/* Traffic replay */}
+        <Card header={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+            Traffic replay — {replayLogs.data?.length ?? 0} recorded requests
+            <button
+              onClick={() => { if (confirm('Clear all recorded requests?')) clearReplayMut.mutate({ routeId: id }) }}
+              disabled={clearReplayMut.isPending || (replayLogs.data?.length ?? 0) === 0}
+              style={{ marginLeft: 'auto', fontSize: 11 }}
+            >Clear</button>
+          </span>
+        }>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Input
+                value={replayTarget}
+                onChange={e => setReplayTarget(e.target.value)}
+                placeholder="http://staging-upstream:8080  (replay target)"
+                style={{ flex: 1, fontSize: 12 }}
+              />
+            </div>
+            {replayMsg && <div style={{ fontSize: 11, color: replayMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{replayMsg}</div>}
+            {(!replayLogs.data || replayLogs.data.length === 0) ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>
+                No requests recorded yet. Requests are recorded automatically when traffic passes through this route.
+              </div>
+            ) : (
+              <DataTable>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, width: '12%' }}>Time</th>
+                    <th style={{ ...th, width: '8%' }}>Method</th>
+                    <th style={{ ...th, width: '36%' }}>Path</th>
+                    <th style={{ ...th, width: '10%' }}>Orig.</th>
+                    <th style={{ ...th, width: '14%' }}>Replay</th>
+                    <th style={{ ...th, width: '20%' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {replayLogs.data.map(r => {
+                    const rs = replayStatuses[r.id]
+                    return (
+                      <tr key={r.id}>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>
+                          {new Date(r.recordedAt).toLocaleTimeString()}
+                        </td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{r.method}</td>
+                        <td style={{ ...td, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{r.path}{r.query ? `?${r.query}` : ''}</td>
+                        <td style={td}>{r.statusCode ? <Badge tone={statusTone(r.statusCode)}>{r.statusCode}</Badge> : '—'}</td>
+                        <td style={td}>
+                          {rs ? (
+                            rs.pending ? <span style={{ fontSize: 11, color: 'var(--text3)' }}>…</span>
+                            : rs.error ? <span style={{ fontSize: 11, color: 'var(--red)', fontFamily: 'var(--font-mono)' }}>err</span>
+                            : <Badge tone={statusTone(rs.status ?? 0)}>{rs.status}</Badge>
+                          ) : '—'}
+                        </td>
+                        <td style={td}>
+                          <button
+                            disabled={!replayTarget || rs?.pending}
+                            style={{ fontSize: 11, padding: '2px 8px' }}
+                            onClick={() => {
+                              if (!replayTarget) { setReplayMsg('Set a replay target URL first'); return }
+                              setReplayStatuses(prev => ({ ...prev, [r.id]: { pending: true, status: null, ok: false } }))
+                              replayMut.mutate({ id: r.id, targetUrl: replayTarget }, {
+                                onSuccess: res => setReplayStatuses(prev => ({ ...prev, [r.id]: { pending: false, status: res.statusCode, ok: res.ok, error: res.error } })),
+                                onError: e => setReplayStatuses(prev => ({ ...prev, [r.id]: { pending: false, status: null, ok: false, error: e.message } })),
+                              })
+                            }}
+                          >
+                            Replay
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </DataTable>
+            )}
+          </div>
+        </Card>
+
       </PageContent>
     </>
   )

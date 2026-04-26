@@ -572,3 +572,69 @@ describe('health check probing', () => {
     vi.unstubAllGlobals()
   })
 })
+
+// ── Traffic replay ─────────────────────────────────────────────────────────────
+describe('traffic replay', () => {
+  let routeId: string
+
+  beforeAll(async () => {
+    routeId = await seedRoute(`replay-${nanoid()}.test`)
+  })
+
+  afterAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('record stores a request log and listByRoute returns it', async () => {
+    const caller = appRouter.createCaller(makeCtx())
+    await caller.trafficReplay.record({
+      routeId, method: 'GET', path: '/api/test',
+      query: 'foo=bar', headers: { 'x-test': '1' },
+      body: null, statusCode: 200, responseTimeMs: 42,
+    })
+    const logs = await caller.trafficReplay.listByRoute({ routeId })
+    expect(logs.length).toBeGreaterThan(0)
+    const log = logs.find(l => l.path === '/api/test')!
+    expect(log).toBeTruthy()
+    expect(log.method).toBe('GET')
+    expect(log.query).toBe('foo=bar')
+    expect(log.statusCode).toBe(200)
+  })
+
+  test('replay forwards request to target URL and returns status', async () => {
+    vi.stubGlobal('fetch', async () => ({ ok: true, status: 201, text: async () => '' }))
+    const caller = appRouter.createCaller(makeCtx())
+    const logs = await caller.trafficReplay.listByRoute({ routeId })
+    const result = await caller.trafficReplay.replay({ id: logs[0]!.id, targetUrl: 'http://staging:9090' })
+    expect(result.ok).toBe(true)
+    expect(result.statusCode).toBe(201)
+    vi.unstubAllGlobals()
+  })
+
+  test('replay returns ok:false when fetch throws', async () => {
+    vi.stubGlobal('fetch', async () => { throw new Error('connection refused') })
+    const caller = appRouter.createCaller(makeCtx())
+    const logs = await caller.trafficReplay.listByRoute({ routeId })
+    const result = await caller.trafficReplay.replay({ id: logs[0]!.id, targetUrl: 'http://staging:9090' })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/connection refused/)
+    vi.unstubAllGlobals()
+  })
+
+  test('exportNdjson returns one JSON line per log', async () => {
+    const caller = appRouter.createCaller(makeCtx())
+    const ndjson = await caller.trafficReplay.exportNdjson({ routeId })
+    const lines = ndjson.trim().split('\n').filter(Boolean)
+    expect(lines.length).toBeGreaterThan(0)
+    const parsed = JSON.parse(lines[0]!) as Record<string, unknown>
+    expect(parsed.method).toBeDefined()
+    expect(parsed.path).toBeDefined()
+  })
+
+  test('clear removes all logs for the route', async () => {
+    const caller = appRouter.createCaller(makeCtx())
+    await caller.trafficReplay.clear({ routeId })
+    const logs = await caller.trafficReplay.listByRoute({ routeId })
+    expect(logs.length).toBe(0)
+  })
+})
