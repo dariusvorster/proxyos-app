@@ -195,6 +195,8 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [corsPreset, setCorsPreset] = useState<'permissive' | 'restrictive' | 'custom'>('permissive')
   const [corsOrigins, setCorsOrigins] = useState('')
   const [corsMsg, setCorsMsg] = useState('')
+  const [slowThresholdMs, setSlowThresholdMs] = useState(1000)
+  const [slowThresholdMsg, setSlowThresholdMsg] = useState('')
 
   useEffect(() => {
     if (!route) return
@@ -202,10 +204,11 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     if (pr) { setPathStrip(pr.strip ?? ''); setPathAdd(pr.add ?? '') }
     const cc = route.corsConfig as { preset?: string; allowOrigins?: string[] } | null | undefined
     if (cc) { setCorsPreset((cc.preset ?? 'permissive') as typeof corsPreset); setCorsOrigins(cc.allowOrigins?.join(', ') ?? '') }
+    setSlowThresholdMs(route.slowRequestThresholdMs ?? 1000)
   }, [route])
 
   // §9.8 Slow requests
-  const slowReqs = trpc.analytics.slowRequests.useQuery({ routeId: id, thresholdMs: 1000, limit: 50 }, { refetchInterval: 15000 })
+  const slowReqs = trpc.analytics.slowRequests.useQuery({ routeId: id, thresholdMs: slowThresholdMs, limit: 50 }, { refetchInterval: 15000 })
 
   return (
     <>
@@ -1327,7 +1330,23 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* §9.8 Slow request log */}
-        <Card header={<span>Slow requests (&gt;1s)</span>}>
+        <Card header={<span>Slow requests (&gt;{slowThresholdMs}ms)</span>}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 11, color: 'var(--text3)' }}>Threshold (ms)</span>
+            <Input
+              type="number"
+              value={slowThresholdMs}
+              onChange={e => setSlowThresholdMs(Number(e.target.value))}
+              style={{ width: 90, fontSize: 12 }}
+              min={100}
+            />
+            <Button variant="primary" style={{ fontSize: 11 }} disabled={updateRoute.isPending}
+              onClick={() => updateRoute.mutate(
+                { id, patch: { slowRequestThresholdMs: slowThresholdMs } },
+                { onSuccess: () => { setSlowThresholdMsg('Saved'); routes.refetch() }, onError: e => setSlowThresholdMsg(`Error: ${e.message}`) },
+              )}>Save</Button>
+            {slowThresholdMsg && <span style={{ fontSize: 11, color: slowThresholdMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{slowThresholdMsg}</span>}
+          </div>
           <DataTable>
             <thead>
               <tr>
