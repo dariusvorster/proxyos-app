@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { applyDockerDns, buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
 import type { CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { adapterRegistry } from '@proxyos/connect'
+import { CloudflareAdapter } from '@proxyos/connect/cloudflare'
 import { resolveStaticUpstreams } from '../automation/static-upstreams'
 import { buildLogEntry } from './systemLog'
 import { startOperation, addStep, completeOperation } from './operationLogs'
@@ -52,6 +54,11 @@ const exposeInput = z.object({
   upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).default('http'),
   upstreamSni: z.string().nullable().optional(),
   presetId: z.string().nullable().optional(),
+  // V1.1 Cloudflare DNS auto-sync
+  autoDns: z.boolean().default(false),
+  cfConnectionId: z.string().nullable().optional(),
+  cfProxied: z.boolean().default(false),
+  originIp: z.string().nullable().optional(),
 })
 
 function rowToRoute(row: typeof routes.$inferSelect): Route {
@@ -114,6 +121,9 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     upstreamProtocol: ((row as Record<string, unknown>).upstreamProtocol as 'http' | 'https-trusted' | 'https-insecure') ?? 'http',
     upstreamSni: ((row as Record<string, unknown>).upstreamSni as string | null) ?? null,
     presetId: ((row as Record<string, unknown>).presetId as string | null) ?? null,
+    cloudflareZoneId: ((row as Record<string, unknown>).cloudflareZoneId as string | null) ?? null,
+    cloudflareRecordId: ((row as Record<string, unknown>).cloudflareRecordId as string | null) ?? null,
+    cloudflareProxied: ((row as Record<string, unknown>).cloudflareProxied as boolean | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -513,6 +523,25 @@ export const routesRouter = router({
     await insertRouteVersion(ctx.db, route, 'user', 'exposed')
     void notifyFederationConfigChange(input.siteId ?? 'site_local')
     void completeOperation(ctx.db, opId, 'success', undefined, opStart).catch(() => {})
+
+    // V1.1: Post-expose Cloudflare DNS sync (best-effort, never rolls back the route)
+    if (input.autoDns && input.cfConnectionId && input.originIp) {
+      try {
+        const adapter = adapterRegistry.get(input.cfConnectionId)
+        if (adapter && adapter.type === 'cloudflare') {
+          const cfResult = await (adapter as CloudflareAdapter).syncRoute(route.domain, input.originIp, input.cfProxied)
+          await ctx.db.update(routes)
+            .set({
+              cloudflareZoneId: cfResult.zoneId,
+              cloudflareRecordId: cfResult.recordId,
+              cloudflareProxied: cfResult.proxied,
+            })
+            .where(eq(routes.id, id))
+        }
+      } catch (cfErr) {
+        void ctx.db.insert(systemLog).values(buildLogEntry('warn', 'api', `Cloudflare DNS sync failed for ${route.domain} — route is still live`, { error: (cfErr as Error).message })).catch(() => {})
+      }
+    }
 
     return {
       success: true,

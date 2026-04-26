@@ -185,6 +185,10 @@ export interface Route extends RouteInput {
   tunnelPublicUrl?: string | null
   // V1.1 Service Presets
   presetId?: string | null
+  // V1.1 Cloudflare DNS management
+  cloudflareZoneId?: string | null
+  cloudflareRecordId?: string | null
+  cloudflareProxied?: boolean | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'

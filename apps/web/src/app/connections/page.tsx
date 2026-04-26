@@ -114,6 +114,11 @@ export default function ConnectionsPage() {
                     </td>
                     <td style={td}>
                       <div style={{ display: 'flex', gap: 6 }}>
+                        {conn.type === 'cloudflare' && (
+                          <Link href={`/connections/${conn.id}/zones`}>
+                            <Button variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }}>Zones</Button>
+                          </Link>
+                        )}
                         <Button variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
                           onClick={() => testMut.mutate({ id: conn.id })}
                           disabled={testMut.isPending}>

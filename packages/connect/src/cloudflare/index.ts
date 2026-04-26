@@ -1,6 +1,6 @@
 import type { ConnectionAdapter, ConnectionTestResult, ChainNode, RouteConfig } from '../types'
-import { cfVerifyToken, cfListDnsRecords, cfEnsureDnsRecord, cfDeleteDnsRecord, cfFindDnsRecord } from './dns'
-import type { CfDnsRecord } from './dns'
+import { cfVerifyToken, cfListDnsRecords, cfEnsureDnsRecord, cfDeleteDnsRecord, cfFindDnsRecord, cfListZones, cfResolveZoneForDomain, cfSetRecordProxied, cfVerifyTokenDetails } from './dns'
+import type { CfDnsRecord, CfZoneResult, CfTokenDetails } from './dns'
 import { cfListTunnels, cfUpsertTunnelRoute, cfRemoveTunnelRoute } from './tunnel'
 import type { CfTunnel } from './tunnel'
 import { cfGetWafStatus } from './waf'
@@ -25,6 +25,37 @@ export class CloudflareAdapter implements ConnectionAdapter {
     readonly connectionId: string,
     private readonly creds: CloudflareCreds,
   ) {}
+
+  async verifyDetails(): Promise<CfTokenDetails> {
+    return cfVerifyTokenDetails(this.creds.apiToken)
+  }
+
+  async listZones(): Promise<CfZoneResult[]> {
+    return cfListZones(this.creds.apiToken)
+  }
+
+  async listRecordsForZone(zoneId: string): Promise<CfDnsRecord[]> {
+    return cfListDnsRecords(this.creds.apiToken, zoneId)
+  }
+
+  async resolveZoneForDomain(domain: string): Promise<CfZoneResult | null> {
+    return cfResolveZoneForDomain(this.creds.apiToken, domain)
+  }
+
+  async setRecordProxied(zoneId: string, recordId: string, proxied: boolean): Promise<CfDnsRecord> {
+    return cfSetRecordProxied(this.creds.apiToken, zoneId, recordId, proxied)
+  }
+
+  async syncRoute(domain: string, ip: string, proxied: boolean): Promise<{ zoneId: string; recordId: string; proxied: boolean }> {
+    const zone = await cfResolveZoneForDomain(this.creds.apiToken, domain)
+    if (!zone) throw new Error(`No Cloudflare zone found for domain ${domain}`)
+    const { record } = await cfEnsureDnsRecord(this.creds.apiToken, zone.id, domain, ip)
+    if (record.proxied !== proxied) {
+      const updated = await cfSetRecordProxied(this.creds.apiToken, zone.id, record.id, proxied)
+      return { zoneId: zone.id, recordId: updated.id, proxied: updated.proxied }
+    }
+    return { zoneId: zone.id, recordId: record.id, proxied: record.proxied }
+  }
 
   async test(): Promise<ConnectionTestResult> {
     const start = Date.now()
