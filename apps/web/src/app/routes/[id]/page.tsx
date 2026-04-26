@@ -197,6 +197,10 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [corsMsg, setCorsMsg] = useState('')
   const [slowThresholdMs, setSlowThresholdMs] = useState(1000)
   const [slowThresholdMsg, setSlowThresholdMsg] = useState('')
+  const [hcStatusCodes, setHcStatusCodes] = useState('')
+  const [hcBodyRegex, setHcBodyRegex] = useState('')
+  const [hcMaxResponseMs, setHcMaxResponseMs] = useState<number | ''>('')
+  const [hcMsg, setHcMsg] = useState('')
 
   useEffect(() => {
     if (!route) return
@@ -205,6 +209,9 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     const cc = route.corsConfig as { preset?: string; allowOrigins?: string[] } | null | undefined
     if (cc) { setCorsPreset((cc.preset ?? 'permissive') as typeof corsPreset); setCorsOrigins(cc.allowOrigins?.join(', ') ?? '') }
     setSlowThresholdMs(route.slowRequestThresholdMs ?? 1000)
+    setHcStatusCodes(route.healthCheckStatusCodes?.join(', ') ?? '')
+    setHcBodyRegex(route.healthCheckBodyRegex ?? '')
+    setHcMaxResponseMs(route.healthCheckMaxResponseMs ?? '')
   }, [route])
 
   // §9.8 Slow requests
@@ -1087,6 +1094,41 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </Card>
         )}
+
+        {/* Health check settings */}
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Health check settings <HelpLink href="/docs/features/routes/health-checks" /></span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Expect status codes</div>
+                <Input value={hcStatusCodes} onChange={e => setHcStatusCodes(e.target.value)} placeholder="200, 301" style={{ fontSize: 12 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Body regex</div>
+                <Input value={hcBodyRegex} onChange={e => setHcBodyRegex(e.target.value)} placeholder="ok|healthy" style={{ fontSize: 12 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Timeout (ms)</div>
+                <Input type="number" value={hcMaxResponseMs} onChange={e => setHcMaxResponseMs(e.target.value === '' ? '' : Number(e.target.value))} placeholder="5000" style={{ fontSize: 12 }} min={100} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button variant="primary" style={{ fontSize: 11 }} disabled={updateRoute.isPending}
+                onClick={() => {
+                  const codes = hcStatusCodes.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 100 && n <= 599)
+                  updateRoute.mutate(
+                    { id, patch: {
+                      healthCheckStatusCodes: codes.length ? codes : null,
+                      healthCheckBodyRegex: hcBodyRegex || null,
+                      healthCheckMaxResponseMs: hcMaxResponseMs !== '' ? Number(hcMaxResponseMs) : null,
+                    }},
+                    { onSuccess: () => { setHcMsg('Saved'); routes.refetch() }, onError: e => setHcMsg(`Error: ${e.message}`) },
+                  )
+                }}>Save</Button>
+              {hcMsg && <span style={{ fontSize: 11, color: hcMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>{hcMsg}</span>}
+            </div>
+          </div>
+        </Card>
 
         {/* Health check history */}
         <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Health check history — last {healthHistory.data?.length ?? 0} checks <HelpLink href="/docs/features/routes/health-checks" /></span>}>

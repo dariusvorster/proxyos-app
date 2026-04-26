@@ -136,6 +136,11 @@ export function rowToRoute(row: typeof routes.$inferSelect): Route {
       ? JSON.parse((row as Record<string, unknown>).corsConfig as string) as Route['corsConfig']
       : null,
     slowRequestThresholdMs: ((row as Record<string, unknown>).slowRequestThresholdMs as number | null) ?? null,
+    healthCheckStatusCodes: (row as Record<string, unknown>).healthCheckStatusCodes
+      ? JSON.parse((row as Record<string, unknown>).healthCheckStatusCodes as string) as number[]
+      : null,
+    healthCheckBodyRegex: ((row as Record<string, unknown>).healthCheckBodyRegex as string | null) ?? null,
+    healthCheckMaxResponseMs: ((row as Record<string, unknown>).healthCheckMaxResponseMs as number | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -639,6 +644,9 @@ export const routesRouter = router({
           pathRewrite: z.string().nullable().optional(),
           corsConfig: z.string().nullable().optional(),
           slowRequestThresholdMs: z.number().int().min(0).nullable().optional(),
+          healthCheckStatusCodes: z.array(z.number().int().min(100).max(599)).nullable().optional(),
+          healthCheckBodyRegex: z.string().nullable().optional(),
+          healthCheckMaxResponseMs: z.number().int().min(100).nullable().optional(),
         }),
       }),
     )
@@ -694,6 +702,9 @@ export const routesRouter = router({
       if (p.pathRewrite !== undefined) update.pathRewrite = p.pathRewrite
       if (p.corsConfig !== undefined) update.corsConfig = p.corsConfig
       if (p.slowRequestThresholdMs !== undefined) update.slowRequestThresholdMs = p.slowRequestThresholdMs
+      if (p.healthCheckStatusCodes !== undefined) update.healthCheckStatusCodes = p.healthCheckStatusCodes ? JSON.stringify(p.healthCheckStatusCodes) : null
+      if (p.healthCheckBodyRegex !== undefined) update.healthCheckBodyRegex = p.healthCheckBodyRegex
+      if (p.healthCheckMaxResponseMs !== undefined) update.healthCheckMaxResponseMs = p.healthCheckMaxResponseMs
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 

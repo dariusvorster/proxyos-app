@@ -119,6 +119,9 @@ export interface RouteInput {
   healthCheckEnabled?: boolean
   healthCheckPath?: string
   healthCheckInterval?: number
+  healthCheckStatusCodes?: number[] | null
+  healthCheckBodyRegex?: string | null
+  healthCheckMaxResponseMs?: number | null
   compressionEnabled?: boolean
   websocketEnabled?: boolean
   http2Enabled?: boolean

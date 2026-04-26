@@ -303,7 +303,9 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
             active: {
               path: route.healthCheckPath ?? '/',
               interval: `${route.healthCheckInterval ?? 30}s`,
-              timeout: '5s',
+              timeout: route.healthCheckMaxResponseMs ? `${route.healthCheckMaxResponseMs}ms` : '5s',
+              ...(route.healthCheckStatusCodes?.length ? { expect_status: route.healthCheckStatusCodes[0] } : {}),
+              ...(route.healthCheckBodyRegex ? { expect_body: route.healthCheckBodyRegex } : {}),
               ...healthCheckTls,
             },
           },
