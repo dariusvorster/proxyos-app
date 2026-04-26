@@ -23,6 +23,7 @@ export default function ExposePage() {
   const connectionList = trpc.connections.list.useQuery()
   const autoConfigSso = trpc.chain.autoConfigSso.useMutation()
   const createMonitor = trpc.monitors.createForRoute.useMutation()
+  const presetList = trpc.presets.list.useQuery()
 
   const expose = trpc.routes.expose.useMutation({
     onSuccess: async (r) => {
@@ -58,6 +59,8 @@ export default function ExposePage() {
   const [upstreamProtocol, setUpstreamProtocol] = useState<UpstreamProtocol>('http')
   const [upstreamSni, setUpstreamSni] = useState('')
   const [name, setName] = useState('')
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
+  const [showAllPresets, setShowAllPresets] = useState(false)
   const [probeResult, setProbeResult] = useState<{ suggestion: UpstreamProtocol | null; error?: string; details?: { certCn?: string; certIssuer?: string; certExpiresAt?: string } } | null>(null)
   const probeMut = trpc.routes.probe.useMutation({
     onSuccess: (r) => {
@@ -146,6 +149,7 @@ export default function ExposePage() {
       http3Enabled: http3,
       upstreamProtocol,
       upstreamSni: upstreamProtocol === 'https-trusted' && upstreamSni ? upstreamSni : null,
+      presetId: selectedPresetId ?? null,
     })
   }
 
@@ -243,6 +247,68 @@ export default function ExposePage() {
             </div>
             {sourceMode === 'manual' && (
               <div style={{ display: 'grid', gap: 10 }}>
+                {/* Preset picker */}
+                {(presetList.data?.length ?? 0) > 0 && (
+                  <div style={{ marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                      Quick start — pick a service
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(showAllPresets ? presetList.data! : presetList.data!.slice(0, 6)).map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => {
+                            if (selectedPresetId === preset.id) {
+                              setSelectedPresetId(null)
+                            } else {
+                              setSelectedPresetId(preset.id)
+                              setPort(String(preset.defaultPort))
+                              setUpstreamProtocol(preset.upstreamProtocol as UpstreamProtocol)
+                              setWs(preset.websocket)
+                              if (preset.healthCheckPath) setHealthPath(preset.healthCheckPath)
+                              setProbeResult(null)
+                              if (!name) setName(preset.name)
+                            }
+                          }}
+                          style={{
+                            padding: '5px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+                            fontFamily: 'inherit', fontWeight: selectedPresetId === preset.id ? 600 : 400,
+                            background: selectedPresetId === preset.id ? 'rgba(124,111,240,0.15)' : 'var(--surface-2)',
+                            border: selectedPresetId === preset.id ? '1px solid var(--pu-400)' : '0.5px solid var(--border)',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                      {(presetList.data?.length ?? 0) > 6 && (
+                        <button
+                          onClick={() => setShowAllPresets(v => !v)}
+                          style={{ padding: '5px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'none', border: '0.5px solid var(--border)', color: 'var(--text-dim)' }}
+                        >
+                          {showAllPresets ? 'Show less' : `+${(presetList.data?.length ?? 0) - 6} more`}
+                        </button>
+                      )}
+                      {selectedPresetId && (
+                        <button
+                          onClick={() => setSelectedPresetId(null)}
+                          style={{ padding: '5px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', background: 'none', border: '0.5px solid var(--border)', color: 'var(--text-dim)' }}
+                        >
+                          ✕ Clear
+                        </button>
+                      )}
+                    </div>
+                    {selectedPresetId && (() => {
+                      const p = presetList.data?.find(x => x.id === selectedPresetId)
+                      return p?.notes ? (
+                        <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, fontSize: 11, lineHeight: 1.5, background: 'rgba(124,111,240,0.06)', border: '0.5px solid var(--pu-400)', color: 'var(--text-secondary)' }}>
+                          ⓘ {p.notes}
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+                )}
+
                 <Field label="Service name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="grafana" /></Field>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8 }}>
                   <Field label="IP address"><Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.10" /></Field>
@@ -636,6 +702,10 @@ export default function ExposePage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 }}>
               <div>
                 <ReviewItem k="Source" v={upstreamUrl} mono />
+                {selectedPresetId && (() => {
+                  const p = presetList.data?.find(x => x.id === selectedPresetId)
+                  return p ? <ReviewItem k="Preset" v={<Badge tone="purple">{p.name}</Badge>} /> : null
+                })()}
                 <ReviewItem k="Upstream protocol" v={<Badge tone={upstreamProtocol === 'http' ? 'neutral' : upstreamProtocol === 'https-trusted' ? 'green' : 'amber'}>{upstreamProtocol}</Badge>} />
                 <ReviewItem k="Domain" v={<><strong>{domain}</strong> · <Badge tone={tlsMode === 'off' ? 'red' : 'green'}>{tlsMode}</Badge></>} />
                 <ReviewItem k="Routing" v={<Badge tone="neutral">{routingMode.replace('_', ' ')}</Badge>} />

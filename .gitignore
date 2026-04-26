@@ -3,6 +3,8 @@ node_modules
 dist
 .turbo
 *.log
+*.tsbuildinfo
+next-env.d.ts
 V3.1/
 .DS_Store
 .env

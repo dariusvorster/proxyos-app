@@ -51,6 +51,7 @@ const exposeInput = z.object({
   http3Enabled: z.boolean().default(true),
   upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).default('http'),
   upstreamSni: z.string().nullable().optional(),
+  presetId: z.string().nullable().optional(),
 })
 
 function rowToRoute(row: typeof routes.$inferSelect): Route {
@@ -112,6 +113,7 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     tunnelPublicUrl: row.tunnelPublicUrl ?? null,
     upstreamProtocol: ((row as Record<string, unknown>).upstreamProtocol as 'http' | 'https-trusted' | 'https-insecure') ?? 'http',
     upstreamSni: ((row as Record<string, unknown>).upstreamSni as string | null) ?? null,
+    presetId: ((row as Record<string, unknown>).presetId as string | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -412,6 +414,7 @@ export const routesRouter = router({
       upstreams: [{ address: upstreamAddress }],
       upstreamProtocol: input.upstreamProtocol,
       upstreamSni: input.upstreamSni ?? null,
+      presetId: input.presetId ?? null,
       tlsMode: input.tlsMode,
       tlsDnsProviderId: input.tlsDnsProviderId ?? null,
       ssoEnabled: input.ssoEnabled,
@@ -438,6 +441,7 @@ export const routesRouter = router({
       upstreams: JSON.stringify(route.upstreams),
       upstreamProtocol: input.upstreamProtocol,
       upstreamSni: input.upstreamSni ?? null,
+      presetId: input.presetId ?? null,
       tlsMode: route.tlsMode,
       tlsDnsProviderId: route.tlsDnsProviderId,
       ssoEnabled: route.ssoEnabled,
