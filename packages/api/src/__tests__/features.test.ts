@@ -8,7 +8,7 @@ import {
   dnsProviders, routeVersions, scheduledChanges, routeHealthScores,
   anomalyBaselines, healthChecks as healthChecksTable, nanoid,
 } from '@proxyos/db'
-import { CaddyClient } from '@proxyos/caddy'
+import { CaddyClient, validateCaddyRoute, buildCaddyRoute } from '@proxyos/caddy'
 import { appRouter } from '../root'
 import type { Context } from '../trpc'
 
@@ -708,5 +708,58 @@ describe('public API write endpoints', () => {
     const caller = appRouter.createCaller(makeTokenCtx(['routes:read']))
     await expect(caller.publicApi.createRoute({ name: 'x', domain: 'x.test', upstreams: [{ address: 'x:1' }] }))
       .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+})
+
+// ── Caddy route validation gate ────────────────────────────────────────────────
+describe('Caddy route validation gate (scheduled-changes worker)', () => {
+  const baseRoute = {
+    id: 'proxyos-route-test',
+    name: 'Test', domain: 'test.example.com',
+    enabled: true, upstreamType: 'http' as const,
+    upstreams: [{ address: '10.0.0.1:8080' }],
+    lbPolicy: 'round_robin' as const,
+    tlsMode: 'auto' as const, tlsDnsProviderId: null,
+    ssoEnabled: false, ssoProviderId: null,
+    healthCheckEnabled: true, healthCheckPath: '/', healthCheckInterval: 30,
+    compressionEnabled: true, websocketEnabled: true,
+    http2Enabled: true, http3Enabled: false,
+    createdAt: new Date(), updatedAt: new Date(),
+    origin: 'local' as const, scope: 'exclusive' as const,
+  }
+
+  test('valid route built with buildCaddyRoute passes validation', () => {
+    const route = buildCaddyRoute(baseRoute)
+    const result = validateCaddyRoute(route)
+    expect(result.valid).toBe(true)
+    expect(result.issues.filter(i => i.severity === 'error')).toHaveLength(0)
+  })
+
+  test('route with no upstreams fails validation', () => {
+    const bad = { ...buildCaddyRoute(baseRoute) }
+    // Remove upstreams from the reverse_proxy handler
+    const rp = bad.handle.find(h => h.handler === 'reverse_proxy')!
+    ;(rp as Record<string, unknown>)['upstreams'] = []
+    const result = validateCaddyRoute(bad)
+    expect(result.valid).toBe(false)
+    expect(result.issues.some(i => i.field.includes('upstreams'))).toBe(true)
+  })
+
+  test('route with missing @id fails validation', () => {
+    const bad = { ...buildCaddyRoute(baseRoute), '@id': undefined } as unknown as ReturnType<typeof buildCaddyRoute>
+    const result = validateCaddyRoute(bad)
+    expect(result.valid).toBe(false)
+    expect(result.issues.some(i => i.field === '@id')).toBe(true)
+  })
+
+  test('route with malformed dial address fails validation', () => {
+    const route = buildCaddyRoute(baseRoute)
+    // Corrupt the dial string directly after building
+    const rp = route.handle.find(h => h.handler === 'reverse_proxy')!
+    const ups = (rp as Record<string, unknown>)['upstreams'] as Array<Record<string, unknown>>
+    ups[0]!['dial'] = 'not-a-valid-dial'
+    const result = validateCaddyRoute(route)
+    expect(result.valid).toBe(false)
+    expect(result.issues.some(i => i.message.includes('host:port'))).toBe(true)
   })
 })

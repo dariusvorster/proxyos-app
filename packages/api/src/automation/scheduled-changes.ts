@@ -1,7 +1,7 @@
 import { eq, and, lte } from 'drizzle-orm'
 import { scheduledChanges, routes, nanoid } from '@proxyos/db'
 import type { Db } from '@proxyos/db'
-import { buildCaddyRoute, CaddyClient } from '@proxyos/caddy'
+import { buildCaddyRoute, CaddyClient, validateCaddyRoute, formatValidation } from '@proxyos/caddy'
 
 async function executePendingChanges(db: Db): Promise<void> {
   const now = new Date()
@@ -54,8 +54,7 @@ async function executePendingChanges(db: Db): Promise<void> {
       if (updatedRoute) {
         try {
           const caddy = new CaddyClient()
-          // TODO(validate): wire validateCaddyRoute here before pushing
-          await caddy.updateRoute(updatedRoute.id, buildCaddyRoute({
+          const caddyRoute = buildCaddyRoute({
             id: updatedRoute.id,
             name: updatedRoute.name,
             domain: updatedRoute.domain,
@@ -78,7 +77,12 @@ async function executePendingChanges(db: Db): Promise<void> {
             updatedAt: updatedRoute.updatedAt,
             origin: (updatedRoute.origin as 'central' | 'local') ?? 'central',
             scope: (updatedRoute.scope as 'exclusive' | 'local_only') ?? 'exclusive',
-          }))
+          })
+          const validation = validateCaddyRoute(caddyRoute)
+          if (!validation.valid) {
+            throw new Error(`Caddy route validation failed:\n${formatValidation(validation)}`)
+          }
+          await caddy.updateRoute(updatedRoute.id, caddyRoute)
           await db.update(routes).set({ syncSource: 'scheduled' }).where(eq(routes.id, change.routeId))
         } catch {
           // Caddy sync failure doesn't block marking as done
