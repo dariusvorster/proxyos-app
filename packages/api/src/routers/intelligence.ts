@@ -5,6 +5,7 @@ import { routeSlos, sloCompliance, routes, routeRules, nanoid } from '@proxyos/d
 import { getSLOStatus } from '../intelligence/slo-tracker'
 import { getLatencyTrend } from '../intelligence/trend-analyser'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { rowToRoute, syncRouteToCaddy } from './routes'
 
 export const intelligenceRouter = router({
   // ── SLO ───────────────────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ export const intelligenceRouter = router({
         enabled: 1,
         createdAt: new Date(),
       })
+      void syncRouteToCaddy(ctx, rowToRoute(route)).catch(() => {})
       return { id }
     }),
 
@@ -157,13 +159,23 @@ export const intelligenceRouter = router({
       if ('staticBody' in patch) set.staticBody = patch.staticBody
       if ('staticStatus' in patch) set.staticStatus = patch.staticStatus
       await ctx.db.update(routeRules).set(set).where(eq(routeRules.id, id))
+      const rule = await ctx.db.select().from(routeRules).where(eq(routeRules.id, id)).get()
+      if (rule) {
+        const routeRow = await ctx.db.select().from(routes).where(eq(routes.id, rule.routeId)).get()
+        if (routeRow) void syncRouteToCaddy(ctx, rowToRoute(routeRow)).catch(() => {})
+      }
       return { ok: true }
     }),
 
   deleteRouteRule: operatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const rule = await ctx.db.select().from(routeRules).where(eq(routeRules.id, input.id)).get()
       await ctx.db.delete(routeRules).where(eq(routeRules.id, input.id))
+      if (rule) {
+        const routeRow = await ctx.db.select().from(routes).where(eq(routes.id, rule.routeId)).get()
+        if (routeRow) void syncRouteToCaddy(ctx, rowToRoute(routeRow)).catch(() => {})
+      }
       return { ok: true }
     }),
 
