@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Badge, Button, Card, DataTable, Input, Toggle, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
+import { getSession } from '~/lib/session'
 
 export default function ApprovalsPage() {
   const utils = trpc.useUtils()
@@ -19,9 +20,12 @@ export default function ApprovalsPage() {
   const [enabled, setEnabled] = useState(config.data?.enabled ?? false)
   const [approvers, setApprovers] = useState(config.data?.requiredApprovers?.toString() ?? '1')
   const [timeout, setTimeout_] = useState(config.data?.timeout?.toString() ?? '60')
+  const [actingUser, setActingUser] = useState<string>('unknown')
 
-  // In a real implementation this would come from session — stub as admin
-  const ACTING_USER = 'system-admin'
+  useEffect(() => {
+    const s = getSession()
+    if (s?.id) setActingUser(s.id)
+  }, [])
 
   function statusTone(s: string): 'green' | 'red' | 'amber' | 'neutral' {
     if (s === 'approved') return 'green'
@@ -85,8 +89,8 @@ export default function ApprovalsPage() {
                   <td style={{ ...td, fontSize: 11, color: 'var(--text-dim)' }}>{new Date(c.requestedAt).toLocaleString()}</td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <Button size="sm" variant="primary" onClick={() => approve.mutate({ id: c.id, approvedBy: ACTING_USER })} disabled={approve.isPending}>Approve</Button>
-                      <Button size="sm" variant="danger" onClick={() => reject.mutate({ id: c.id, approvedBy: ACTING_USER })} disabled={reject.isPending}>Reject</Button>
+                      <Button size="sm" variant="primary" onClick={() => approve.mutate({ id: c.id, approvedBy: actingUser })} disabled={approve.isPending}>Approve</Button>
+                      <Button size="sm" variant="danger" onClick={() => reject.mutate({ id: c.id, approvedBy: actingUser })} disabled={reject.isPending}>Reject</Button>
                     </div>
                   </td>
                 </tr>
