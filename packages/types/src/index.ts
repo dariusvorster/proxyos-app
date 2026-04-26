@@ -189,6 +189,8 @@ export interface Route extends RouteInput {
   cloudflareZoneId?: string | null
   cloudflareRecordId?: string | null
   cloudflareProxied?: boolean | null
+  // V1.2 Multi-domain aliases (additional public hostnames pointing at the same upstream)
+  aliases?: string[] | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'

@@ -59,6 +59,8 @@ const exposeInput = z.object({
   cfConnectionId: z.string().nullable().optional(),
   cfProxied: z.boolean().default(false),
   originIp: z.string().nullable().optional(),
+  // V1.2 Multi-domain aliases
+  aliases: z.array(z.string().min(1).max(253)).max(20).nullable().optional(),
 })
 
 function rowToRoute(row: typeof routes.$inferSelect): Route {
@@ -124,6 +126,9 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     cloudflareZoneId: ((row as Record<string, unknown>).cloudflareZoneId as string | null) ?? null,
     cloudflareRecordId: ((row as Record<string, unknown>).cloudflareRecordId as string | null) ?? null,
     cloudflareProxied: ((row as Record<string, unknown>).cloudflareProxied as boolean | null) ?? null,
+    aliases: (row as Record<string, unknown>).aliases
+      ? JSON.parse((row as Record<string, unknown>).aliases as string) as string[]
+      : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -436,6 +441,7 @@ export const routesRouter = router({
       websocketEnabled: input.websocketEnabled,
       http2Enabled: true,
       http3Enabled: input.http3Enabled,
+      aliases: input.aliases?.length ? input.aliases : null,
       origin: input.siteId ? 'central' : 'local',
       scope: 'exclusive',
       createdAt: now,
@@ -463,6 +469,7 @@ export const routesRouter = router({
       websocketEnabled: input.websocketEnabled,
       http2Enabled: true,
       http3Enabled: input.http3Enabled,
+      aliases: input.aliases?.length ? JSON.stringify(input.aliases) : null,
       origin: input.siteId ? 'central' : 'local',
       scope: 'exclusive',
       configVersion: 1,
@@ -603,6 +610,7 @@ export const routesRouter = router({
           skipTlsVerify: z.boolean().optional(),
           upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).optional(),
           upstreamSni: z.string().nullable().optional(),
+          aliases: z.array(z.string().min(1).max(253)).max(20).nullable().optional(),
         }),
       }),
     )
@@ -654,6 +662,7 @@ export const routesRouter = router({
       if (p.upstreamSni !== undefined) update.upstreamSni = p.upstreamSni
       if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
       if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
+      if (p.aliases !== undefined) update.aliases = p.aliases?.length ? JSON.stringify(p.aliases) : null
 
       await ctx.db.update(routes).set(update).where(eq(routes.id, input.id))
 
