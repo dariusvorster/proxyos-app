@@ -291,8 +291,19 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                   {route.cloudflareProxied ? '🟠 CF proxied' : '⚪ CF dns-only'}
                 </Badge>
               )}
+              {route.aliases && route.aliases.length > 0 && (
+                <Badge tone="neutral">+{route.aliases.length} alias{route.aliases.length > 1 ? 'es' : ''}</Badge>
+              )}
             </span>
             <HelpLink href="/docs/features/routes/tls-modes" />
+          </div>
+        )}
+        {route?.aliases && route.aliases.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <span style={{ color: 'var(--text-ghost)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Also served at</span>
+            {route.aliases.map(a => (
+              <span key={a} style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', fontSize: 11 }}>{a}</span>
+            ))}
           </div>
         )}
 

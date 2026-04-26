@@ -1183,4 +1183,12 @@ export function ensureSchema(db: Database.Database): void {
   for (const stmt of V13_ALTERS) {
     try { db.exec(stmt) } catch { /* already exists */ }
   }
+
+  // V1.2 Multi-domain route aliases
+  const V14_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN aliases TEXT`,
+  ]
+  for (const stmt of V14_ALTERS) {
+    try { db.exec(stmt) } catch { /* already exists */ }
+  }
 }

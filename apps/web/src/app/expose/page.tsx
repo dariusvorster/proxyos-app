@@ -76,6 +76,8 @@ export default function ExposePage() {
   const [autoDns, setAutoDns] = useState(true)
   const [cfConnectionId, setCfConnectionId] = useState('')
   const [cfProxied, setCfProxied] = useState(false)
+  const [aliasInput, setAliasInput] = useState('')
+  const [aliases, setAliases] = useState<string[]>([])
 
   // Routing
   const [routingMode, setRoutingMode] = useState<RoutingMode>('direct')
@@ -155,6 +157,7 @@ export default function ExposePage() {
       cfConnectionId: (autoDns && cfConnections.length > 0) ? (cfConnectionId || cfConnections[0]?.id || null) : null,
       cfProxied,
       originIp: (autoDns && cfConnections.length > 0) ? ip : null,
+      aliases: aliases.length > 0 ? aliases : null,
     })
   }
 
@@ -453,6 +456,56 @@ export default function ExposePage() {
               </div>
             )}
 
+            {/* V1.2: Additional domain aliases */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Additional domains (aliases)</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+                Same upstream will serve all domains. TLS cert covers each alias.
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Input
+                  value={aliasInput}
+                  onChange={e => setAliasInput(e.target.value)}
+                  placeholder="app.backup-domain.com"
+                  style={{ flex: 1 }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && aliasInput.trim()) {
+                      setAliases(prev => [...prev, aliasInput.trim()])
+                      setAliasInput('')
+                      e.preventDefault()
+                    }
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (aliasInput.trim()) {
+                      setAliases(prev => [...prev, aliasInput.trim()])
+                      setAliasInput('')
+                    }
+                  }}
+                  disabled={!aliasInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              {aliases.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {aliases.map((a, i) => (
+                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'var(--font-mono)', background: 'var(--surface-2)', border: '0.5px solid var(--border)' }}>
+                      {a}
+                      <button
+                        onClick={() => setAliases(prev => prev.filter((_, j) => j !== i))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 0, fontSize: 12, lineHeight: 1 }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {cfConnections.length > 0 && (
               <div style={{ marginTop: 16, padding: '12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                 <ToggleRow label="Auto-create DNS record in Cloudflare" checked={autoDns} onChange={setAutoDns} />
@@ -739,6 +792,9 @@ export default function ExposePage() {
                 })()}
                 <ReviewItem k="Upstream protocol" v={<Badge tone={upstreamProtocol === 'http' ? 'neutral' : upstreamProtocol === 'https-trusted' ? 'green' : 'amber'}>{upstreamProtocol}</Badge>} />
                 <ReviewItem k="Domain" v={<><strong>{domain}</strong> · <Badge tone={tlsMode === 'off' ? 'red' : 'green'}>{tlsMode}</Badge></>} />
+                {aliases.length > 0 && (
+                  <ReviewItem k="Aliases" v={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{aliases.join(', ')}</span>} />
+                )}
                 <ReviewItem k="Routing" v={<Badge tone="neutral">{routingMode.replace('_', ' ')}</Badge>} />
                 <ReviewItem k="SSO" v={ssoEnabled ? <><Badge tone="purple">{ssoProvider?.type}</Badge> <span style={{ color: 'var(--text-secondary)' }}>{ssoProvider?.name}</span></> : <span style={{ color: 'var(--text-dim)' }}>disabled</span>} />
               </div>

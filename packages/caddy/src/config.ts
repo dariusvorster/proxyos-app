@@ -313,7 +313,8 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
 
   handlers.push(reverseProxyHandler)
 
-  const match: CaddyMatcher[] = [{ host: [route.domain] }]
+  const allHosts = [route.domain, ...(route.aliases ?? [])]
+  const match: CaddyMatcher[] = [{ host: allHosts }]
   if (route.ipAllowlist && route.ipAllowlist.length > 0) {
     (match[0] as CaddyMatcher & { remote_ip?: { ranges: string[] } }).remote_ip = { ranges: route.ipAllowlist }
   }
@@ -336,29 +337,31 @@ export interface TlsPolicy {
 }
 
 export function buildTlsPolicy(route: Route, dnsProvider?: DnsProvider | null): TlsPolicy | null {
+  const allDomains = [route.domain, ...(route.aliases ?? [])]
+
   // Wildcard domains can't use HTTP-01 — upgrade to DNS-01 or internal automatically
   if (route.domain.startsWith('*.') && route.tlsMode === 'auto') {
     if (dnsProvider) {
       return {
-        subjects: [route.domain],
+        subjects: allDomains,
         issuers: [{
           module: 'acme',
           challenges: { dns: { provider: { name: dnsProvider.type, ...dnsProvider.credentials } } },
         }],
       }
     }
-    return { subjects: [route.domain], issuers: [{ module: 'internal' }] }
+    return { subjects: allDomains, issuers: [{ module: 'internal' }] }
   }
 
   switch (route.tlsMode) {
     case 'off':
       return null
     case 'internal':
-      return { subjects: [route.domain], issuers: [{ module: 'internal' }] }
+      return { subjects: allDomains, issuers: [{ module: 'internal' }] }
     case 'dns':
-      if (!dnsProvider) return { subjects: [route.domain] }
+      if (!dnsProvider) return { subjects: allDomains }
       return {
-        subjects: [route.domain],
+        subjects: allDomains,
         issuers: [
           {
             module: 'acme',
@@ -371,7 +374,7 @@ export function buildTlsPolicy(route: Route, dnsProvider?: DnsProvider | null): 
     case 'auto':
     case 'custom':
     default:
-      return { subjects: [route.domain] }
+      return { subjects: allDomains }
   }
 }
 

@@ -103,6 +103,9 @@ export const routes = sqliteTable('routes', {
   cloudflareRecordId: text('cloudflare_record_id'),
   cloudflareProxied: integer('cloudflare_proxied', { mode: 'boolean' }),
 
+  // V1.2: Additional public domains that resolve to the same upstream (JSON string[])
+  aliases: text('aliases'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 
