@@ -2,8 +2,9 @@ import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { routes, nanoid, auditLog } from '@proxyos/db'
-import { buildCaddyRoute } from '@proxyos/caddy'
+import { buildCaddyRoute, validateCaddyRoute } from '@proxyos/caddy'
 import { operatorProcedure, tokenScopeProcedure, router } from '../trpc'
+import { rowToRoute, syncRouteToCaddy } from './routes'
 
 async function doSetMaintenance(
   ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient },
@@ -24,20 +25,10 @@ async function doSetMaintenance(
   const updated = await ctx.db.select().from(routes).where(eq(routes.id, routeId)).get()
   if (updated) {
     try {
-      // TODO(validate): wire validateCaddyRoute here before pushing
-      await ctx.caddy.updateRoute(routeId, buildCaddyRoute({
-        id: updated.id, name: updated.name, domain: updated.domain, enabled: updated.enabled,
-        upstreamType: updated.upstreamType as 'http',
-        upstreams: JSON.parse(updated.upstreams),
-        lbPolicy: (updated.lbPolicy ?? 'round_robin') as 'round_robin',
-        tlsMode: updated.tlsMode as 'auto',
-        ssoEnabled: false, ssoProviderId: null, tlsDnsProviderId: null,
-        healthCheckEnabled: false, healthCheckPath: '/', healthCheckInterval: 30,
-        compressionEnabled: false, websocketEnabled: false, http2Enabled: true, http3Enabled: false,
-        wafMode: 'off' as const, createdAt: updated.createdAt, updatedAt: updated.updatedAt,
-        origin: (updated.origin as 'central' | 'local') ?? 'central',
-        scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
-      }, {}))
+      const caddyRoute = buildCaddyRoute(rowToRoute(updated), {})
+      const validation = validateCaddyRoute(caddyRoute)
+      if (!validation.valid) console.warn('[patchos] maintenance route validation errors:', validation.issues)
+      await ctx.caddy.updateRoute(routeId, caddyRoute)
       await ctx.db.update(routes).set({ syncSource: 'patchos' }).where(eq(routes.id, routeId))
     } catch { /* Caddy sync failure is non-fatal — maintenance flag is set in DB */ }
   }
@@ -63,22 +54,7 @@ async function doRestore(
   const updated = await ctx.db.select().from(routes).where(eq(routes.id, routeId)).get()
   if (updated) {
     try {
-      await ctx.caddy.updateRoute(routeId, buildCaddyRoute({
-        id: updated.id, name: updated.name, domain: updated.domain, enabled: updated.enabled,
-        upstreamType: updated.upstreamType as 'http',
-        upstreams: JSON.parse(updated.upstreams),
-        lbPolicy: (updated.lbPolicy ?? 'round_robin') as 'round_robin',
-        tlsMode: updated.tlsMode as 'auto',
-        // TODO(validate): wire validateCaddyRoute here before pushing
-        ssoEnabled: updated.ssoEnabled, ssoProviderId: updated.ssoProviderId, tlsDnsProviderId: updated.tlsDnsProviderId,
-        healthCheckEnabled: updated.healthCheckEnabled, healthCheckPath: updated.healthCheckPath, healthCheckInterval: updated.healthCheckInterval,
-        compressionEnabled: updated.compressionEnabled, websocketEnabled: updated.websocketEnabled, http2Enabled: updated.http2Enabled, http3Enabled: updated.http3Enabled,
-        wafMode: (updated.wafMode ?? 'off') as 'off',
-        createdAt: updated.createdAt, updatedAt: updated.updatedAt,
-        origin: (updated.origin as 'central' | 'local') ?? 'central',
-        scope: (updated.scope as 'exclusive' | 'local_only') ?? 'exclusive',
-      }, {}))
-      await ctx.db.update(routes).set({ syncSource: 'patchos' }).where(eq(routes.id, routeId))
+      await syncRouteToCaddy(ctx, rowToRoute(updated), 'patchos')
     } catch { /* non-fatal */ }
   }
 }
