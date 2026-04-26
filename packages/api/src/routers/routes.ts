@@ -3,14 +3,14 @@ import { eq, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { applyDockerDns, buildCaddyRoute, buildTlsPolicy, validateCaddyRoute, formatValidation, classifyDrift } from '@proxyos/caddy'
 import type { CaddyRoute } from '@proxyos/caddy'
-import { dnsProviders, nanoid, routes, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
+import { dnsProviders, nanoid, routes, routeRules, routeSecurity, routeTags, ssoProviders, auditLog, systemLog } from '@proxyos/db'
 import { adapterRegistry } from '@proxyos/connect'
 import { CloudflareAdapter } from '@proxyos/connect/cloudflare'
 import { resolveStaticUpstreams } from '../automation/static-upstreams'
 import { buildLogEntry } from './systemLog'
 import { startOperation, addStep, completeOperation } from './operationLogs'
 import { parseGeoIPConfig } from '../security/geoip'
-import type { DnsProvider, DnsProviderType, Route, SSOProvider, SSOProviderType } from '@proxyos/types'
+import type { DnsProvider, DnsProviderType, Route, RouteRule, SSOProvider, SSOProviderType } from '@proxyos/types'
 import { publicProcedure, operatorProcedure, protectedProcedure, router } from '../trpc'
 import { resolveEffectiveRole, canMutate } from '../rbac'
 import { insertRouteVersion } from './routeVersions'
@@ -63,7 +63,7 @@ const exposeInput = z.object({
   aliases: z.array(z.string().min(1).max(253)).max(20).nullable().optional(),
 })
 
-function rowToRoute(row: typeof routes.$inferSelect): Route {
+export function rowToRoute(row: typeof routes.$inferSelect): Route {
   return {
     id: row.id,
     name: row.name,
@@ -143,7 +143,7 @@ async function notifyFederationConfigChange(siteId: string): Promise<void> {
   } catch { /* non-fatal — standalone mode has no federation server */ }
 }
 
-async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route, syncSource: string = 'manual'): Promise<void> {
+export async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db').getDb>; caddy: import('@proxyos/caddy').CaddyClient }, route: Route, syncSource: string = 'manual'): Promise<void> {
   let ssoProvider: SSOProvider | null = null
   if (route.ssoEnabled && route.ssoProviderId) {
     const row = await ctx.db.select().from(ssoProviders).where(eq(ssoProviders.id, route.ssoProviderId)).get()
@@ -158,9 +158,27 @@ async function syncRouteToCaddy(ctx: { db: ReturnType<typeof import('@proxyos/db
   const geoipConfig = parseGeoIPConfig(secRow?.geoipConfig)
   const resolvedUpstreams = await resolveStaticUpstreams(route.upstreams).catch(() => route.upstreams)
   const resolvedRoute = resolvedUpstreams !== route.upstreams ? { ...route, upstreams: resolvedUpstreams } : route
+  const routeRuleRows = await ctx.db.select().from(routeRules).where(eq(routeRules.routeId, route.id))
+  const activeRules: RouteRule[] = routeRuleRows
+    .filter(r => Boolean(r.enabled))
+    .map(r => ({
+      id: r.id,
+      routeId: r.routeId,
+      priority: r.priority,
+      matcherType: r.matcherType as RouteRule['matcherType'],
+      matcherKey: r.matcherKey ?? null,
+      matcherValue: r.matcherValue,
+      action: r.action as RouteRule['action'],
+      upstream: r.upstream ?? null,
+      redirectUrl: r.redirectUrl ?? null,
+      staticBody: r.staticBody ?? null,
+      staticStatus: r.staticStatus ?? null,
+      enabled: Boolean(r.enabled),
+      createdAt: r.createdAt,
+    }))
   const tlsPolicy = buildTlsPolicy(resolvedRoute, dnsProvider)
   if (tlsPolicy) await ctx.caddy.upsertTlsPolicy(tlsPolicy)
-  const generated = applyDockerDns(buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig }))
+  const generated = applyDockerDns(buildCaddyRoute(resolvedRoute, { ssoProvider, dnsProvider, geoipConfig, routeRules: activeRules }))
   const validation = validateCaddyRoute(generated)
   if (!validation.valid) {
     void ctx.db.insert(systemLog).values(buildLogEntry('error', 'caddy', `Route ${route.domain} failed validation`, { issues: validation.issues })).catch(() => {})
