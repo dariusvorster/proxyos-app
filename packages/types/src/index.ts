@@ -183,10 +183,34 @@ export interface Route extends RouteInput {
   exposureMode?: 'direct' | 'tunnel'
   tunnelRouteId?: string | null
   tunnelPublicUrl?: string | null
+  // V1.1 Service Presets
+  presetId?: string | null
   createdAt: Date
   updatedAt: Date
   origin: 'central' | 'local'
   scope: 'exclusive' | 'local_only'
+}
+
+// V1.1 — Service Presets
+export type UpstreamProtocol = 'http' | 'https-trusted' | 'https-insecure'
+
+export type PresetCategory = 'virtualization' | 'auth' | 'monitoring' | 'storage' | 'media' | 'other'
+
+export interface ServicePreset {
+  id: string
+  name: string
+  category: PresetCategory
+  icon: string | null
+  defaultPort: number
+  upstreamProtocol: UpstreamProtocol
+  websocket: boolean
+  suggestedSubdomain: string | null
+  healthCheckPath: string | null
+  healthCheckExpectStatus: number | null
+  defaultHeaders: Record<string, string> | null
+  notes: string | null
+  builtIn: boolean
+  createdAt: Date
 }
 
 // §9.5 Smart routing rules

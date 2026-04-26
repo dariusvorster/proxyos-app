@@ -1127,4 +1127,50 @@ export function ensureSchema(db: Database.Database): void {
     try { db.exec(stmt) } catch { /* already exists */ }
   }
   try { db.exec(`UPDATE routes SET upstream_protocol = 'https-insecure' WHERE skip_tls_verify = 1 AND upstream_protocol = 'http'`) } catch { /* ignore */ }
+
+  // V1.1 Service Presets
+  db.exec(`CREATE TABLE IF NOT EXISTS service_presets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    icon TEXT,
+    default_port INTEGER NOT NULL,
+    upstream_protocol TEXT NOT NULL,
+    websocket INTEGER NOT NULL DEFAULT 0,
+    suggested_subdomain TEXT,
+    health_check_path TEXT,
+    health_check_expect_status INTEGER DEFAULT 200,
+    default_headers TEXT,
+    notes TEXT,
+    built_in INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  )`)
+  try { db.exec(`ALTER TABLE routes ADD COLUMN preset_id TEXT REFERENCES service_presets(id)`) } catch { /* already exists */ }
+
+  // Seed built-in presets once
+  const presetCount = (db.prepare('SELECT COUNT(*) as n FROM service_presets').get() as { n: number }).n
+  if (presetCount === 0) {
+    const { builtInPresets } = require('../seeds/service-presets') as typeof import('../seeds/service-presets')
+    const insertPreset = db.prepare(`
+      INSERT INTO service_presets
+        (id, name, category, icon, default_port, upstream_protocol, websocket,
+         suggested_subdomain, health_check_path, health_check_expect_status,
+         default_headers, notes, built_in, created_at)
+      VALUES
+        (@id, @name, @category, @icon, @defaultPort, @upstreamProtocol, @websocket,
+         @suggestedSubdomain, @healthCheckPath, @healthCheckExpectStatus,
+         @defaultHeaders, @notes, 1, @createdAt)
+    `)
+    const seedMany = db.transaction((presets: typeof builtInPresets) => {
+      for (const p of presets) {
+        insertPreset.run({
+          ...p,
+          websocket: p.websocket ? 1 : 0,
+          defaultHeaders: p.defaultHeaders ? JSON.stringify(p.defaultHeaders) : null,
+          createdAt: Date.now(),
+        })
+      }
+    })
+    seedMany(builtInPresets)
+  }
 }

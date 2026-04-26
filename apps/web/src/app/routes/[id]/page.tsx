@@ -54,6 +54,10 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     { routeId: id },
     { enabled: !!route, refetchOnWindowFocus: false, staleTime: 30_000 },
   )
+  const presetQuery = trpc.presets.byId.useQuery(
+    { id: route?.presetId ?? '' },
+    { enabled: !!route?.presetId },
+  )
 
   const forceResync = trpc.routes.forceResync.useMutation({
     onSuccess: () => { setTimeout(() => routes.refetch(), 3000) },
@@ -280,7 +284,8 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
             <HelpLink href="/docs/features/routes/upstream-configuration" />
             <span style={{ marginLeft: 2 }}>
               <Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>TLS: {route.tlsMode}</Badge>{' '}
-              {route.ssoEnabled && <Badge tone="purple">SSO</Badge>}
+              {route.ssoEnabled && <Badge tone="purple">SSO</Badge>}{' '}
+              {presetQuery.data && <Badge tone="neutral">Preset: {presetQuery.data.name}</Badge>}
             </span>
             <HelpLink href="/docs/features/routes/tls-modes" />
           </div>
