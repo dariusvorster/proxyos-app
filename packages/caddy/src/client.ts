@@ -278,6 +278,27 @@ export class CaddyClient {
     if (!res.ok && res.status !== 404) throw new Error(`Caddy removeLayerFourStream failed: ${res.status} ${await res.text()}`)
   }
 
+  async loadCustomCert(certPem: string, keyPem: string): Promise<void> {
+    await this.ensureTlsAppExists()
+    const url = `${this.baseUrl}/config/apps/tls/certificates/load_pem`
+    const getRes = await this.doRequest(url, 'GET')
+    const getText = await getRes.text()
+    let existing: Array<{ certificate: string; key: string }>
+    if (!getRes.ok || getText === 'null' || getText === '') {
+      existing = []
+    } else {
+      try {
+        const parsed = JSON.parse(getText)
+        existing = Array.isArray(parsed) ? parsed : []
+      } catch {
+        existing = []
+      }
+    }
+    const updated = [...existing.filter(c => c.certificate !== certPem), { certificate: certPem, key: keyPem }]
+    const res = await this.doRequest(url, 'PUT', updated)
+    if (!res.ok) throw new Error(`Caddy loadCustomCert failed: ${res.status} ${await res.text()}`)
+  }
+
   private async doRequest(url: string, method: string, body?: unknown): Promise<AdminResponse> {
     let lastError: unknown = null
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
