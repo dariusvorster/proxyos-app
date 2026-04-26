@@ -65,6 +65,13 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const [resyncMsg, setResyncMsg] = useState('')
   const [diffExpanded, setDiffExpanded] = useState(true)
 
+  const healthScore = trpc.healthScores.get.useQuery({ routeId: id }, { staleTime: 60_000 })
+  const calculateScore = trpc.healthScores.calculate.useMutation({ onSuccess: () => healthScore.refetch() })
+
+  useEffect(() => {
+    if (route) calculateScore.mutate({ routeId: id })
+  }, [id, route?.updatedAt?.toString()])
+
   const patchosStatus = trpc.patchos.getStatus.useQuery({ routeId: id })
   const setMaintenanceMut = trpc.patchos.setMaintenance.useMutation({
     onSuccess: () => { patchosStatus.refetch(); routes.refetch() },
@@ -471,11 +478,17 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
           </Card>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
           <StatCard label="Requests (60m)" value={summary.data?.requests ?? 0} />
           <StatCard label="Errors (5xx)" value={summary.data?.status5xx ?? 0} subTone={(summary.data?.status5xx ?? 0) > 0 ? 'red' : 'green'} sub={(summary.data?.status5xx ?? 0) > 0 ? 'investigate' : 'none'} />
           <StatCard label="Avg latency" value={`${summary.data?.avgLatencyMs ?? 0} ms`} />
           <StatCard label="Bytes out" value={formatBytes(summary.data?.bytes ?? 0)} />
+          <StatCard
+            label="Health score"
+            value={healthScore.data ? `${healthScore.data.score}/100` : '—'}
+            subTone={healthScore.data ? (healthScore.data.score >= 90 ? 'green' : healthScore.data.score >= 70 ? 'amber' : 'red') : undefined}
+            sub={healthScore.data ? (healthScore.data.sloCompliant ? 'SLO ok' : 'SLO breach') : undefined}
+          />
         </div>
 
         {/* Load balancing */}

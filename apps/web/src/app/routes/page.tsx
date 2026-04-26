@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Badge, Button, Card, Checkbox, DataTable, Dot, Input, Select, SidePanel, Sparkline, td, th, Toggle } from '~/components/ui'
 import { Topbar, PageContent, PageHeader } from '~/components/shell'
 import { trpc } from '~/lib/trpc'
@@ -18,6 +18,12 @@ export default function RoutesPage() {
   const { siteId } = useSiteSelection()
   const list = trpc.routes.list.useQuery({ siteId })
   const del = trpc.routes.delete.useMutation({ onSuccess: () => utils.routes.list.invalidate() })
+  const scores = trpc.healthScores.listAll.useQuery(undefined, { staleTime: 60_000 })
+  const calculateAll = trpc.healthScores.calculateAll.useMutation({ onSuccess: () => scores.refetch() })
+
+  useEffect(() => {
+    if (list.data && list.data.length > 0) calculateAll.mutate()
+  }, [list.dataUpdatedAt])
 
   const [search, setSearch] = useState('')
   const [tlsFilter, setTlsFilter] = useState<TlsFilter>('all')
@@ -137,6 +143,7 @@ export default function RoutesPage() {
                 <th style={{ ...th, width: '10%' }}>p95</th>
                 <th style={{ ...th, width: '13%' }}>Last req</th>
                 <th style={{ ...th, width: '9%' }}>Sync</th>
+                <th style={{ ...th, width: '7%' }}>Score</th>
                 <th style={{ ...th, width: '11%' }}>Status</th>
               </tr>
             </thead>
@@ -148,6 +155,7 @@ export default function RoutesPage() {
                 <RouteRow
                   key={r.id}
                   route={r}
+                  score={scores.data?.find((s) => s.routeId === r.id)?.score ?? null}
                   checked={selected.has(r.id)}
                   onCheck={() => toggleSelect(r.id)}
                   onOpen={() => setPanelId(r.id)}
@@ -197,7 +205,14 @@ function tunnelBadge(exposureMode?: string, publicUrl?: string | null): { label:
   return { label: 'CF', tone: 'purple' }
 }
 
-function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string; syncStatus?: string | null; exposureMode?: string; tunnelPublicUrl?: string | null }; checked: boolean; onCheck: () => void; onOpen: () => void }) {
+function scoreTone(score: number | null): 'green' | 'amber' | 'red' | 'neutral' {
+  if (score === null) return 'neutral'
+  if (score >= 90) return 'green'
+  if (score >= 70) return 'amber'
+  return 'red'
+}
+
+function RouteRow({ route, score, checked, onCheck, onOpen }: { route: { id: string; domain: string; name: string; upstreams: Array<{ address: string }>; tlsMode: string; ssoEnabled: boolean; origin?: string; syncStatus?: string | null; exposureMode?: string; tunnelPublicUrl?: string | null }; score: number | null; checked: boolean; onCheck: () => void; onOpen: () => void }) {
   const summary = trpc.analytics.summary.useQuery({ routeId: route.id, windowMinutes: 60 }, { refetchInterval: 30_000 })
   const last = summary.data?.buckets.slice(-1)[0]
   return (
@@ -246,6 +261,11 @@ function RouteRow({ route, checked, onCheck, onOpen }: { route: { id: string; do
           <Dot tone={syncDot(route.syncStatus).tone} />
           <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{syncDot(route.syncStatus).label}</span>
         </span>
+      </td>
+      <td style={td}>
+        <Badge tone={scoreTone(score)} title={score !== null ? `Health score: ${score}/100` : 'Not yet calculated'}>
+          {score !== null ? score : '—'}
+        </Badge>
       </td>
       <td style={td}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
