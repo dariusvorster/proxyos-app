@@ -286,6 +286,11 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
               <Badge tone={route.tlsMode === 'off' ? 'red' : 'green'}>TLS: {route.tlsMode}</Badge>{' '}
               {route.ssoEnabled && <Badge tone="purple">SSO</Badge>}{' '}
               {presetQuery.data && <Badge tone="neutral">Preset: {presetQuery.data.name}</Badge>}
+              {route.cloudflareRecordId && (
+                <Badge tone="neutral">
+                  {route.cloudflareProxied ? '🟠 CF proxied' : '⚪ CF dns-only'}
+                </Badge>
+              )}
             </span>
             <HelpLink href="/docs/features/routes/tls-modes" />
           </div>

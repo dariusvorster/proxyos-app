@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { eq, desc } from 'drizzle-orm'
 import { z } from 'zod'
-import { connections, connectionSyncLog, dnsRecordsShadow, nanoid } from '@proxyos/db'
+import { connections, connectionSyncLog, dnsRecordsShadow, routes, nanoid } from '@proxyos/db'
 import { encryptCredentials, decryptCredentials, adapterRegistry } from '@proxyos/connect'
 import { CloudflareAdapter } from '@proxyos/connect/cloudflare'
 import type { CloudflareCreds } from '@proxyos/connect/cloudflare'
@@ -211,4 +211,68 @@ export const connectionsRouter = router({
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
       return JSON.parse(decryptCredentials(row.credentials)) as Record<string, unknown>
     }),
+
+  cloudflare: router({
+    listZones: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const adapter = adapterRegistry.get(input.id)
+        if (!adapter || adapter.type !== 'cloudflare') throw new TRPCError({ code: 'NOT_FOUND', message: 'Cloudflare connection not found' })
+        return (adapter as CloudflareAdapter).listZones()
+      }),
+
+    listRecords: publicProcedure
+      .input(z.object({ id: z.string(), zoneId: z.string() }))
+      .query(async ({ input }) => {
+        const adapter = adapterRegistry.get(input.id)
+        if (!adapter || adapter.type !== 'cloudflare') throw new TRPCError({ code: 'NOT_FOUND', message: 'Cloudflare connection not found' })
+        return (adapter as CloudflareAdapter).listRecordsForZone(input.zoneId)
+      }),
+
+    setProxied: operatorProcedure
+      .input(z.object({ id: z.string(), zoneId: z.string(), recordId: z.string(), proxied: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const adapter = adapterRegistry.get(input.id)
+        if (!adapter || adapter.type !== 'cloudflare') throw new TRPCError({ code: 'NOT_FOUND', message: 'Cloudflare connection not found' })
+        const result = await (adapter as CloudflareAdapter).setRecordProxied(input.zoneId, input.recordId, input.proxied)
+        // Update matching route if ProxyOS manages this record
+        await ctx.db.update(routes)
+          .set({ cloudflareProxied: input.proxied })
+          .where(eq(routes.cloudflareRecordId, input.recordId))
+        return result
+      }),
+
+    syncRoute: operatorProcedure
+      .input(z.object({
+        routeId: z.string(),
+        connectionId: z.string(),
+        proxied: z.boolean().default(false),
+        originIp: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
+        if (!route) throw new TRPCError({ code: 'NOT_FOUND', message: 'Route not found' })
+
+        const adapter = adapterRegistry.get(input.connectionId)
+        if (!adapter || adapter.type !== 'cloudflare') throw new TRPCError({ code: 'NOT_FOUND', message: 'Cloudflare connection not found' })
+
+        const result = await (adapter as CloudflareAdapter).syncRoute(route.domain, input.originIp, input.proxied)
+        await ctx.db.update(routes)
+          .set({
+            cloudflareZoneId: result.zoneId,
+            cloudflareRecordId: result.recordId,
+            cloudflareProxied: result.proxied,
+          })
+          .where(eq(routes.id, input.routeId))
+        return result
+      }),
+
+    resolveZone: publicProcedure
+      .input(z.object({ id: z.string(), domain: z.string() }))
+      .query(async ({ input }) => {
+        const adapter = adapterRegistry.get(input.id)
+        if (!adapter || adapter.type !== 'cloudflare') return null
+        return (adapter as CloudflareAdapter).resolveZoneForDomain(input.domain)
+      }),
+  }),
 })

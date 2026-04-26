@@ -1,5 +1,48 @@
 import { cfFetch } from './client'
 
+export interface CfZoneResult {
+  id: string
+  name: string
+  status: string
+  name_servers: string[]
+}
+
+export interface CfTokenDetails {
+  valid: boolean
+  email?: string
+  permissions: string[]
+}
+
+export async function cfVerifyTokenDetails(token: string): Promise<CfTokenDetails> {
+  try {
+    const result = await cfFetch<{ status: string; policies?: { id: string; effect: string; resources: Record<string, string>; permission_groups: { id: string; name: string }[] }[] }>(token, '/user/tokens/verify')
+    if (result.status !== 'active') return { valid: false, permissions: [] }
+    const permissions = (result.policies ?? []).flatMap(p => p.permission_groups.map(g => g.name))
+    return { valid: true, permissions }
+  } catch {
+    return { valid: false, permissions: [] }
+  }
+}
+
+export async function cfListZones(token: string): Promise<CfZoneResult[]> {
+  return cfFetch<CfZoneResult[]>(token, '/zones?per_page=50&status=active')
+}
+
+export async function cfResolveZoneForDomain(token: string, domain: string): Promise<CfZoneResult | null> {
+  const zones = await cfListZones(token)
+  // Find the most specific zone that is a suffix of the domain
+  const matches = zones.filter(z => domain === z.name || domain.endsWith(`.${z.name}`))
+  if (matches.length === 0) return null
+  return matches.sort((a, b) => b.name.length - a.name.length)[0] ?? null
+}
+
+export async function cfSetRecordProxied(token: string, zoneId: string, recordId: string, proxied: boolean): Promise<CfDnsRecord> {
+  return cfFetch<CfDnsRecord>(token, `/zones/${zoneId}/dns_records/${recordId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ proxied }),
+  })
+}
+
 export interface CfDnsRecord {
   id: string
   type: string
