@@ -95,6 +95,9 @@ export const routes = sqliteTable('routes', {
   upstreamProtocol: text('upstream_protocol', { enum: ['http', 'https-trusted', 'https-insecure'] as const }).notNull().default('http'),
   upstreamSni: text('upstream_sni'),
 
+  // V1.1: service preset that was used to create this route (nullable)
+  presetId: text('preset_id'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 
@@ -1194,3 +1197,24 @@ export const slowRequests = sqliteTable('slow_requests', {
 
 export type RouteRuleRow = typeof routeRules.$inferSelect
 export type SlowRequestRow = typeof slowRequests.$inferSelect
+
+// V1.1 — Service presets
+export const servicePresets = sqliteTable('service_presets', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  category: text('category').notNull(),
+  icon: text('icon'),
+  defaultPort: integer('default_port').notNull(),
+  upstreamProtocol: text('upstream_protocol', { enum: ['http', 'https-trusted', 'https-insecure'] as const }).notNull(),
+  websocket: integer('websocket', { mode: 'boolean' }).notNull().default(false),
+  suggestedSubdomain: text('suggested_subdomain'),
+  healthCheckPath: text('health_check_path'),
+  healthCheckExpectStatus: integer('health_check_expect_status').default(200),
+  defaultHeaders: text('default_headers', { mode: 'json' }).$type<Record<string, string>>(),
+  notes: text('notes'),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type ServicePresetRow = typeof servicePresets.$inferSelect
+export type NewServicePresetRow = typeof servicePresets.$inferInsert
