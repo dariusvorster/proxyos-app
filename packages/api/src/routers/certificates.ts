@@ -108,13 +108,27 @@ export const certificatesRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const now = new Date()
-      const id = nanoid()
-      await ctx.db.insert(certificates).values({
-        id, domain: input.domain, source: 'custom', status: 'active',
-        issuedAt: now, expiresAt: null, autoRenew: false, routeId: null,
-        createdAt: now, updatedAt: now,
-      })
-      return { id, domain: input.domain, message: 'Cert recorded. Caddy load_cert wiring is a TODO.' }
+
+      let issuedAt: Date | null = null
+      let expiresAt: Date | null = null
+      try {
+        const x509 = new X509Certificate(input.cert)
+        issuedAt = new Date(x509.validFrom)
+        expiresAt = new Date(x509.validTo)
+      } catch {
+        // malformed cert — store anyway, Caddy will reject if truly invalid
+      }
+
+      await ctx.caddy.loadCustomCert(input.cert, input.key)
+
+      const existing = await ctx.db.select().from(certificates).where(eq(certificates.domain, input.domain)).get()
+      const id = existing?.id ?? nanoid()
+      if (existing) {
+        await ctx.db.update(certificates).set({ source: 'custom', status: 'active', issuedAt, expiresAt, autoRenew: false, updatedAt: now }).where(eq(certificates.id, id))
+      } else {
+        await ctx.db.insert(certificates).values({ id, domain: input.domain, source: 'custom', status: 'active', issuedAt, expiresAt, autoRenew: false, routeId: null, createdAt: now, updatedAt: now })
+      }
+      return { id, domain: input.domain, expiresAt, message: 'Certificate loaded into Caddy.' }
     }),
 
   getInternalCA: publicProcedure.query(async () => {
