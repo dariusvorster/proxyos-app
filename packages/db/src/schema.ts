@@ -98,6 +98,11 @@ export const routes = sqliteTable('routes', {
   // V1.1: service preset that was used to create this route (nullable)
   presetId: text('preset_id'),
 
+  // V1.1: Cloudflare DNS management fields
+  cloudflareZoneId: text('cloudflare_zone_id'),
+  cloudflareRecordId: text('cloudflare_record_id'),
+  cloudflareProxied: integer('cloudflare_proxied', { mode: 'boolean' }),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 

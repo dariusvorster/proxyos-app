@@ -75,6 +75,7 @@ export default function ExposePage() {
   const [tlsDnsProviderId, setTlsDnsProviderId] = useState('')
   const [autoDns, setAutoDns] = useState(true)
   const [cfConnectionId, setCfConnectionId] = useState('')
+  const [cfProxied, setCfProxied] = useState(false)
 
   // Routing
   const [routingMode, setRoutingMode] = useState<RoutingMode>('direct')
@@ -150,6 +151,10 @@ export default function ExposePage() {
       upstreamProtocol,
       upstreamSni: upstreamProtocol === 'https-trusted' && upstreamSni ? upstreamSni : null,
       presetId: selectedPresetId ?? null,
+      autoDns: autoDns && cfConnections.length > 0,
+      cfConnectionId: (autoDns && cfConnections.length > 0) ? (cfConnectionId || cfConnections[0]?.id || null) : null,
+      cfProxied,
+      originIp: (autoDns && cfConnections.length > 0) ? ip : null,
     })
   }
 
@@ -450,17 +455,43 @@ export default function ExposePage() {
 
             {cfConnections.length > 0 && (
               <div style={{ marginTop: 16, padding: '12px', borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                <ToggleRow label="Auto-create DNS record" checked={autoDns} onChange={setAutoDns} />
+                <ToggleRow label="Auto-create DNS record in Cloudflare" checked={autoDns} onChange={setAutoDns} />
                 {autoDns && (
-                  <div style={{ paddingLeft: 20, marginTop: 6 }}>
-                    <Field label="Cloudflare connection">
-                      <Select value={cfConnectionId} onChange={e => setCfConnectionId(e.target.value)}>
-                        {cfConnections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </Select>
-                    </Field>
+                  <div style={{ paddingLeft: 20, marginTop: 6, display: 'grid', gap: 8 }}>
+                    {cfConnections.length > 1 && (
+                      <Field label="Cloudflare connection">
+                        <Select value={cfConnectionId} onChange={e => setCfConnectionId(e.target.value)}>
+                          {cfConnections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </Select>
+                      </Field>
+                    )}
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Proxy status</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <button onClick={() => setCfProxied(false)} style={{
+                          padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, textAlign: 'left',
+                          background: !cfProxied ? 'rgba(124,111,240,0.15)' : 'var(--surface-1)',
+                          border: !cfProxied ? '1px solid var(--pu-400)' : '0.5px solid var(--border)',
+                          color: 'var(--text-primary)',
+                        }}>
+                          <div style={{ fontWeight: 500 }}>⚪ DNS only</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Grey cloud — direct to your IP</div>
+                        </button>
+                        <button onClick={() => setCfProxied(true)} style={{
+                          padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, textAlign: 'left',
+                          background: cfProxied ? 'rgba(124,111,240,0.15)' : 'var(--surface-1)',
+                          border: cfProxied ? '1px solid var(--pu-400)' : '0.5px solid var(--border)',
+                          color: 'var(--text-primary)',
+                        }}>
+                          <div style={{ fontWeight: 500 }}>🟠 Proxied</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Orange cloud — via Cloudflare edge</div>
+                        </button>
+                      </div>
+                    </div>
                     {domain && (
                       <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
                         Preview: {domain} → {routingMode === 'cloudflare_tunnel' ? 'CNAME → tunnel' : `A → ${ip || 'your-ip'}`}
+                        {cfProxied ? ' · proxied' : ' · dns-only'}
                       </div>
                     )}
                   </div>

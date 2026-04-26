@@ -1173,4 +1173,14 @@ export function ensureSchema(db: Database.Database): void {
     })
     seedMany(builtInPresets)
   }
+
+  // V1.1 Cloudflare DNS management columns on routes
+  const V13_ALTERS = [
+    `ALTER TABLE routes ADD COLUMN cloudflare_zone_id TEXT`,
+    `ALTER TABLE routes ADD COLUMN cloudflare_record_id TEXT`,
+    `ALTER TABLE routes ADD COLUMN cloudflare_proxied INTEGER`,
+  ]
+  for (const stmt of V13_ALTERS) {
+    try { db.exec(stmt) } catch { /* already exists */ }
+  }
 }
