@@ -37,6 +37,7 @@ import { caddyLogsRouter } from './routers/caddyLogs'
 import { publicApiRouter } from './routers/publicApi'
 import { driftRouter } from './routers/drift'
 import { routeVersionsRouter } from './routers/routeVersions'
+import { routeRulesRouter } from './routers/routeRules'
 import { healthChecksRouter } from './routers/healthChecks'
 import { accessLogSearchRouter } from './routers/accessLogSearch'
 import { tagsRouter } from './routers/tags'
@@ -106,6 +107,7 @@ export const appRouter = router({
   publicApi: publicApiRouter,
   drift: driftRouter,
   routeVersions: routeVersionsRouter,
+  routeRules: routeRulesRouter,
   healthChecks: healthChecksRouter,
   accessLogSearch: accessLogSearchRouter,
   tags: tagsRouter,
