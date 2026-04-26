@@ -10,10 +10,23 @@ import type { Context } from '../trpc'
 
 const TEST_DB_PATH = join(tmpdir(), 'proxyos-api-test.db')
 const TEST_USER_ID = `test-3f-${nanoid()}`
+let skipCaddy = false
 
 type ReverseProxyHandler = {
   upstreams?: Array<{ dial: string }>
   transport?: { tls?: unknown }
+}
+
+function makeNullCaddy(): CaddyClient {
+  const caddy = new CaddyClient()
+  const proto = Object.getPrototypeOf(caddy) as Record<string, unknown>
+  for (const key of Object.getOwnPropertyNames(proto)) {
+    if (key === 'constructor') continue
+    if (typeof proto[key] === 'function') {
+      ;(caddy as Record<string, unknown>)[key] = key === 'health' ? async () => true : async () => undefined
+    }
+  }
+  return caddy
 }
 
 function makeCtx(): Context {
@@ -21,7 +34,7 @@ function makeCtx(): Context {
   return {
     req: new Request('http://localhost'),
     db,
-    caddy: new CaddyClient(),
+    caddy: skipCaddy ? makeNullCaddy() : new CaddyClient(),
     session: { userId: TEST_USER_ID, role: 'admin' },
     tokenScopes: null,
     resHeaders: new Headers(),
@@ -35,7 +48,6 @@ async function caddyReachable(): Promise<boolean> {
 
 describe('3F — upstream URL change persists through save cycle', () => {
   let routeId: string | null = null
-  let skipCaddy = false
 
   beforeAll(async () => {
     // Clean slate: remove stale test DB from previous runs
