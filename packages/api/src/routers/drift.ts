@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { driftEvents, nanoid, routes } from '@proxyos/db'
-import { buildCaddyRoute } from '@proxyos/caddy'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { rowToRoute, syncRouteToCaddy } from './routes'
 
 export const driftRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -38,41 +38,7 @@ export const driftRouter = router({
       if (input.action === 'db_to_caddy' && event.routeId) {
         const row = await ctx.db.select().from(routes).where(eq(routes.id, event.routeId)).get()
         if (row) {
-          const route = {
-            id: row.id,
-            name: row.name,
-            domain: row.domain,
-            enabled: row.enabled,
-            upstreamType: row.upstreamType as 'http',
-            upstreams: JSON.parse(row.upstreams) as Array<{ address: string }>,
-            tlsMode: row.tlsMode as 'auto' | 'dns' | 'internal' | 'custom' | 'off',
-            tlsDnsProviderId: row.tlsDnsProviderId,
-            ssoEnabled: row.ssoEnabled,
-            ssoProviderId: row.ssoProviderId,
-            rateLimit: null,
-            ipAllowlist: null,
-            basicAuth: null,
-            headers: null,
-            lbPolicy: (row.lbPolicy ?? 'round_robin') as 'round_robin',
-            healthCheckEnabled: row.healthCheckEnabled,
-            healthCheckPath: row.healthCheckPath,
-            healthCheckInterval: row.healthCheckInterval,
-            compressionEnabled: row.compressionEnabled,
-            websocketEnabled: row.websocketEnabled,
-            http2Enabled: row.http2Enabled,
-            http3Enabled: row.http3Enabled,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-            origin: (row.origin as 'central' | 'local') ?? 'central',
-            scope: (row.scope as 'exclusive' | 'local_only') ?? 'exclusive',
-          }
-          try {
-            // TODO(validate): wire validateCaddyRoute here before pushing
-            await ctx.caddy.updateRoute(row.id, buildCaddyRoute(route))
-          } catch {
-            // TODO(validate): wire validateCaddyRoute here before pushing
-            await ctx.caddy.addRoute(buildCaddyRoute(route))
-          }
+          await syncRouteToCaddy(ctx, rowToRoute(row), 'drift-repair').catch(() => {})
         }
       }
 

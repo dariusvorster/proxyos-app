@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { resolve } from 'path'
 import { readFile } from 'fs/promises'
-import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, type CaddyRoute } from '@proxyos/caddy'
+import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, validateCaddyRoute, type CaddyRoute } from '@proxyos/caddy'
 import { dnsProviders, routes, routeRules, routeSecurity, ssoProviders, systemSettings } from '@proxyos/db'
 import { eq } from 'drizzle-orm'
 import type { DnsProvider, DnsProviderType, Route, RouteRule, SSOProvider, SSOProviderType } from '@proxyos/types'
@@ -97,8 +97,7 @@ export const caddyRouter = router({
     const caddyRoutes: CaddyRoute[] = enabled.map((row) => {
       const route: Route = rowToRoute(row)
       const sec = secMap.get(row.id)
-      // TODO(validate): wire validateCaddyRoute here before pushing
-      return buildCaddyRoute(route, {
+      const cr = buildCaddyRoute(route, {
         ssoProvider: route.ssoProviderId ? ssoMap.get(route.ssoProviderId) ?? null : null,
         dnsProvider: route.tlsDnsProviderId ? dnsMap.get(route.tlsDnsProviderId) ?? null : null,
         geoipConfig: sec?.geoipConfig ? JSON.parse(sec.geoipConfig) : null,
@@ -107,6 +106,9 @@ export const caddyRouter = router({
         routeRules: rulesMap.get(row.id) ?? [],
         traceConfig: traceCfgRow?.value ? JSON.parse(traceCfgRow.value) : null,
       })
+      const v = validateCaddyRoute(cr)
+      if (!v.valid) console.warn(`[caddy] route ${route.domain} validation errors:`, v.issues)
+      return cr
     })
     await ctx.caddy.replaceRoutes('main', caddyRoutes)
 
