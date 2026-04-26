@@ -232,19 +232,41 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
 
   const allUpstreamsFlat = [...route.upstreams, ...(route.stagingUpstreams ?? [])]
 
-  // Detect HTTPS upstream by scheme prefix OR well-known HTTPS ports.
-  // Proxmox/PBS use 8006/8007 with self-signed certs — auto-detect prevents 301 loops.
-  const HTTPS_PORTS = new Set([443, 8006, 8007, 8443, 9090, 9443, 10443])
-  const isHttpsByPort = (addr: string): boolean => {
-    const m = addr.match(/:(\d+)(?:\/|$)/)
-    return m ? HTTPS_PORTS.has(Number(m[1])) : false
+  // V1.1: upstreamProtocol takes precedence over legacy port-based detection.
+  // When 'http' (the default for all existing routes), fall back to port sniffing +
+  // skipTlsVerify so V1 routes keep working without a data migration.
+  const upstreamProtocol = route.upstreamProtocol ?? 'http'
+
+  let transportBlock: Record<string, unknown> = {}
+  let healthCheckTls: Record<string, unknown> = {}
+
+  if (upstreamProtocol === 'https-insecure') {
+    transportBlock = { transport: { protocol: 'http', tls: { insecure_skip_verify: true } } }
+    healthCheckTls = { tls: { insecure_skip_verify: true } }
+  } else if (upstreamProtocol === 'https-trusted') {
+    transportBlock = {
+      transport: {
+        protocol: 'http',
+        tls: route.upstreamSni ? { server_name: route.upstreamSni } : {},
+      },
+    }
+    healthCheckTls = route.upstreamSni ? { tls: { server_name: route.upstreamSni } } : { tls: {} }
+  } else {
+    // 'http' — backward-compat: port-based HTTPS detection + skipTlsVerify
+    const HTTPS_PORTS = new Set([443, 8006, 8007, 8443, 9090, 9443, 10443])
+    const isHttpsByPort = (addr: string): boolean => {
+      const m = addr.match(/:(\d+)(?:\/|$)/)
+      return m ? HTTPS_PORTS.has(Number(m[1])) : false
+    }
+    const httpsByScheme = allUpstreamsFlat.some(u => u.address.startsWith('https://'))
+    const httpsByPort = allUpstreamsFlat.some(u => isHttpsByPort(u.address))
+    const httpsUpstream = httpsByScheme || httpsByPort
+    const skipVerify = allUpstreamsFlat.some(u => u.skipVerify) || httpsByPort || Boolean(route.skipTlsVerify)
+    if (httpsUpstream) {
+      transportBlock = { transport: { protocol: 'http', tls: { insecure_skip_verify: skipVerify } } }
+      healthCheckTls = { tls: { insecure_skip_verify: skipVerify } }
+    }
   }
-  const httpsByScheme = allUpstreamsFlat.some(u => u.address.startsWith('https://'))
-  const httpsByPort = allUpstreamsFlat.some(u => isHttpsByPort(u.address))
-  const httpsUpstream = httpsByScheme || httpsByPort
-  // Port-detected HTTPS implies skip-verify (self-signed is the norm for those services)
-  const upstreamSkipVerify =
-    allUpstreamsFlat.some(u => u.skipVerify) || httpsByPort || Boolean(route.skipTlsVerify)
 
   // The reverse_proxy handler — every field here is unconditional except the optional blocks.
   // X-Forwarded-* headers are managed natively by Caddy when trusted_proxies is configured
@@ -265,18 +287,7 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
         },
       },
     },
-    // Always emit transport block for HTTPS upstreams so Caddy dials HTTPS, not HTTP.
-    // Without this block, Caddy defaults to HTTP and HTTPS-only upstreams redirect-loop.
-    ...(httpsUpstream
-      ? {
-          transport: {
-            protocol: 'http',
-            tls: {
-              insecure_skip_verify: upstreamSkipVerify,
-            },
-          },
-        }
-      : {}),
+    ...transportBlock,
     ...(blueGreenUpstreams.length > 1
       ? {
           load_balancing: {
@@ -293,6 +304,7 @@ export function buildCaddyRoute(route: Route, opts: BuildOptions = {}): CaddyRou
               path: route.healthCheckPath ?? '/',
               interval: `${route.healthCheckInterval ?? 30}s`,
               timeout: '5s',
+              ...healthCheckTls,
             },
           },
         }

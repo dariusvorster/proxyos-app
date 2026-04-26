@@ -91,6 +91,10 @@ export const routes = sqliteTable('routes', {
   trustUpstreamHeaders: integer('trust_upstream_headers', { mode: 'boolean' }).notNull().default(false),
   skipTlsVerify: integer('skip_tls_verify', { mode: 'boolean' }).notNull().default(false),
 
+  // V1.1: explicit upstream protocol — replaces port-based HTTPS auto-detection
+  upstreamProtocol: text('upstream_protocol', { enum: ['http', 'https-trusted', 'https-insecure'] as const }).notNull().default('http'),
+  upstreamSni: text('upstream_sni'),
+
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 

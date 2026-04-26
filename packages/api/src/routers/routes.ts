@@ -49,6 +49,8 @@ const exposeInput = z.object({
   compressionEnabled: z.boolean().default(true),
   websocketEnabled: z.boolean().default(true),
   http3Enabled: z.boolean().default(true),
+  upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).default('http'),
+  upstreamSni: z.string().nullable().optional(),
 })
 
 function rowToRoute(row: typeof routes.$inferSelect): Route {
@@ -108,6 +110,8 @@ function rowToRoute(row: typeof routes.$inferSelect): Route {
     exposureMode: (row.exposureMode as 'direct' | 'tunnel') ?? 'direct',
     tunnelRouteId: row.tunnelRouteId ?? null,
     tunnelPublicUrl: row.tunnelPublicUrl ?? null,
+    upstreamProtocol: ((row as Record<string, unknown>).upstreamProtocol as 'http' | 'https-trusted' | 'https-insecure') ?? 'http',
+    upstreamSni: ((row as Record<string, unknown>).upstreamSni as string | null) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     origin: (row.origin as Route['origin']) ?? 'central',
@@ -406,6 +410,8 @@ export const routesRouter = router({
       enabled: true,
       upstreamType: 'http',
       upstreams: [{ address: upstreamAddress }],
+      upstreamProtocol: input.upstreamProtocol,
+      upstreamSni: input.upstreamSni ?? null,
       tlsMode: input.tlsMode,
       tlsDnsProviderId: input.tlsDnsProviderId ?? null,
       ssoEnabled: input.ssoEnabled,
@@ -430,6 +436,8 @@ export const routesRouter = router({
       enabled: true,
       upstreamType: route.upstreamType,
       upstreams: JSON.stringify(route.upstreams),
+      upstreamProtocol: input.upstreamProtocol,
+      upstreamSni: input.upstreamSni ?? null,
       tlsMode: route.tlsMode,
       tlsDnsProviderId: route.tlsDnsProviderId,
       ssoEnabled: route.ssoEnabled,
@@ -560,6 +568,8 @@ export const routesRouter = router({
           hstsSubdomains: z.boolean().optional(),
           trustUpstreamHeaders: z.boolean().optional(),
           skipTlsVerify: z.boolean().optional(),
+          upstreamProtocol: z.enum(['http', 'https-trusted', 'https-insecure']).optional(),
+          upstreamSni: z.string().nullable().optional(),
         }),
       }),
     )
@@ -607,6 +617,8 @@ export const routesRouter = router({
       if (p.forceSSL !== undefined) update.forceSSL = p.forceSSL
       if (p.hstsEnabled !== undefined) update.hstsEnabled = p.hstsEnabled
       if (p.skipTlsVerify !== undefined) update.skipTlsVerify = p.skipTlsVerify
+      if (p.upstreamProtocol !== undefined) update.upstreamProtocol = p.upstreamProtocol
+      if (p.upstreamSni !== undefined) update.upstreamSni = p.upstreamSni
       if (p.hstsSubdomains !== undefined) update.hstsSubdomains = p.hstsSubdomains
       if (p.trustUpstreamHeaders !== undefined) update.trustUpstreamHeaders = p.trustUpstreamHeaders
 
@@ -930,5 +942,39 @@ export const routesRouter = router({
       }
 
       return route
+    }),
+
+  probe: protectedProcedure
+    .input(z.object({
+      host: z.string().min(1),
+      port: z.number().int().positive().max(65535),
+    }))
+    .mutation(async ({ input }) => {
+      const { probeUpstream } = await import('../upstreamProbe')
+      return probeUpstream(input.host, input.port)
+    }),
+
+  diagnostics: protectedProcedure
+    .input(z.object({ routeId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const row = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND' })
+      const route = rowToRoute(row)
+      const rawAddr = route.upstreams[0]?.address.replace(/^https?:\/\//, '') ?? ''
+      const colonIdx = rawAddr.lastIndexOf(':')
+      const diagHost = colonIdx !== -1 ? rawAddr.slice(0, colonIdx) : rawAddr
+      const diagPort = colonIdx !== -1 ? parseInt(rawAddr.slice(colonIdx + 1), 10) : 80
+      if (!diagHost) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Route has no upstream' })
+      const { probeUpstream } = await import('../upstreamProbe')
+      return {
+        configured: {
+          host: diagHost,
+          port: diagPort,
+          upstreamProtocol: route.upstreamProtocol ?? 'http',
+          upstreamSni: route.upstreamSni ?? null,
+        },
+        probe: await probeUpstream(diagHost, diagPort),
+        probedAt: new Date().toISOString(),
+      }
     }),
 })

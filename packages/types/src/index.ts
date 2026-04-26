@@ -124,6 +124,8 @@ export interface RouteInput {
   http2Enabled?: boolean
   http3Enabled?: boolean
   skipTlsVerify?: boolean
+  upstreamProtocol?: 'http' | 'https-trusted' | 'https-insecure'
+  upstreamSni?: string | null
 }
 
 export type WafMode = 'off' | 'detection' | 'blocking'

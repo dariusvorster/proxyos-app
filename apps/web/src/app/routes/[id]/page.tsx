@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Badge, Button, Card, DataTable, Dot, Input, Select, StatCard, td, th } from '~/components/ui'
 import { Topbar, PageContent } from '~/components/shell'
@@ -49,6 +49,11 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
     onSuccess: () => { setMxwatchMsg('Saved'); mxwatchData.refetch() },
     onError: e => setMxwatchMsg(`Error: ${e.message}`),
   })
+
+  const diagnostics = trpc.routes.diagnostics.useQuery(
+    { routeId: id },
+    { enabled: !!route, refetchOnWindowFocus: false, staleTime: 30_000 },
+  )
 
   const forceResync = trpc.routes.forceResync.useMutation({
     onSuccess: () => { setTimeout(() => routes.refetch(), 3000) },
@@ -373,6 +378,57 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
                 </button>
               </div>
             )}
+          </Card>
+        )}
+
+        {/* Upstream connection diagnostics */}
+        {route && (
+          <Card header={<span>Upstream connection</span>}>
+            {diagnostics.isLoading && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Probing…</div>}
+            {diagnostics.data && (() => {
+              const { configured, probe, probedAt } = diagnostics.data
+              const probeAge = Math.round((Date.now() - new Date(probedAt).getTime()) / 1000)
+              const ageLabel = probeAge < 60 ? `${probeAge}s ago` : `${Math.round(probeAge / 60)}m ago`
+              const protoLabel = configured.upstreamProtocol === 'https-insecure' ? 'HTTPS, self-signed' : configured.upstreamProtocol === 'https-trusted' ? 'HTTPS, trusted' : 'HTTP'
+              return (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.8 }}>
+                  <Row k="Configured" v={`${configured.host}:${configured.port} (${protoLabel})`} />
+                  <Row k="Last probe" v={ageLabel} />
+                  {probe.suggestion === null
+                    ? <>
+                        <Row k="Status" v={<span style={{ color: 'var(--red)' }}>✗ Cannot connect</span>} />
+                        {probe.error && (
+                          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(220,60,60,0.08)', borderRadius: 4, color: 'var(--red)', fontSize: 11 }}>
+                            ⚠ {probe.error}
+                            {configured.upstreamProtocol === 'http' && (
+                              <div style={{ marginTop: 4, color: 'var(--amber)' }}>Try changing upstream protocol to HTTPS (self-signed) if this service uses TLS.</div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    : <>
+                        <Row k="Status" v={<span style={{ color: 'var(--green)' }}>✓ Reachable</span>} />
+                        {probe.suggestion !== configured.upstreamProtocol && (
+                          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(220,140,0,0.08)', borderRadius: 4, color: 'var(--amber)', fontSize: 11, lineHeight: 1.5 }}>
+                            ⚠ Probe suggests <strong>{probe.suggestion}</strong> but route is configured as <strong>{configured.upstreamProtocol}</strong>.
+                            <div style={{ marginTop: 4 }}>
+                              <button onClick={() => updateRoute.mutate({ id, patch: { upstreamProtocol: probe.suggestion ?? undefined } })}
+                                style={{ background: 'none', border: '1px solid var(--amber)', borderRadius: 4, color: 'var(--amber)', fontSize: 10, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+                                Apply suggestion
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                  }
+                  <div style={{ marginTop: 10 }}>
+                    <Button variant="ghost" onClick={() => diagnostics.refetch()} disabled={diagnostics.isFetching}>
+                      {diagnostics.isFetching ? 'Probing…' : 'Re-probe now'}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
           </Card>
         )}
 
@@ -1365,4 +1421,13 @@ function statusTone(code: number): 'green' | 'amber' | 'red' | 'neutral' {
   if (code >= 400) return 'amber'
   if (code >= 300) return 'neutral'
   return 'green'
+}
+
+function Row({ k, v }: { k: string; v: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}>
+      <span style={{ color: 'var(--text-dim)', minWidth: 100 }}>{k}</span>
+      <span style={{ color: 'var(--text-secondary)' }}>{v}</span>
+    </div>
+  )
 }
