@@ -1,9 +1,11 @@
 import { TRPCError } from '@trpc/server'
 import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { routeSlos, sloCompliance, routes, routeRules, nanoid } from '@proxyos/db'
+import { routeSlos, sloCompliance, routes, routeRules, anomalyBaselines, nanoid } from '@proxyos/db'
 import { getSLOStatus } from '../intelligence/slo-tracker'
 import { getLatencyTrend } from '../intelligence/trend-analyser'
+import { updateBaseline, checkAnomaly } from '../intelligence/anomaly-detector'
+import type { AnomalyMetric } from '../intelligence/anomaly-detector'
 import { publicProcedure, operatorProcedure, router } from '../trpc'
 import { rowToRoute, syncRouteToCaddy } from './routes'
 
@@ -177,6 +179,44 @@ export const intelligenceRouter = router({
         if (routeRow) void syncRouteToCaddy(ctx, rowToRoute(routeRow)).catch(() => {})
       }
       return { ok: true }
+    }),
+
+  // ── Anomaly detection ─────────────────────────────────────────────────────
+
+  getAnomalyBaselines: publicProcedure
+    .input(z.object({ routeId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.select().from(anomalyBaselines)
+        .where(eq(anomalyBaselines.routeId, input.routeId))
+        .all()
+    }),
+
+  updateAnomalyBaseline: operatorProcedure
+    .input(z.object({
+      routeId: z.string(),
+      metric: z.enum(['req_per_min', 'error_rate', 'p95_latency']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await updateBaseline(ctx.db, input.routeId, input.metric as AnomalyMetric)
+      return { ok: true }
+    }),
+
+  checkAnomaly: publicProcedure
+    .input(z.object({
+      routeId: z.string(),
+      metric: z.enum(['req_per_min', 'error_rate', 'p95_latency']),
+      currentValue: z.number(),
+      sensitivity: z.number().default(2),
+      minBaselineDays: z.number().int().default(3),
+    }))
+    .query(async ({ ctx, input }) => {
+      const isAnomaly = await checkAnomaly(ctx.db, {
+        routeId: input.routeId,
+        metric: input.metric as AnomalyMetric,
+        sensitivity: input.sensitivity,
+        minBaselineDays: input.minBaselineDays,
+      }, input.currentValue)
+      return { isAnomaly }
     }),
 
   setTrafficSplit: publicProcedure
