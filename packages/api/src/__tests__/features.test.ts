@@ -6,7 +6,7 @@ import { eq, and } from 'drizzle-orm'
 import {
   getDb, users, routes as routesTable, trafficMetrics, ddnsRecords,
   dnsProviders, routeVersions, scheduledChanges, routeHealthScores,
-  anomalyBaselines, nanoid,
+  anomalyBaselines, healthChecks as healthChecksTable, nanoid,
 } from '@proxyos/db'
 import { CaddyClient } from '@proxyos/caddy'
 import { appRouter } from '../root'
@@ -483,5 +483,92 @@ describe('anomaly detection API', () => {
       minBaselineDays: 0,
     })
     expect(result.isAnomaly).toBe(true)
+  })
+})
+
+// ── Health check probing ───────────────────────────────────────────────────────
+describe('health check probing', () => {
+  let routeId: string
+
+  beforeAll(async () => {
+    routeId = await seedRoute(`hc-probe-${nanoid()}.test`)
+  })
+
+  afterAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test('run records healthy when upstream returns 200', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true, status: 200,
+      text: async () => 'OK',
+    }))
+    const caller = appRouter.createCaller(makeCtx())
+    const result = await caller.healthChecks.run({ routeId })
+    expect(result.overallStatus).toBe('healthy')
+    expect(result.statusCode).toBe(200)
+    expect(result.error).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
+  test('run records unhealthy when upstream returns 500', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: false, status: 500,
+      text: async () => 'Internal Server Error',
+    }))
+    const caller = appRouter.createCaller(makeCtx())
+    const result = await caller.healthChecks.run({ routeId })
+    expect(result.overallStatus).toBe('unhealthy')
+    expect(result.statusCode).toBe(500)
+    expect(result.error).toMatch(/500/)
+    vi.unstubAllGlobals()
+  })
+
+  test('run records unhealthy when fetch throws (connection refused)', async () => {
+    vi.stubGlobal('fetch', async () => { throw new Error('ECONNREFUSED') })
+    const caller = appRouter.createCaller(makeCtx())
+    const result = await caller.healthChecks.run({ routeId })
+    expect(result.overallStatus).toBe('unhealthy')
+    expect(result.error).toMatch(/ECONNREFUSED/)
+    vi.unstubAllGlobals()
+  })
+
+  test('run records degraded when body regex does not match', async () => {
+    const db = getDb()
+    await db.update(routesTable).set({ healthCheckBodyRegex: 'expected-string' }).where(eq(routesTable.id, routeId))
+    vi.stubGlobal('fetch', async () => ({
+      ok: true, status: 200,
+      text: async () => 'something-else',
+    }))
+    const caller = appRouter.createCaller(makeCtx())
+    const result = await caller.healthChecks.run({ routeId })
+    expect(result.overallStatus).toBe('degraded')
+    expect(result.bodyMatched).toBe(false)
+    await db.update(routesTable).set({ healthCheckBodyRegex: null }).where(eq(routesTable.id, routeId))
+    vi.unstubAllGlobals()
+  })
+
+  test('run result is persisted in listByRoute', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true, status: 200,
+      text: async () => '',
+    }))
+    const caller = appRouter.createCaller(makeCtx())
+    await caller.healthChecks.run({ routeId })
+    const history = await caller.healthChecks.listByRoute({ routeId })
+    expect(history.length).toBeGreaterThan(0)
+    expect(history[0]!.overallStatus).toBe('healthy')
+    vi.unstubAllGlobals()
+  })
+
+  test('runAll probes all health-check-enabled routes', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true, status: 200,
+      text: async () => '',
+    }))
+    const caller = appRouter.createCaller(makeCtx())
+    const result = await caller.healthChecks.runAll()
+    expect(result.checked).toBeGreaterThanOrEqual(1)
+    vi.unstubAllGlobals()
   })
 })

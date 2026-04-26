@@ -23,6 +23,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   const updateRoute = trpc.routes.update.useMutation()
 
   const healthHistory = trpc.healthChecks.listByRoute.useQuery({ routeId: id, limit: 50 })
+  const runHealthCheck = trpc.healthChecks.run.useMutation({ onSuccess: () => healthHistory.refetch() })
   const versionHistory = trpc.routeVersions.listByRoute.useQuery({ routeId: id })
   const rollbackMut = trpc.routeVersions.rollback.useMutation({
     onSuccess: () => { routes.refetch(); versionHistory.refetch() },
@@ -1152,7 +1153,7 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
 
         {/* Health check history */}
-        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Health check history — last {healthHistory.data?.length ?? 0} checks <HelpLink href="/docs/features/routes/health-checks" /></span>}>
+        <Card header={<span style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>Health check history — last {healthHistory.data?.length ?? 0} checks <HelpLink href="/docs/features/routes/health-checks" /><button onClick={() => runHealthCheck.mutate({ routeId: id })} disabled={runHealthCheck.isPending} style={{ marginLeft: 'auto', fontSize: 11 }}>{runHealthCheck.isPending ? 'Running…' : 'Run now'}</button></span>}>
           {(!healthHistory.data || healthHistory.data.length === 0) ? (
             <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text3)' }}>No health checks recorded yet.</div>
           ) : (
