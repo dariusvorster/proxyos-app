@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import { z } from 'zod'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, router } from '../trpc'
 
 const CADDY_SYSTEM_LOG = process.env.PROXYOS_CADDY_LOG ?? '/data/proxyos/caddy-system.log'
 const MAX_LINES = 500
@@ -32,7 +32,7 @@ function parseLine(line: string): CaddyLogEntry | null {
 }
 
 export const caddyLogsRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(MAX_LINES).default(200),
       level: z.enum(['info', 'warn', 'error', '']).optional(),

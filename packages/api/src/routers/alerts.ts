@@ -4,7 +4,7 @@ import { alertEvents, alertRules, auditLog, nanoid, systemSettings } from '@prox
 import type { AlertEvent, AlertRule, AlertRuleConfig, AlertType } from '@proxyos/types'
 import { sendTestEmail, sendTestWebhook } from '@proxyos/alerts'
 import type { SmtpConfig } from '@proxyos/alerts'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 const alertTypes = ['error_rate_spike', 'latency_spike', 'cert_expiring', 'traffic_spike'] as const
 
@@ -43,7 +43,7 @@ function rowToEvent(row: typeof alertEvents.$inferSelect): AlertEvent {
 }
 
 export const alertsRouter = router({
-  listRules: publicProcedure.query(async ({ ctx }) => {
+  listRules: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(alertRules)
     return rows.map(rowToRule)
   }),
@@ -139,7 +139,7 @@ export const alertsRouter = router({
       return { success: true }
     }),
 
-  listEvents: publicProcedure
+  listEvents: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(alertEvents).orderBy(desc(alertEvents.firedAt)).limit(input.limit)
@@ -148,7 +148,7 @@ export const alertsRouter = router({
 
   // ── Notification config ─────────────────────────────────────────────────────
 
-  getNotifyConfig: publicProcedure.query(async ({ ctx }) => {
+  getNotifyConfig: protectedProcedure.query(async ({ ctx }) => {
     const [smtpRow, webhookRow] = await Promise.all([
       ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_smtp')).get(),
       ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'alert_webhook')).get(),

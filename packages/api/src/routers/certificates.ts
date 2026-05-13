@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises'
 import { z } from 'zod'
 import { certIssuanceLog, certificates, nanoid, routes } from '@proxyos/db'
 import type { Certificate, CertSource, CertStatus } from '@proxyos/types'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { publicProcedure, protectedProcedure, operatorProcedure, router } from '../trpc'
 
 const CADDY_STORAGE_ROOT = '/data/caddy/caddy/certificates'
 const CA_DIRS = [
@@ -70,7 +70,7 @@ function sourceFromTlsMode(tlsMode: string): CertSource {
 }
 
 export const certificatesRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     await syncFromRoutes(ctx.db)
     const rows = await ctx.db.select().from(certificates)
     return rows.map(rowToCert).sort((a, b) => a.domain.localeCompare(b.domain))
@@ -131,6 +131,7 @@ export const certificatesRouter = router({
       return { id, domain: input.domain, expiresAt, message: 'Certificate loaded into Caddy.' }
     }),
 
+  // Public: same rationale as caddy.rootCA — devices need this to establish trust.
   getInternalCA: publicProcedure.query(async () => {
     const base = process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'
     try {
@@ -150,6 +151,7 @@ export const certificatesRouter = router({
     }
   }),
 
+  // Public: same rationale as caddy.rootCA — devices need this to establish trust.
   downloadRootCert: publicProcedure.query(async () => {
     const base = process.env.CADDY_ADMIN_URL ?? 'http://localhost:2019'
     try {
@@ -163,7 +165,7 @@ export const certificatesRouter = router({
     }
   }),
 
-  getRateLimitStatus: publicProcedure
+  getRateLimitStatus: protectedProcedure
     .input(z.object({ domain: z.string() }))
     .query(async ({ input, ctx }) => {
       // Extract eTLD+1: take last 2 parts of domain

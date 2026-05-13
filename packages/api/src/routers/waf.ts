@@ -1,10 +1,10 @@
 import { desc, eq, gte } from 'drizzle-orm'
 import { z } from 'zod'
 import { wafEvents, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const wafRouter = router({
-  listEvents: publicProcedure
+  listEvents: protectedProcedure
     .input(z.object({
       routeId: z.string().optional(),
       limit: z.number().int().min(1).max(500).default(100),

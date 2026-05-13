@@ -2,17 +2,17 @@ import { TRPCError } from '@trpc/server'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { routeTags, routes, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const tagsRouter = router({
-  listByRoute: publicProcedure
+  listByRoute: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(routeTags).where(eq(routeTags.routeId, input.routeId))
       return rows.map(r => r.tag)
     }),
 
-  listAll: publicProcedure.query(async ({ ctx }) => {
+  listAll: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .selectDistinct({ tag: routeTags.tag })
       .from(routeTags)
@@ -51,7 +51,7 @@ export const tagsRouter = router({
       return { success: true }
     }),
 
-  listRoutesByTag: publicProcedure
+  listRoutesByTag: protectedProcedure
     .input(z.object({ tag: z.string() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select({ routeId: routeTags.routeId }).from(routeTags).where(eq(routeTags.tag, input.tag))

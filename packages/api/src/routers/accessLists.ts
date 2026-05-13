@@ -10,7 +10,7 @@ import {
   routes,
   nanoid,
 } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 // bcryptjs is not in package.json — using SHA-256 for password hashing.
 // NOTE: Replace with bcrypt when bcryptjs is added as a dependency.
@@ -42,7 +42,7 @@ const createInput = z.object({
 const updateInput = createInput.extend({ id: z.string() })
 
 export const accessListsRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(accessLists)
     const result = await Promise.all(
       rows.map(async (al) => {
@@ -69,7 +69,7 @@ export const accessListsRouter = router({
     return result
   }),
 
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const al = await ctx.db

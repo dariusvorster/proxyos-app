@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { streams, nanoid, auditLog, systemLog } from '@proxyos/db'
 import { buildLogEntry } from './systemLog'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 import net from 'net'
 
 const portSchema = z.number().int().min(1).max(65535)
@@ -46,12 +46,12 @@ async function probeTcp(host: string, port: number, timeoutMs = 3000): Promise<{
 }
 
 export const streamsRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(streams)
     return rows.map(rowToStream)
   }),
 
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(streams).where(eq(streams.id, input.id)).get()

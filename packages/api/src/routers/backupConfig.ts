@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { routes, ssoProviders, dnsProviders, apiKeys, alertRules, routeTemplates, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { adminProcedure, operatorProcedure, router } from '../trpc'
 import { eq } from 'drizzle-orm'
 
 const EXPORT_VERSION = 1
 
 export const backupConfigRouter = router({
-  export: publicProcedure.query(async ({ ctx }) => {
+  export: adminProcedure.query(async ({ ctx }) => {
     const [allRoutes, allSso, allDns, allKeys, allAlerts, allTemplates] = await Promise.all([
       ctx.db.select().from(routes).all(),
       ctx.db.select().from(ssoProviders).all(),

@@ -7,10 +7,10 @@ import { CloudflareAdapter } from '@proxyos/connect/cloudflare'
 import { buildChainNodes } from '../chain/builder'
 import { rollupStatus } from '../chain/health'
 import { debugChain } from '../chain/debugger'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const chainRouter = router({
-  getForRoute: publicProcedure
+  getForRoute: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .query(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
@@ -19,7 +19,7 @@ export const chainRouter = router({
       return { nodes, rollup: rollupStatus(nodes) }
     }),
 
-  debugChain: publicProcedure
+  debugChain: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
@@ -38,7 +38,7 @@ export const chainRouter = router({
       return debugChain(route.domain, upstreamUrl, ssoForwardAuthUrl)
     }),
 
-  autoConfigSso: publicProcedure
+  autoConfigSso: operatorProcedure
     .input(z.object({ routeId: z.string(), connectionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
@@ -57,7 +57,7 @@ export const chainRouter = router({
       return { ok: true, domain: route.domain, adapterType: adapter.type }
     }),
 
-  fixDns: publicProcedure
+  fixDns: operatorProcedure
     .input(z.object({ routeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const route = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()

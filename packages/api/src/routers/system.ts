@@ -1,22 +1,22 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { systemSettings } from '@proxyos/db'
-import { publicProcedure, adminProcedure, router } from '../trpc'
+import { protectedProcedure, adminProcedure, router } from '../trpc'
 
 export const systemRouter = router({
-  caddyStatus: publicProcedure.query(async ({ ctx }) => {
+  caddyStatus: protectedProcedure.query(async ({ ctx }) => {
     const reachable = await ctx.caddy.health()
     const hasMain = reachable ? await ctx.caddy.hasServer('main') : false
     return { reachable, hasMain }
   }),
 
-  deploymentMode: publicProcedure.query(() => {
+  deploymentMode: protectedProcedure.query(() => {
     const tier = (process.env.PROXYOS_TIER ?? 'homelab') as 'homelab' | 'cloud'
     const mode = (process.env.PROXYOS_MODE ?? 'standalone') as 'central' | 'node' | 'standalone'
     return { tier, mode }
   }),
 
-  getForceHttps: publicProcedure.query(async ({ ctx }) => {
+  getForceHttps: protectedProcedure.query(async ({ ctx }) => {
     const row = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'force_https')).get()
     return { enabled: row?.value === 'true' }
   }),

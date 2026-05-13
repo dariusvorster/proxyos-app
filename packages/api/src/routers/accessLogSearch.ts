@@ -1,10 +1,10 @@
 import { and, desc, eq, gte, like, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { accessLog } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, router } from '../trpc'
 
 export const accessLogSearchRouter = router({
-  search: publicProcedure
+  search: protectedProcedure
     .input(z.object({
       routeId: z.string().optional(),
       query: z.string().optional(),
@@ -44,7 +44,7 @@ export const accessLogSearchRouter = router({
       return rows
     }),
 
-  quickFilters: publicProcedure
+  quickFilters: protectedProcedure
     .input(z.object({ routeId: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       const since24h = new Date(Date.now() - 86_400_000)

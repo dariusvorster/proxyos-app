@@ -1,10 +1,10 @@
 import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { auditLog } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, router } from '../trpc'
 
 export const auditRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(
       z.object({
         resourceType: z.string().optional(),

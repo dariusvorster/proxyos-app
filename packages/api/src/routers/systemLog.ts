@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, like, lte, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, systemLog } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
 
 export type LogLevel = 'info' | 'warn' | 'error'
 export type LogCategory = 'auth' | 'caddy' | 'system' | 'api' | 'user'
@@ -22,7 +22,7 @@ const LevelEnum = z.enum(['info', 'warn', 'error'])
 const CategoryEnum = z.enum(['auth', 'caddy', 'system', 'api', 'user'])
 
 export const systemLogRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       level: LevelEnum.optional(),
       category: CategoryEnum.optional(),
@@ -57,7 +57,7 @@ export const systemLogRouter = router({
       }))
     }),
 
-  add: publicProcedure
+  add: operatorProcedure
     .input(z.object({
       level: LevelEnum,
       category: CategoryEnum,
@@ -70,7 +70,7 @@ export const systemLogRouter = router({
       return { ok: true }
     }),
 
-  counts: publicProcedure.query(async ({ ctx }) => {
+  counts: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({ level: systemLog.level, count: sql<number>`count(*)` })
       .from(systemLog)
@@ -80,7 +80,7 @@ export const systemLogRouter = router({
     return out
   }),
 
-  clear: publicProcedure
+  clear: adminProcedure
     .input(z.object({ olderThanDays: z.number().min(1).max(365).default(30) }))
     .mutation(async ({ ctx, input }) => {
       const cutoff = new Date(Date.now() - input.olderThanDays * 86_400_000)
