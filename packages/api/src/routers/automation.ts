@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { composeWatchers, nanoid } from '@proxyos/db'
 import { startWatcher, stopWatcher, activeWatcherIds } from '../automation/compose-watcher'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const automationRouter = router({
-  listComposeWatchers: publicProcedure.query(async ({ ctx }) => {
+  listComposeWatchers: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(composeWatchers).all()
     const active = new Set(activeWatcherIds())
     return rows.map(r => ({ ...r, running: active.has(r.id) }))

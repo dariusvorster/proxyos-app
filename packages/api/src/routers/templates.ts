@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, routeTemplates } from '@proxyos/db'
 import { BUILT_IN_TEMPLATES } from '../automation/built-in-templates'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const templatesRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const userRows = await ctx.db.select().from(routeTemplates).all()
     const user = userRows.map(r => ({
       id: r.id,
@@ -26,7 +26,7 @@ export const templatesRouter = router({
     return [...builtIn, ...user]
   }),
 
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const builtin = BUILT_IN_TEMPLATES.find(t => t.id === input.id)

@@ -17,7 +17,7 @@ import {
   deactivateLicenceKey,
   deriveEntitlementFeatures,
 } from '@proxyos/billing'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, adminProcedure, router } from '../trpc'
 
 const PRODUCT = (process.env.HOMELABOS_PRODUCT ?? 'proxyos') as 'proxyos'
 
@@ -30,7 +30,7 @@ export const billingRouter = router({
 
   // ── Current state ────────────────────────────────────────────────────────────
 
-  getSubscription: publicProcedure.query(async ({ ctx }) => {
+  getSubscription: protectedProcedure.query(async ({ ctx }) => {
     const sub = await ctx.db
       .select()
       .from(billingSubscriptions)
@@ -46,7 +46,7 @@ export const billingRouter = router({
     return sub ?? null
   }),
 
-  getTrialSubscription: publicProcedure.query(async ({ ctx }) => {
+  getTrialSubscription: protectedProcedure.query(async ({ ctx }) => {
     const sub = await ctx.db
       .select()
       .from(billingSubscriptions)
@@ -62,7 +62,7 @@ export const billingRouter = router({
     return sub ?? null
   }),
 
-  getEntitlements: publicProcedure
+  getEntitlements: protectedProcedure
     .input(z.object({ userId: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       if (input.userId) {
@@ -88,7 +88,7 @@ export const billingRouter = router({
       return deriveEntitlementFeatures(PRODUCT, 'free', 'free', null)
     }),
 
-  getLicence: publicProcedure.query(async ({ ctx }) => {
+  getLicence: protectedProcedure.query(async ({ ctx }) => {
     const key = await ctx.db
       .select()
       .from(licenceKeys)
@@ -104,7 +104,7 @@ export const billingRouter = router({
     return key ?? null
   }),
 
-  getEvents: publicProcedure.query(async ({ ctx }) => {
+  getEvents: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select()
       .from(billingEvents)
@@ -115,7 +115,7 @@ export const billingRouter = router({
 
   // ── Checkout ─────────────────────────────────────────────────────────────────
 
-  createCheckout: publicProcedure
+  createCheckout: adminProcedure
     .input(
       z.object({
         plan: z.enum(['solo', 'teams']),
@@ -156,7 +156,7 @@ export const billingRouter = router({
 
   // ── Customer portal ───────────────────────────────────────────────────────────
 
-  getPortalUrl: publicProcedure
+  getPortalUrl: adminProcedure
     .input(z.object({ lsCustomerId: z.string() }))
     .query(async ({ input }) => {
       const url = await getCustomerPortalUrl(input.lsCustomerId)
@@ -165,7 +165,7 @@ export const billingRouter = router({
 
   // ── Licence key (self-hosted) ────────────────────────────────────────────────
 
-  activateLicence: publicProcedure
+  activateLicence: adminProcedure
     .input(
       z.object({
         licenceKey: z.string().min(1),
@@ -241,7 +241,7 @@ export const billingRouter = router({
       return { ok: true, plan: result.plan }
     }),
 
-  deactivateLicence: publicProcedure
+  deactivateLicence: adminProcedure
     .input(z.object({ licenceKey: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const key = await ctx.db
@@ -265,7 +265,7 @@ export const billingRouter = router({
 
   // ── MRR (simple) ────────────────────────────────────────────────────────────
 
-  getMrr: publicProcedure.query(async ({ ctx }) => {
+  getMrr: adminProcedure.query(async ({ ctx }) => {
     const subs = await ctx.db
       .select()
       .from(billingSubscriptions)
@@ -300,7 +300,7 @@ export const billingRouter = router({
 
   // ── Webhook dedup log ────────────────────────────────────────────────────────
 
-  getWebhookEvents: publicProcedure
+  getWebhookEvents: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
     .query(async ({ ctx, input }) => {
       return ctx.db

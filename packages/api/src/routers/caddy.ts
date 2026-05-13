@@ -5,10 +5,10 @@ import { buildCaddyRoute, buildTlsPolicy, buildTlsConnectionPolicy, validateCadd
 import { dnsProviders, routes, routeRules, routeSecurity, ssoProviders, systemSettings } from '@proxyos/db'
 import { eq } from 'drizzle-orm'
 import type { DnsProvider, DnsProviderType, Route, RouteRule, SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { publicProcedure, protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const caddyRouter = router({
-  status: publicProcedure.query(async ({ ctx }) => {
+  status: protectedProcedure.query(async ({ ctx }) => {
     const reachable = await ctx.caddy.health()
     const hasMain = reachable ? await ctx.caddy.hasServer('main') : false
     let upstreamCount = 0
@@ -22,13 +22,15 @@ export const caddyRouter = router({
     return { reachable, hasMain, upstreamCount }
   }),
 
-  config: publicProcedure.query(async ({ ctx }) => {
+  config: protectedProcedure.query(async ({ ctx }) => {
     if (!(await ctx.caddy.health())) {
       throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: 'Caddy admin API not reachable' })
     }
     return await ctx.caddy.getConfig()
   }),
 
+  // Public: agents and devices need to download the root CA to trust ProxyOS-issued certs.
+  // No sensitive data exposed (it's a public certificate by design).
   rootCA: publicProcedure.query(async ({ ctx }) => {
     if (!(await ctx.caddy.health())) {
       throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: 'Caddy admin API not reachable' })

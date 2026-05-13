@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { tunnelProviders, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 const credentialsSchema = z.object({
   // Cloudflare Tunnel
@@ -18,7 +18,7 @@ const credentialsSchema = z.object({
 })
 
 export const tunnelProvidersRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(tunnelProviders)
     return rows.map(r => ({
       id: r.id,

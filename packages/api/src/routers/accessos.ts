@@ -2,10 +2,10 @@ import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { routes, ssoProviders } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const accessosRouter = router({
-  getConfig: publicProcedure
+  getConfig: protectedProcedure
     .input(z.object({ routeId: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(routes).where(eq(routes.id, input.routeId)).get()
@@ -44,7 +44,7 @@ export const accessosRouter = router({
     }),
 
   // List SSO providers that can act as an AccessOS OIDC provider
-  listProviders: publicProcedure.query(async ({ ctx }) => {
+  listProviders: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(ssoProviders).all()
     return rows.map(p => ({ id: p.id, name: p.name, type: p.type, enabled: p.enabled }))
   }),

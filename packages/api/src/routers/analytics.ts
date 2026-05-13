@@ -1,10 +1,10 @@
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { accessLog, routes, trafficMetrics, slowRequests } from '@proxyos/db'
-import { publicProcedure, router } from '../trpc'
+import { protectedProcedure, router } from '../trpc'
 
 export const analyticsRouter = router({
-  summary: publicProcedure
+  summary: protectedProcedure
     .input(z.object({ routeId: z.string(), windowMinutes: z.number().min(1).max(1440).default(60) }))
     .query(async ({ ctx, input }) => {
       const since = Date.now() - input.windowMinutes * 60_000
@@ -31,7 +31,7 @@ export const analyticsRouter = router({
       }
     }),
 
-  topRoutes: publicProcedure
+  topRoutes: protectedProcedure
     .input(z.object({ windowMinutes: z.number().min(1).max(43200).default(1440), limit: z.number().min(1).max(50).default(10) }))
     .query(async ({ ctx, input }) => {
       const since = Date.now() - input.windowMinutes * 60_000
@@ -60,14 +60,14 @@ export const analyticsRouter = router({
         .slice(0, input.limit)
     }),
 
-  errors: publicProcedure
+  errors: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(accessLog).orderBy(desc(accessLog.recordedAt)).limit(input.limit * 4)
       return rows.filter((r) => (r.statusCode ?? 0) >= 500).slice(0, input.limit)
     }),
 
-  accessLog: publicProcedure
+  accessLog: protectedProcedure
     .input(z.object({ routeId: z.string().optional(), limit: z.number().min(1).max(500).default(100) }))
     .query(async ({ ctx, input }) => {
       const base = ctx.db.select().from(accessLog)
@@ -77,7 +77,7 @@ export const analyticsRouter = router({
       return rows
     }),
 
-  recentRequests: publicProcedure
+  recentRequests: protectedProcedure
     .input(z.object({ routeId: z.string(), limit: z.number().min(1).max(100).default(20) }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db
@@ -90,7 +90,7 @@ export const analyticsRouter = router({
     }),
 
   // §9.9 Bandwidth billing view
-  bandwidth: publicProcedure
+  bandwidth: protectedProcedure
     .input(z.object({
       routeId: z.string().optional(),
       windowDays: z.number().int().min(1).max(90).default(30),
@@ -128,7 +128,7 @@ export const analyticsRouter = router({
     }),
 
   // §9.8 Slow request log
-  slowRequests: publicProcedure
+  slowRequests: protectedProcedure
     .input(z.object({
       routeId: z.string().optional(),
       thresholdMs: z.number().int().min(1).default(1000),
@@ -145,7 +145,7 @@ export const analyticsRouter = router({
     }),
 
   // §9.7 Live heatmap — last-60s per-route counts
-  liveMetrics: publicProcedure
+  liveMetrics: protectedProcedure
     .query(async ({ ctx }) => {
       const since = Date.now() - 60_000
       const rows = await ctx.db.select().from(accessLog).where(gte(accessLog.recordedAt, new Date(since)))

@@ -2,10 +2,10 @@ import { TRPCError } from '@trpc/server'
 import { and, eq, gte, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { trafficReplayLogs, routes, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 export const trafficReplayRouter = router({
-  listByRoute: publicProcedure
+  listByRoute: protectedProcedure
     .input(z.object({
       routeId: z.string(),
       limit: z.number().int().min(1).max(500).default(100),
@@ -90,7 +90,7 @@ export const trafficReplayRouter = router({
       return { success: true }
     }),
 
-  exportNdjson: publicProcedure
+  exportNdjson: operatorProcedure
     .input(z.object({ routeId: z.string() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(trafficReplayLogs)

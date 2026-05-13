@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { nanoid, pendingChanges, routeOwnership, systemLog, systemSettings, users } from '@proxyos/db'
-import { publicProcedure, protectedProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
+import { publicProcedure, protectedProcedure, operatorProcedure, adminProcedure, firstRunProcedure, router } from '../trpc'
 import { generateTotpSecret, verifyTotp, buildOtpAuthUri } from '../totp'
 import QRCode from 'qrcode'
 import { signToken, makeTokenCookie, clearTokenCookie } from '../auth'
@@ -129,7 +129,7 @@ export const usersRouter = router({
     return { ok: true, __setCookie: setCookie }
   }),
 
-  register: publicProcedure
+  register: firstRunProcedure
     .input(z.object({ email: z.string().email(), password: z.string().min(8), displayName: z.string().min(1).optional() }))
     .mutation(async ({ ctx, input }) => {
       const ipKey = `register:ip:${ctx.clientIp}`

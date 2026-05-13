@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { and, eq, gte } from 'drizzle-orm'
 import { z } from 'zod'
 import { agents, agentMetrics, revokedAgentTokens, nanoid } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 import { createHash } from 'crypto'
 
 // Simple deterministic JWT using HMAC-SHA256 (no external dependency)
@@ -41,12 +41,12 @@ function rowToAgent(row: typeof agents.$inferSelect) {
 }
 
 export const agentsRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(agents).all()
     return rows.map(rowToAgent)
   }),
 
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.select().from(agents).where(eq(agents.id, input.id)).get()
@@ -105,7 +105,7 @@ export const agentsRouter = router({
       return { ok: true }
     }),
 
-  getMetrics: publicProcedure
+  getMetrics: protectedProcedure
     .input(z.object({
       id: z.string(),
       routeId: z.string().optional(),
@@ -126,7 +126,7 @@ export const agentsRouter = router({
       return rows
     }),
 
-  getHealth: publicProcedure
+  getHealth: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const agent = await ctx.db.select().from(agents).where(eq(agents.id, input.id)).get()

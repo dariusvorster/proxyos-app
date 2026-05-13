@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { CaddyClient } from '@proxyos/caddy'
-import { getDb } from '@proxyos/db'
+import { getDb, users } from '@proxyos/db'
 import { verifyToken, getTokenFromCookies } from './auth'
 import { resolveApiKey } from './apiKeyAuth'
 
@@ -78,6 +78,18 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin role required' })
   }
   return next({ ctx: { ...ctx, session: ctx.session } })
+})
+
+/** First-run-only — allows the call ONLY when zero users exist. After bootstrap, returns FORBIDDEN. */
+export const firstRunProcedure = t.procedure.use(async ({ ctx, next }) => {
+  const existing = await ctx.db.select({ id: users.id }).from(users).limit(1).all()
+  if (existing.length > 0) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Public registration is disabled. Contact an administrator for access.',
+    })
+  }
+  return next({ ctx })
 })
 
 /** API token with a required scope — used by machine-to-machine integrations (e.g. InfraOS) */

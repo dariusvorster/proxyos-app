@@ -12,7 +12,7 @@ import {
   TUNNEL_PORTS,
 } from '@proxyos/tunnels'
 import type { TunnelProvider, CloudflareTunnelCreds, TailscaleFunnelCreds, NgrokCreds } from '@proxyos/tunnels'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 type ProviderRow = typeof tunnelProviders.$inferSelect
 
@@ -83,7 +83,7 @@ function buildTunnelCaddyRoute(routeId: string, domain: string, upstreamDial: st
 
 export const tunnelsRouter = router({
   providers: router({
-    list: publicProcedure.query(async ({ ctx }) => {
+    list: protectedProcedure.query(async ({ ctx }) => {
       const rows = await ctx.db.select().from(tunnelProviders)
       return rows.map(r => ({
         id: r.id,
@@ -100,7 +100,7 @@ export const tunnelsRouter = router({
       }))
     }),
 
-    get: publicProcedure
+    get: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ ctx, input }) => {
         const row = await ctx.db.select().from(tunnelProviders).where(eq(tunnelProviders.id, input.id)).get()
@@ -249,7 +249,7 @@ export const tunnelsRouter = router({
         return result
       }),
 
-    logs: publicProcedure
+    logs: protectedProcedure
       .input(z.object({ id: z.string(), lines: z.number().int().min(1).max(1000).default(200) }))
       .query(({ input }) => {
         return tunnelManager.getLogs(input.id, input.lines)
@@ -503,7 +503,7 @@ export const tunnelsRouter = router({
   }),
 
   events: router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({
         tunnelProviderId: z.string().optional(),
         routeId: z.string().optional(),

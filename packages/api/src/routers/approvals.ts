@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid, pendingChanges, systemSettings, users } from '@proxyos/db'
-import { publicProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, adminProcedure, router } from '../trpc'
 
 const ApprovalConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -15,7 +15,7 @@ export const approvalsRouter = router({
 
   // ── Config ──────────────────────────────────────────────────────────────────
 
-  getConfig: publicProcedure.query(async ({ ctx }) => {
+  getConfig: protectedProcedure.query(async ({ ctx }) => {
     const row = await ctx.db.select().from(systemSettings).where(eq(systemSettings.key, 'approval_config')).get()
     if (!row) return ApprovalConfigSchema.parse({})
     try { return ApprovalConfigSchema.parse(JSON.parse(row.value)) } catch { return ApprovalConfigSchema.parse({}) }
@@ -32,7 +32,7 @@ export const approvalsRouter = router({
 
   // ── Pending changes ─────────────────────────────────────────────────────────
 
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({ status: z.enum(['pending', 'approved', 'rejected', 'all']).default('pending') }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(pendingChanges).orderBy(desc(pendingChanges.requestedAt)).all()

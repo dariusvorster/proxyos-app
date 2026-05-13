@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { auditLog, nanoid, ssoProviders } from '@proxyos/db'
 import { getDriver, testForwardAuth } from '@proxyos/sso'
 import type { SSOProvider, SSOProviderType } from '@proxyos/types'
-import { publicProcedure, operatorProcedure, router } from '../trpc'
+import { protectedProcedure, operatorProcedure, router } from '../trpc'
 
 const providerTypes = ['authentik', 'authelia', 'keycloak', 'zitadel'] as const
 
@@ -24,7 +24,7 @@ function rowToProvider(row: typeof ssoProviders.$inferSelect): SSOProvider {
 }
 
 export const ssoRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.select().from(ssoProviders)
     return rows.map(rowToProvider)
   }),
